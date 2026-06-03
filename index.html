@@ -67,7 +67,29 @@ main { display: flex; height: calc(100vh - 35px); }
   background: #101010;
 }
 #viz { flex: 1; position: relative; background: #000; overflow: hidden; }
-canvas#plot { width: 100%; height: 100%; display: block; }
+/* CSS fullscreen fallback (mobile / iOS where the Fullscreen API is unavailable) */
+body.viz-max #viz { position: fixed; inset: 0; z-index: 9999; width: 100vw; height: 100vh; }
+body.viz-max #controls { display: none; }
+canvas#plot { width: 100%; height: 100%; display: block; transform-origin: 0 0; will-change: transform; cursor: grab; }
+canvas#plot.panning { cursor: grabbing; }
+#viz-ctrls { position: absolute; top: 10px; right: 10px; display: flex; gap: 5px; z-index: 5; }
+#viz-ctrls button {
+  width: 30px; height: 30px; padding: 0; font-size: 16px; line-height: 1;
+  background: rgba(10,12,16,0.78); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 7px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+#viz-ctrls button:hover { border-color: var(--accent); color: var(--accent); }
+#viz-ctrls button.active { border-color: var(--accent); color: var(--accent); background: #122430; }
+#zoom-hint {
+  position: absolute; bottom: 8px; right: 10px; z-index: 5;
+  font-size: 10px; color: var(--muted); background: rgba(10,12,16,0.6);
+  padding: 3px 7px; border-radius: 5px; pointer-events: none;
+  opacity: 0; transition: opacity 0.3s;
+}
+#viz:hover #zoom-hint { opacity: 0.7; }
+#viz:fullscreen { background: #000; }
+#viz:-webkit-full-screen { background: #000; }
 
 .group {
   border: 1px solid var(--border);
@@ -253,6 +275,31 @@ button.export-btn:hover { background: #201800; }
   }
   input[type=range]::-moz-range-track { height: 4px; background: var(--border); border-radius: 2px; }
 }
+
+/* ---- Structure section toggle buttons ---- */
+.sec-btn.active { border-color: var(--green); color: var(--green); background: #0f2418; font-weight: 700; }
+.mo-btn.active  { border-color: var(--purple); color: var(--purple); background: #1a1226; font-weight: 700; }
+/* ---- Playback order symbol buttons ---- */
+.ord-btn.active { border-color: var(--accent); color: var(--accent); background: #122430; font-weight: 700; }
+/* ---- Direction buttons ---- */
+#btn-fwd, #btn-rev, #btn-fwd.active, #btn-rev.active { flex: 1; }
+/* ---- Collapsible accordions (details/summary) ---- */
+details.acc { padding: 0; }
+details.acc > summary {
+  list-style: none; cursor: pointer;
+  font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 1px;
+  padding: 7px; user-select: none;
+}
+details.acc > summary::-webkit-details-marker { display: none; }
+details.acc > summary::before { content: '▸ '; color: var(--accent); }
+details.acc[open] > summary::before { content: '▾ '; }
+details.acc > summary:hover { color: var(--accent); }
+details.acc > *:not(summary) { padding: 0 7px; }
+details.acc > *:last-child { padding-bottom: 8px; }
+details.acc[open] { padding-bottom: 0; }
+/* Autopilot active highlight */
+#ap-toggle.active { border-color: var(--green); color: var(--green); background: #0f2418; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -270,57 +317,126 @@ button.export-btn:hover { background: #201800; }
 <main>
 <div id="controls">
 
-  <div class="group">
-    <h2>Transport</h2>
+  <!-- ============================ SMART DEMO ============================ -->
+  <details class="group acc" id="acc-demo">
+    <summary>Smart demo</summary>
+    <div class="btn-row">
+      <button id="ap-toggle" class="primary">▶ smart demo</button>
+      <button id="ap-next" title="jump to the next scene now">next scene ▶</button>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:4px">
+      A guided tour: the engine moves itself through contrasting characters of sound —
+      small &amp; consonant to large &amp; dense, slow to fast, different structures.
+    </div>
+    <div style="font-size:10px;color:var(--accent);margin-top:4px" id="ap-scene">—</div>
+  </details>
+
+  <!-- ============================ TRANSPORT ============================ -->
+  <details class="group acc" id="acc-transport">
+    <summary>Transport</summary>
     <div class="row">
-      <label>Playmode</label>
-      <select id="playmode">
-        <option value="0">0 — all</option>
-        <option value="1">1 — prelude</option>
-        <option value="2">2 — pre+post</option>
-        <option value="3">3 — postlude</option>
-        <option value="4">4 — main only</option>
-      </select>
+      <label>p</label>
+      <button id="btn-p-down" title="previous prime">◀</button>
+      <input type="number" id="p-num" value="11" min="3" max="99999" step="1" style="width:62px;text-align:center">
+      <button id="btn-p-up" title="next prime">▶</button>
     </div>
     <div class="row">
-      <label>BPM</label>
-      <input type="range" id="bpm" min="5" max="999" step="1" value="60">
-      <input type="number" id="bpm-num" min="5" max="999" step="1" value="60" style="width:52px">
+      <label>r</label>
+      <button id="btn-r-down" title="r − 1 (wraps prelude↔postlude in 'all')">◀</button>
+      <input type="number" id="r-num" value="1" min="1" step="1" style="width:62px;text-align:center">
+      <button id="btn-r-up" title="r + 1 (wraps prelude↔postlude in 'all')">▶</button>
     </div>
-    <div class="row">
-      <label>p (live)</label>
-      <button id="btn-p-down">◀ p−</button>
+    <div class="row" style="font-size:11px;color:var(--muted)">
+      <span>live:</span>
       <span id="live-p" style="flex:1;text-align:center;color:var(--accent);font-weight:700">—</span>
-      <button id="btn-p-up">p+ ▶</button>
-    </div>
-    <div class="row">
-      <label>r (live)</label>
-      <button id="btn-r-down">◀ r−</button>
       <span id="live-r" style="flex:1;text-align:center;color:var(--accent2);font-weight:700">—</span>
-      <button id="btn-r-up">r+ ▶</button>
     </div>
-  </div>
-
-  <div class="group">
-    <h2>Structural motion</h2>
+    <div class="row" style="margin-top:5px">
+      <label>direction</label>
+      <button id="btn-fwd" class="active" title="play forward">▶ forward</button>
+      <button id="btn-rev" title="play reversed">◀ reverse</button>
+    </div>
+    <div class="row" style="margin-top:5px">
+      <label>tempo (BPM)</label>
+      <input type="range" id="bpm" min="5" max="999" step="1" value="60">
+      <input type="number" id="bpm-num" min="5" max="999" step="1" value="60" style="width:56px">
+    </div>
     <div class="row">
-      <label>Motion mode</label>
-      <select id="motion-mode">
-        <option value="0">0 — linear sections</option>
-        <option value="5">5 — pre/post converge</option>
-        <option value="6">6 — self converge</option>
+      <label>pitch map</label>
+      <select id="harm-mode">
+        <option value="0">LOG-EQ</option>
+        <option value="1" selected>RATIONAL (k/n²)</option>
       </select>
     </div>
-    <div style="font-size:10px; color:var(--muted); margin-top:2px">Motion is independent from Playmode: linear / pre-post converge / self converge are available with all / prelude / postlude / pre+post.</div>
-  </div>
+    <div class="chk-row" style="margin-top:4px"><input type="checkbox" id="gliss-a"><label for="gliss-a">Gliss a-layer</label></div>
+    <div class="chk-row"><input type="checkbox" id="gliss-b"><label for="gliss-b">Gliss b-layer</label></div>
+    <div class="row" style="margin-top:6px"><label>freq min Hz</label>
+      <input type="range" id="fmin" min="20" max="2000" step="1" value="111">
+      <input type="number" id="fmin-num" min="20" max="2000" value="111" style="width:56px">
+    </div>
+    <div class="row"><label>freq max Hz</label>
+      <input type="range" id="fmax" min="40" max="8000" step="1" value="1332">
+      <input type="number" id="fmax-num" min="40" max="8000" value="1332" style="width:56px">
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin:8px 0 3px">order the r-values are visited in</div>
+    <div class="btn-row" id="reorderR-btns">
+      <button class="ord-btn active" data-grp="R" data-val="0" title="r: in plain ascending order — a smooth rising line">
+        <svg viewBox="0 0 28 16" width="30" height="16" aria-hidden="true"><polyline points="2,14 26,2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <button class="ord-btn" data-grp="R" data-val="1" title="r: all quadratic residues first, then non-residues — a jagged sweep">
+        <svg viewBox="0 0 28 16" width="30" height="16" aria-hidden="true"><polyline points="2,12 5,4 8,13 11,6 14,14 17,3 20,11 23,7 26,13" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      </button>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin:8px 0 3px">order the melody (a-voice) is built in</div>
+    <div class="btn-row" id="reorderA-btns" style="flex-wrap:wrap">
+      <button class="ord-btn active" data-grp="A" data-val="0" title="a: plain ascending order — a smooth rising line">
+        <svg viewBox="0 0 28 16" width="30" height="16" aria-hidden="true"><polyline points="2,14 26,2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <button class="ord-btn" data-grp="A" data-val="1" title="a: residues first, then non-residues — a jagged sweep">
+        <svg viewBox="0 0 28 16" width="30" height="16" aria-hidden="true"><polyline points="2,12 5,4 8,13 11,6 14,14 17,3 20,11 23,7 26,13" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      </button>
+      <button class="ord-btn" data-grp="A" data-val="2" title="a: residues/non-residues, rotated by the current r — a shifted jagged sweep">
+        <svg viewBox="0 0 28 16" width="30" height="16" aria-hidden="true"><polyline points="2,6 5,13 8,4 11,12 14,5 17,14 20,6 23,13 26,4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      </button>
+      <button class="ord-btn" data-grp="A" data-val="3" title="a: ascending, but starting from the current r — a rising ramp that wraps">
+        <svg viewBox="0 0 28 16" width="30" height="16" aria-hidden="true"><polyline points="2,9 12,2 12,14 26,7" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      </button>
+    </div>
+  </details>
 
-  <div class="group">
-    <h2>Goncharova configurations</h2>
+  <!-- ============================ STRUCTURE ============================ -->
+  <details class="group acc" id="acc-structure">
+    <summary>Structure</summary>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:4px">
+      Top row: which sections are <b>included</b> in playback.
+    </div>
+    <div class="btn-row" id="sec-btns">
+      <button id="sec-pre"  class="sec-btn active" data-sec="pre">prelude</button>
+      <button id="sec-main" class="sec-btn active" data-sec="main">main</button>
+      <button id="sec-post" class="sec-btn active" data-sec="post">postlude</button>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin:8px 0 4px">
+      Below: how prelude &amp; postlude <b>move</b> (choose one).
+    </div>
+    <div class="btn-row" style="flex-direction:column;gap:4px">
+      <button id="mo-linear"  class="mo-btn active" data-mo="linear"  title="a single line">— linear (single line)</button>
+      <button id="mo-prepost" class="mo-btn" data-mo="prepost" title="prelude: direct voice + postlude voice reversed; postlude: the reverse">⇄ pre/post converge (direct × reversed)</button>
+      <button id="mo-self"    class="mo-btn" data-mo="self"    title="each section against its own reversed rank">⟲ self-converge (against own mirror)</button>
+    </div>
+    <div class="chk-row" style="margin-top:8px"><input type="checkbox" id="sustain-on" checked><label for="sustain-on">sustain anchor notes (n ≤ √p)</label></div>
+    <div class="row" style="font-size:10px;margin-top:4px">
+      <span id="struct-state" style="flex:1;color:var(--muted)">all · linear</span>
+    </div>
+  </details>
+
+  <!-- ============================ GONCHAROVA ============================ -->
+  <details class="group acc" id="acc-goncharova">
+    <summary>Goncharova configurations</summary>
     <div style="font-size:10px;color:var(--muted);margin-bottom:5px">
-      Quadruples of residues mod p (p=4k+1), classified by which of the 6 pairwise
-      differences are quadratic residues. Each of the 11 graph types sounds as a
-      four-voice chord; the QR-difference edges (the "agreeing differences") ring as
-      a soft glue. In memory of Lydia Goncharova.
+      Quadruples of residues mod p (p=4k+1). Each of the 11 graph types sounds as a
+      four-voice chord (the four residues); every pair whose difference is a quadratic
+      residue adds a faint "glue" voice — so the lattice of agreeing differences is
+      audible, and each type sounds distinct. In memory of Lydia Goncharova.
     </div>
     <div class="row">
       <label>Graph type</label>
@@ -330,148 +446,54 @@ button.export-btn:hover { background: #201800; }
     <div class="row" style="font-size:11px">
       <span id="cfg-info" style="flex:1;color:var(--muted)">—</span>
     </div>
-    <div class="row">
-      <button id="cfg-prev">◀ prev</button>
+    <!-- play the whole sequence, or step one chord at a time -->
+    <div class="btn-row">
+      <button id="cfg-play" class="primary" title="play / stop the sequence of this type">▶ play</button>
+      <button id="cfg-dir" title="flip chord order &amp; arpeggio direction (independent of global reverse)">⇅ chord dir</button>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin:3px 0 0">
+      Chord order follows the <b>QR-rhythm</b> of the trigger position: at a residue
+      position chords climb low→high; at a non-residue they fall high→low. ⇅ and the
+      global reverse flip it. <span id="cfg-dir-state" style="color:var(--accent)"></span>
+    </div>
+    <div class="btn-row" style="margin-top:4px">
+      <button id="cfg-prev" title="previous chord (stops the sequence)">◀ prev chord</button>
       <span id="cfg-pos" style="flex:1;text-align:center;color:var(--accent);font-weight:700">—</span>
-      <button id="cfg-next">next ▶</button>
+      <button id="cfg-next" title="next chord (stops the sequence)">next chord ▶</button>
     </div>
-    <div class="row">
-      <button id="cfg-play" class="primary">▶ sound it</button>
-      <button id="cfg-demo">⟲ demo all</button>
+    <!-- multi-trigger: checked voices fire the chords as they play -->
+    <div style="font-size:10px;color:var(--muted);margin:8px 0 3px">trigger chords from these voices (choose any):</div>
+    <div id="cfg-trig" style="display:flex;flex-wrap:wrap;gap:8px;font-size:11px">
+      <label><input type="checkbox" class="cfg-trig" value="prelude"> prelude</label>
+      <label><input type="checkbox" class="cfg-trig" value="a"> a (melody)</label>
+      <label><input type="checkbox" class="cfg-trig" value="b"> b</label>
+      <label><input type="checkbox" class="cfg-trig" value="r"> r</label>
+      <label><input type="checkbox" class="cfg-trig" value="r2"> r²</label>
+      <label><input type="checkbox" class="cfg-trig" value="diag"> diag</label>
     </div>
-    <div style="font-size:10px;color:var(--muted)">Prev / next / "sound it" audition one quadruple. "demo all" steps through every quadruple of this type in turn (a standalone showcase, separate from the melody trigger).</div>
+    <div class="row" style="font-size:11px;gap:10px;margin-top:6px">
+      <label style="flex:0"><input type="checkbox" id="cfg-inset"> show chord graph (inset)</label>
+    </div>
     <div class="row" style="font-size:11px;gap:10px">
-      <label style="flex:0"><input type="checkbox" id="cfg-arp"> arpeggio</label>
+      <label style="flex:0"><input type="checkbox" id="cfg-arp"> arpeggiate chords</label>
     </div>
     <div class="row" id="cfg-arp-row">
       <label>arp note</label>
-      <input type="range" id="cfg-arp-sub" min="1" max="8" step="1" value="2">
+      <input type="range" id="cfg-arp-sub" min="2" max="17" step="1" value="2">
       <span id="cfg-arp-val" style="flex:0;min-width:34px;text-align:right;color:var(--muted)">1/2</span>
     </div>
     <div class="row">
-      <label>chord len</label>
-      <input type="range" id="cfg-dur" min="0.5" max="32" step="0.25" value="2">
-      <input type="number" id="cfg-dur-num" min="0.25" step="0.25" value="2" style="width:52px;display:none">
-      <span id="cfg-dur-val" style="flex:0;min-width:54px;text-align:right;color:var(--muted)">2 beats</span>
+      <label>chord length</label>
+      <input type="range" id="cfg-dur" min="0" max="46" step="1" value="15">
+      <span id="cfg-dur-val" style="flex:0;min-width:60px;text-align:right;color:var(--muted)">1 beat</span>
     </div>
-    <div class="row" style="font-size:11px;gap:10px">
-      <label style="flex:0"><input type="checkbox" id="cfg-dur-typed"> enter length as a number</label>
-    </div>
-    <div style="font-size:10px;color:var(--muted);margin:8px 0 2px">Melody-driven: every note in the <b>a</b> layer or the prelude triggers each quadruple it belongs to. The melody pauses while those chords play (chord-length apart), then continues. Level &amp; solo = the <b>chord (Γ)</b> layer in Volumes.</div>
-    <div class="row" style="font-size:11px;gap:10px">
-      <label style="flex:0"><input type="checkbox" id="cfg-trigger"> trigger from melody</label>
-    </div>
-    <div class="row">
-      <label>max / note</label>
-      <input type="range" id="cfg-maxplay" min="1" max="33" step="1" value="33" data-inf="1">
-      <span id="cfg-maxplay-val" style="flex:0;min-width:34px;text-align:right;color:var(--muted)">∞</span>
-    </div>
-    <div class="row">
-      <label>chord order</label>
-      <select id="cfg-chord-dir">
-        <option value="auto" selected>auto (follow playback)</option>
-        <option value="up">always ascending</option>
-        <option value="down">always descending</option>
-      </select>
-    </div>
-  </div>
+    <div style="font-size:10px;color:var(--muted)" id="cfg-dur-info">steps: 1/16 … 1/2, then 1, 2, 3 … 32 beats  (short → long)</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px">Level &amp; solo for these chords = the <b>chord (Γ)</b> row in Volumes; the glue voices = the <b>glue</b> row.</div>
+  </details>
 
-  <div class="group">
-    <h2>Jump</h2>
-    <div class="row">
-      <label>p</label>
-      <input type="number" id="jump-p" value="11" min="3" max="99999" step="1">
-      <label style="flex:0;padding:0 2px">r</label>
-      <input type="number" id="jump-r" value="1" min="1" step="1">
-      <button id="btn-jump" class="primary">Go</button>
-    </div>
-    <div class="row">
-      <label>Section</label>
-      <select id="jump-section">
-        <option value="0">all</option>
-        <option value="1">prelude</option>
-        <option value="4">main</option>
-        <option value="3">postlude</option>
-      </select>
-    </div>
-  </div>
-
-  <div class="group">
-    <h2>Frequency range Hz</h2>
-    <div class="row">
-      <label>min</label>
-      <input type="range" id="fmin" min="20" max="2000" step="1" value="111">
-      <input type="number" id="fmin-num" min="20" max="2000" value="111" style="width:52px">
-    </div>
-    <div class="row">
-      <label>max</label>
-      <input type="range" id="fmax" min="40" max="8000" step="1" value="1332">
-      <input type="number" id="fmax-num" min="40" max="8000" value="1332" style="width:52px">
-    </div>
-  </div>
-
-  <div class="group">
-    <h2>R order</h2>
-    <div class="radio-group" id="reorderR">
-      <label><input type="radio" name="reorderR" value="0" checked>0: monotonic</label>
-      <label><input type="radio" name="reorderR" value="1">1: QR then NQR</label>
-    </div>
-  </div>
-
-  <div class="group">
-    <h2>A order</h2>
-    <div class="radio-group" id="reorderA">
-      <label><input type="radio" name="reorderA" value="0" checked>0: monotonic</label>
-      <label><input type="radio" name="reorderA" value="1">1: QR then NQR</label>
-      <label><input type="radio" name="reorderA" value="2">2: QR/NQR order, cyclic shift by r</label>
-      <label><input type="radio" name="reorderA" value="3">3: monotonic order, start at r</label>
-    </div>
-  </div>
-
-  <div class="group">
-    <h2>Pitch &amp; Timbre</h2>
-    <div class="row">
-      <label>Pitch map</label>
-      <select id="harm-mode">
-        <option value="0">h0: LOG-EQ</option>
-        <option value="1">h1: RATIONAL (k/n²-anchored)</option>
-      </select>
-    </div>
-    <div class="chk-row"><input type="checkbox" id="gliss-a"><label for="gliss-a">Gliss a-layer</label></div>
-    <div class="chk-row"><input type="checkbox" id="gliss-b"><label for="gliss-b">Gliss b-layer</label></div>
-  </div>
-
-  <div class="group">
-    <h2>p/n sustain anchors</h2>
-    <div class="row">
-      <label>n range</label>
-      <select id="pn-nmode">
-        <option value="fixed">fixed (1..N)</option>
-        <option value="sqrt">1..⌊√p⌋</option>
-      </select>
-    </div>
-    <div class="row" id="pn-nfixed-row">
-      <label>N (fixed)</label>
-      <input type="range" id="pn-nfixed" min="1" max="32" step="1" value="6">
-      <input type="number" id="pn-nfixed-num" min="1" max="64" step="1" value="6" style="width:46px">
-    </div>
-    <div style="font-size:10px; color:var(--muted); margin-top:2px" id="pn-anchor-info"></div>
-  </div>
-
-  <div class="group">
-    <h2>Pre / Post tracks</h2>
-    <div class="row"><label>prelude vol</label><input type="range" id="t-pre" min="0" max="1.5" step="0.01" value="1.0"></div>
-    <div class="row"><label>postlude vol</label><input type="range" id="t-post" min="0" max="1.5" step="0.01" value="1.0"></div>
-    <div class="row">
-      <label>post offset (beats)</label>
-      <input type="range" id="t-postoff" min="-1" max="1" step="0.01" value="0">
-      <input type="number" id="t-postoff-num" min="-1" max="1" step="0.01" value="0" style="width:46px">
-    </div>
-    <div style="font-size:10px; color:var(--muted); margin-top:2px">offset applies to the post-side stream in structural motion 5–6</div>
-  </div>
-
-  <div class="group">
-    <h2>Volumes</h2>
+  <!-- ============================ VOLUMES (collapsible) ============================ -->
+  <details class="group acc" id="acc-volumes">
+    <summary>Volumes</summary>
     <div class="solo-hdr"><span class="s-label">S</span><span>solo · layer</span><button class="clear-solo" id="clear-solo">clear</button></div>
     <div class="vrow" data-layer="qr"><input type="checkbox" class="solo" id="s-qr"><label>r QR</label><input type="range" id="v-qr" min="0" max="0.5" step="0.005" value="0.12"></div>
     <div class="vrow" data-layer="nqr"><input type="checkbox" class="solo" id="s-nqr"><label>r NQR</label><input type="range" id="v-nqr" min="0" max="0.5" step="0.005" value="0.12"></div>
@@ -484,11 +506,43 @@ button.export-btn:hover { background: #201800; }
     <div class="vrow" data-layer="prepost"><input type="checkbox" class="solo" id="s-prepost"><label>pre/post</label><input type="range" id="v-prepost" min="0" max="0.6" step="0.005" value="0.18"></div>
     <div class="vrow" data-layer="sustain"><input type="checkbox" class="solo" id="s-sustain"><label>sustain p/n</label><input type="range" id="v-sustain" min="0" max="0.6" step="0.005" value="0.20"></div>
     <div class="vrow" data-layer="chord"><input type="checkbox" class="solo" id="s-chord"><label>chord (Γ)</label><input type="range" id="v-chord" min="0" max="0.6" step="0.005" value="0.22"></div>
+    <div class="vrow" data-layer="glue"><input type="checkbox" class="solo" id="s-glue"><label>glue (edges)</label><input type="range" id="v-glue" min="0" max="0.6" step="0.005" value="0.10"></div>
     <div class="row" style="margin-top:5px"><label>master</label> <input type="range" id="v-master" min="0" max="1.0" step="0.01"  value="0.55"></div>
-  </div>
+  </details>
 
-  <div class="group">
-    <h2>Export</h2>
+  <!-- ============================ ADVANCED (collapsible) ============================ -->
+  <details class="group acc" id="acc-advanced">
+    <summary>Advanced</summary>
+
+    <h2 style="margin-top:4px">p/n sustain anchors</h2>
+    <div class="row">
+      <label>n range</label>
+      <select id="pn-nmode">
+        <option value="fixed">fixed (1..N)</option>
+        <option value="sqrt" selected>1..⌊√p⌋</option>
+      </select>
+    </div>
+    <div class="row" id="pn-nfixed-row">
+      <label>N (fixed)</label>
+      <input type="range" id="pn-nfixed" min="1" max="32" step="1" value="6">
+      <input type="number" id="pn-nfixed-num" min="1" max="64" step="1" value="6" style="width:46px">
+    </div>
+    <div style="font-size:10px; color:var(--muted); margin-top:2px" id="pn-anchor-info"></div>
+
+    <h2 style="margin-top:10px">Pre / Post — direct &amp; reversed</h2>
+    <div class="row"><label>prelude vol</label><input type="range" id="t-pre" min="0" max="1.5" step="0.01" value="1.0"></div>
+    <div class="row"><label>postlude vol</label><input type="range" id="t-post" min="0" max="1.5" step="0.01" value="1.0"></div>
+    <div class="row">
+      <label>reversed offset (beats)</label>
+      <input type="range" id="t-postoff" min="-1" max="1" step="0.01" value="0">
+      <input type="number" id="t-postoff-num" min="-1" max="1" step="0.01" value="0" style="width:46px">
+    </div>
+    <div style="font-size:10px; color:var(--muted); margin-top:2px">offset applies to the reversed (post-side) stream in structural motion converge modes</div>
+  </details>
+
+  <!-- ============================ EXPORT (collapsible) ============================ -->
+  <details class="group acc" id="acc-export">
+    <summary>Export</summary>
     <div class="row">
       <label>Duration (s)</label>
       <input type="number" id="export-dur" value="30" min="1" max="600" style="width:56px">
@@ -501,12 +555,67 @@ button.export-btn:hover { background: #201800; }
     </div>
     <div class="export-progress" id="export-progress"><div class="bar" id="export-bar"></div></div>
     <div style="font-size:10px; color:var(--muted); margin-top:4px" id="export-msg">MP4 via WebCodecs where available; otherwise a PNG frame-sequence ZIP (assemble with ffmpeg).</div>
-  </div>
+  </details>
+
+  <!-- ============================ SCENES ============================ -->
+  <details class="group acc" id="acc-scenes">
+    <summary>Scenes</summary>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:5px">
+      Save the current full setup as a scene (kept while this tab is open). Export
+      all scenes to a file to keep them between sessions; import to restore.
+    </div>
+    <div class="row">
+      <input type="text" id="scene-name" placeholder="scene name…" style="flex:1;min-width:0">
+      <button id="scene-save" class="primary">＋ save</button>
+    </div>
+    <div id="scene-list" style="display:flex;flex-direction:column;gap:3px;margin-top:5px"></div>
+    <div class="btn-row" style="margin-top:6px">
+      <button id="scene-export">⬇ export all</button>
+      <button id="scene-import-btn">⬆ import</button>
+      <input type="file" id="scene-import" accept="application/json,.json" style="display:none">
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:4px" id="scene-msg">no scenes yet</div>
+  </details>
+
+  <!-- ============================ SESSION (record → editable scene list) ============================ -->
+  <details class="group acc" id="acc-session">
+    <summary>Session</summary>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:5px">
+      <b>Record</b> a live improvisation: every structural change (p, sections,
+      motion, graph, triggers, direction) becomes a scene-segment with its own
+      duration. Stop, then edit the list — delete steps, change durations, update
+      a step's settings, or add scenes by hand. ▶ plays the whole thing.
+    </div>
+    <div class="btn-row">
+      <button id="sess-rec" class="primary">● record</button>
+      <button id="sess-play">▶ play</button>
+      <button id="sess-clear" title="discard the session">✕ clear</button>
+    </div>
+    <div style="font-size:10px;color:var(--accent);margin-top:5px" id="sess-status">empty — record, or add scenes below</div>
+    <div class="row" style="margin-top:8px">
+      <select id="comp-pick" style="flex:1;min-width:0"></select>
+      <button id="comp-add" title="add the selected scene to the session">＋ add scene</button>
+    </div>
+    <div id="comp-list" style="display:flex;flex-direction:column;gap:4px;margin-top:6px"></div>
+    <div class="btn-row" style="margin-top:6px">
+      <button id="sess-export">⬇ export</button>
+      <button id="sess-import-btn">⬆ import</button>
+      <input type="file" id="sess-import" accept="application/json,.json" style="display:none">
+    </div>
+  </details>
 
 </div><!-- /controls -->
 
 <div id="viz">
   <canvas id="plot"></canvas>
+  <div id="viz-ctrls">
+    <button id="zoom-out" title="zoom out">−</button>
+    <button id="zoom-reset" title="reset view (100%)">⊙</button>
+    <button id="zoom-in" title="zoom in">+</button>
+    <button id="follow-toggle" class="active" title="auto-scroll to follow the sounding ring (when zoomed)">⊹</button>
+    <button id="fs-toggle" title="fullscreen">⛶</button>
+  </div>
+  <div id="zoom-hint">scroll = stretch time axis · drag to pan · ⛶ fullscreen</div>
 </div>
 </main>
 
@@ -2567,7 +2676,10 @@ function axisMap(i,p){return(p%4===1)?i:(p-i);}
 // N_MAX is a runtime setting: a small fixed value (default 6) or floor(sqrt(p)).
 // At n > sqrt(p), round(p/n) < sqrt(p) and anchors crowd/collide, so sqrt(p) is
 // the natural upper bound — beyond it almost no new distinct positions appear.
-const PN_SUSTAIN_ENABLED = true;
+let PN_SUSTAIN_ENABLED = true;
+let _cfgInsetOn = false;   // chord-graph inset toggle
+let _insetPos={x:null,y:null};   // draggable inset position (CSS-canvas coords)
+let _insetRect=null;             // last-drawn inset rect for hit-testing
 const PN_N_MIN = 1;
 const PN_SYMMETRIC_MINUS = true;   // also add mirrored -p/n anchors (p - r)
 
@@ -2613,10 +2725,10 @@ function pnSustainAnchorSet(p){
 const state={
   bpm:60, minFreq:111, maxFreq:1332,
   harmMode:0, reorderR:0, reorderA:0,
-  playmode:0, motionMode:0, glissA:false, glissB:false,
-  pnNMode:'fixed',   // 'fixed' (use pnNFixed) | 'sqrt' (n up to floor(sqrt(p)))
+  playmode:0, motionMode:0, secMask:{pre:true,main:true,post:true}, glissA:false, glissB:false,
+  pnNMode:'sqrt',    // 'fixed' (use pnNFixed) | 'sqrt' (n up to floor(sqrt(p)))
   pnNFixed:6,        // n-max when pnNMode==='fixed'
-  vol:{qr:0.12,nqr:0.12,r2:0.06,a:0.09,b:0.12,diag:0.18,hat:0.05,kick:0.18,prepost:0.18,sustain:0.20,chord:0.22,master:0.55},
+  vol:{qr:0.12,nqr:0.12,r2:0.06,a:0.09,b:0.12,diag:0.18,hat:0.05,kick:0.18,prepost:0.18,sustain:0.20,chord:0.22,glue:0.10,master:0.55},
   solo:new Set(),   // soloed layer keys; if non-empty, only these layers sound
   // Prelude/Postlude as separate tracks (volume), plus a time offset for the
   // postlude track (in beats, applied in the 'converge' playmode 5).
@@ -2624,7 +2736,7 @@ const state={
   postOffsetBeats:0.0,   // -1..+1 beats; shifts postlude track vs prelude
   running:false, paused:false,
   p:3, rDir:1, pDir:1,
-  reqP:null, reqR:null, reqReverse:false, reqSkip:false,
+  reqP:null, reqR:null, reqRStep:0, reqGotoMain:null, reqGoto:null, reqReverse:false, reqSkip:false,
   vizMode:'idle', vizP:11, vizR:1, vizBeat:0, vizA:0, vizB:0,
   vizRings:null, vizScatter:null,   // dual-mode (5) extras: per-stream rings + scatter kind
   visQueue:[],
@@ -2639,7 +2751,7 @@ function vget(key){
 }
 
 // ---------- Audio ----------
-let ctx=null, masterGain=null;
+let ctx=null, masterGain=null, voiceBus=null;
 let nextBeatTime=0;
 let schedulerInterval=null;
 const SCHEDULE_AHEAD=0.75;
@@ -2652,6 +2764,24 @@ function initAudio(){
   masterGain=ctx.createGain();
   masterGain.gain.value=state.vol.master;
   masterGain.connect(ctx.destination);
+  // All scheduled voices route through voiceBus → masterGain. To make r/p jumps
+  // audibly immediate we can disconnect voiceBus (instantly cutting every
+  // already-scheduled oscillator in the lookahead window) and start a fresh one.
+  voiceBus=ctx.createGain(); voiceBus.gain.value=1; voiceBus.connect(masterGain);
+}
+
+// Rebuild the voice bus: silences all currently-scheduled voices at once, then
+// reschedule continues onto the fresh bus. Used by immediate r/p jumps so the
+// ~0.75s lookahead doesn't keep sounding the old r.
+function flushVoices(){
+  if(!ctx||!voiceBus) return;
+  try{ voiceBus.disconnect(); }catch(e){}
+  voiceBus=ctx.createGain(); voiceBus.gain.value=1; voiceBus.connect(masterGain);
+  // Pull the scheduler horizon back toward now so the NEXT beat (already carrying
+  // the new r) is scheduled almost immediately, without scheduling in the past.
+  const soon=ctx.currentTime+0.06;
+  if(nextBeatTime>soon) nextBeatTime=soon;
+  state._flushed=true;
 }
 
 // Mobile browsers (iOS especially) only start/resume an AudioContext from inside
@@ -2666,7 +2796,7 @@ function unlockAudio(){
     try{
       const b=ctx.createBuffer(1,1,22050);
       const src=ctx.createBufferSource();
-      src.buffer=b; src.connect(masterGain||ctx.destination); src.start(0);
+      src.buffer=b; src.connect(voiceBus||masterGain||ctx.destination); src.start(0);
     }catch(e){}
     // mark unlocked only once the clock is actually advancing
     if(ctx.state==='running') _audioUnlocked=true;
@@ -2760,7 +2890,7 @@ function panGains(idx,p){
 
 // ---------- Low-level synth helpers ----------
 function makePannedSink(lG,rG,dest){
-  const d=dest||masterGain;
+  const d=dest||voiceBus||masterGain;
   const sp=ctx.createGain();
   const mg=ctx.createChannelMerger(2);
   const gL=ctx.createGain(),gR=ctx.createGain();
@@ -3016,7 +3146,102 @@ function consumeRequests(){
     state.reqP=null;
     state.visQueue.length=0;  // drop stale frames so no wrong-section visuals linger
   }
-  if(state.reqR!==null){s.pendingR=state.reqR|0; state.reqR=null;}
+  if(state.reqR!==null){
+    s.pendingR=state.reqR|0; state.reqR=null;
+    // Apply immediately within the CURRENT section's r-list (don't wait for the
+    // section to end). Restart the a-sweep so the new r is heard at once.
+    if(state.running && s.rList && s.rList.length){
+      const t=Math.max(1,Math.min(s.p-1,s.pendingR));
+      const i=s.rList.indexOf(t);
+      if(i>=0){
+        s.rIdx=i; s.pendingR=null;
+        s.aIdx=0; s.aFresh=true;
+        s.contFarIdx=null; s.contFreq=null;
+        if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); }
+        state.visQueue.length=0;
+        flushVoices();
+      }
+    }
+  }
+  if(state.reqRStep && state.running && s.rList && s.rList.length){
+    const dir=state.reqRStep>0?1:-1; state.reqRStep=0;
+    let ni=s.rIdx+dir;
+    if(ni>=0 && ni<s.rList.length){
+      // stay within the current section
+      s.rIdx=ni; s.aIdx=0; s.aFresh=true; s.contFarIdx=null; s.contFreq=null;
+      if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); }
+      state.visQueue.length=0; flushVoices();
+    } else if(s.flow && s.flow.length){
+      // cross the boundary into the adjacent section of the flow
+      let fi=s.flowIdx + dir;
+      if(fi>=0 && fi<s.flow.length){
+        s.flowIdx=fi; s.phase=s.flow[fi];
+        s.rList=_sectionRList(s.phase,s.p,s.rDir);
+        // entering forward → first r (index 0); entering backward → last r
+        s.rIdx = dir>0 ? 0 : (s.rList.length-1);
+        s.aDir=(s.rDir<0)?-1:1; s.aIdx=0; s.aFresh=true;
+        s.contFarIdx=null; s.contFreq=null;
+        if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); }
+        state.visQueue.length=0; flushVoices();
+      }
+      // at the very ends of the flow: do nothing (don't wrap the whole piece)
+    }
+  }
+  // Jump directly into MAIN at a target r (used by typed r/p entry). Honors the
+  // current playback direction for the a-sweep.
+  // Unified jump: {p, sec:'prelude'|'main'|'postlude', rPos:'first'|'last'|<int>}.
+  // If the requested section is disabled, fall back to main at the same end.
+  if(state.reqGoto && state.running){
+    const req=state.reqGoto; state.reqGoto=null;
+    const tp=req.p|0;
+    if(tp>=3 && isPrime(tp)){
+      // change prime if needed
+      if(tp!==s.p){ s.p=tp; state.p=tp; const el=document.getElementById('p-num'); if(el) el.value=tp; }
+    }
+    const P=s.p;
+    let sec=req.sec||'main';
+    // section availability per the mask
+    const m=state.secMask||{pre:true,main:true,post:true};
+    const avail={prelude:m.pre, main:m.main, postlude:m.post};
+    if(!avail[sec]){ sec='main'; }                 // fallback target
+    if(!avail.main && sec==='main'){               // main also off → pick any enabled
+      sec = m.pre ? 'prelude' : (m.post ? 'postlude' : 'main');
+    }
+    s.flow=sectionFlow(state.playmode, s.rDir<0);
+    let fi=s.flow.indexOf(sec); if(fi<0) fi=0;
+    s.flowIdx=fi; s.phase=(s.flow[fi]||'main');
+    s.rList=_sectionRList(s.phase,P,s.rDir);
+    // resolve r position
+    let idx;
+    if(req.rPos==='first')      idx = 0;
+    else if(req.rPos==='last')  idx = s.rList.length-1;
+    else { const want=Math.max(1,Math.min(P-1,req.rPos|0)); const k=s.rList.indexOf(want); idx = k>=0?k:0; }
+    s.rIdx = idx;
+    s.aDir=(s.rDir<0)?-1:1; s.aIdx=0; s.aFresh=true;
+    s.contFarIdx=null; s.contFreq=null;
+    if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); }
+    state.visQueue.length=0;
+    flushVoices();
+  }
+  if(state.reqGotoMain!==null && state.reqGotoMain!==undefined && state.running){
+    const tr=Math.max(1,Math.min(s.p-1,state.reqGotoMain|0));
+    state.reqGotoMain=null;
+    s.flow=sectionFlow(state.playmode, s.rDir<0);
+    const fi=s.flow.indexOf('main');
+    if(fi>=0){
+      // main is in the playback set → jump straight into it at the target r
+      s.flowIdx=fi; s.phase='main';
+      s.rList=_sectionRList('main',s.p,s.rDir);
+      const i=s.rList.indexOf(tr);
+      s.rIdx = i>=0 ? i : 0;
+      s.aDir=(s.rDir<0)?-1:1; s.aIdx=0; s.aFresh=true;
+      s.contFarIdx=null; s.contFreq=null;
+      if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); }
+      state.visQueue.length=0;
+      flushVoices();
+    }
+    // if main is OFF, typing r/p does not force main — leave playback as is
+  }
   if(state.reqSkip){s.aIdx=0; s.aFresh=true; s.contFarIdx=null; s.contFreq=null; if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); } state.reqSkip=false;}
 }
 
@@ -3041,7 +3266,15 @@ function emitVisual(t,mode,p,r,beat,a,b,extra){
 //       Postlude: NQR voice + rank-reversed NQR voice.
 function dualStagesFor(motionMode, playmode){
   if(!isDualMode(motionMode)) return [];
-  if(playmode===0 || playmode===2) return [0,1];  // prelude-stage, then postlude-stage
+  // Prefer the explicit section mask so converge modes honour exactly which
+  // sections are enabled (the 5-value playmode can't express e.g. main+post).
+  if(state.secMask){
+    const out=[];
+    if(state.secMask.pre)  out.push(0);   // prelude-stage
+    if(state.secMask.post) out.push(1);   // postlude-stage
+    return out;
+  }
+  if(playmode===0 || playmode===2) return [0,1];
   if(playmode===1) return [0];
   if(playmode===3) return [1];
   return [];
@@ -3087,9 +3320,16 @@ function dualScatterKind(pm,stage){
 // forward = prelude → main → postlude; reverse = postlude → main → prelude
 // (true time-reversal of the whole prime). rev is rDir<0.
 function sectionFlow(pm,rev){
-  const allowPre =(pm===0||pm===1||pm===2);
-  const allowMain=(pm===0||pm===4);
-  const allowPost=(pm===0||pm===2||pm===3);
+  // Prefer the explicit section mask (handles all 7 non-empty combinations);
+  // fall back to deriving from the 5-value playmode for any legacy caller.
+  let allowPre,allowMain,allowPost;
+  if(state.secMask){
+    allowPre=state.secMask.pre; allowMain=state.secMask.main; allowPost=state.secMask.post;
+  } else {
+    allowPre =(pm===0||pm===1||pm===2);
+    allowMain=(pm===0||pm===4);
+    allowPost=(pm===0||pm===2||pm===3);
+  }
   let order=[];
   if(allowPre)  order.push('prelude');
   if(allowMain) order.push('main');
@@ -3107,6 +3347,9 @@ function _sectionRList(sec,p,rDir){
 function scheduleOneBeat(time){
   if(!synthState) resetSynth();
   consumeRequests();
+  // If a jump flushed the lookahead, schedule THIS beat at the pulled-back time
+  // (flushVoices lowered nextBeatTime) so the new r is heard almost immediately.
+  if(state._flushed){ state._flushed=false; time=nextBeatTime; }
   const s=synthState, p=s.p, dur=beatDur();
 
   // ---------- Goncharova chord dwell ----------
@@ -3117,68 +3360,42 @@ function scheduleOneBeat(time){
     const item=cfg.chordQueue.shift();
     const quad=cfg.quads[item.qi];
     const vol=vget('chord');
-    if(quad && vol>0) cfgChordAt(time, quad, vol, dur, item.hit);
+    if(quad && vol>0) cfgChordAt(time, quad, vol, dur, item.hit, item.pos);
     const lenBeats=Math.max(0.25, cfgDurBeats());
     s._slotSec = lenBeats*dur;          // tick advances by this instead of one beat
     return true;
   }
   s._slotSec = null;
 
-  const allowPre =(state.playmode===0||state.playmode===1||state.playmode===2);
-  const allowMain=(state.playmode===0||state.playmode===4);
-  const allowPost=(state.playmode===0||state.playmode===2||state.playmode===3);
+  const _m = state.secMask || {
+    pre:(state.playmode===0||state.playmode===1||state.playmode===2),
+    main:(state.playmode===0||state.playmode===4),
+    post:(state.playmode===0||state.playmode===2||state.playmode===3)
+  };
+  const allowPre=_m.pre, allowMain=_m.main, allowPost=_m.post;
   const dual =dualAllowedForPlaymode(state.motionMode,state.playmode);   // structural motion 5/6 filtered by playmode
 
   // ---------- pause-before ----------
   if(s.phase==='pause-before'){
     emitVisual(time,'pause',p,0,0,0,0);
-    if(dual){
-      s.phase='dual'; s.rIdx=0; s.dualStage=0;
-      s.dualStages=dualStagesFor(state.motionMode,state.playmode);
-      s.dualStageIdx=0;
-      s.dualStage=s.dualStages[0];
-      s.dualStreams=dualStreamsFor(state.motionMode,s.dualStage,state.playmode);
-      s.dualScatter=dualScatterKind(state.motionMode,s.dualStage);
-      _applyPendingR(s,p);
-      return true;
-    }
     // Section order honours reverse: fwd = pre→main→post, rev = post→main→pre.
     s.flow=sectionFlow(state.playmode, s.rDir<0);
     s.flowIdx=0;
     if(s.flow.length===0){ s.phase='next-prime'; return scheduleOneBeat(time); }
-    s.phase=s.flow[0]; s.rIdx=0;
-    s.aDir=(s.rDir<0)?-1:1; s.aFresh=true; s.aIdx=0;
-    if(s.phase!=='main') s.rList=_sectionRList(s.phase,p,s.rDir);
-    else s.rList=_sectionRList('main',p,s.rDir);
+    s.aDir=(s.rDir<0)?-1:1; s.aFresh=true; s.aIdx=0; s.rIdx=0;
+    _enterFlowPhase(s,p);          // sets phase = first flow section (dual-pair if converge)
     _applyPendingR(s,p);
     return true;
   }
 
   // ---------- dual (structural modes 5/6) ----------
-  // Generic two-or-more-stream phase. At beat i each stream plays its section at
-  // position list[i] (forward or reversed), onto its track (pre = no offset,
-  // post = +postOffsetBeats). This realises: converge (pre→/post←), symmetric
-  // prelude (pre→/pre←), symmetric postlude (post→/post←), and both-symmetric.
+  // In converge/self mode a prelude- or postlude-SECTION is rendered as two
+  // simultaneous streams (e.g. prelude-direct + postlude-reversed). main plays
+  // normally between them, and only the sections enabled in Structure appear.
   if(s.phase==='dual'){
     const n=p-1;
-    if(s.rIdx>=n){
-      if(s.dualStages && s.dualStageIdx+1<s.dualStages.length){
-        s.dualStageIdx++;
-        s.dualStage=s.dualStages[s.dualStageIdx];
-        s.rIdx=0;
-        s.dualStreams=dualStreamsFor(state.motionMode,s.dualStage,state.playmode);
-        s.dualScatter=dualScatterKind(state.motionMode,s.dualStage);
-        return scheduleOneBeat(time);
-      }
-      if(state.playmode===0){
-        s.phase='main'; s.rIdx=0; s.aIdx=0; s.aFresh=true;
-        s.rList=_sectionRList('main',p,s.rDir);
-        return scheduleOneBeat(time);
-      }
-      s.phase='next-prime'; return scheduleOneBeat(time);
-    }
+    if(s.rIdx>=n){ return _advanceSection(s,p,time); }   // section done → next in flow
     const i=s.rIdx;
-    // Forward / reversed playback-order lists (built once). r=list[i].
     if(!s.fwdList || s.fwdList.length!==n){
       s.fwdList=[]; s.revList=[];
       if(s.rDir>0){ for(let k=1;k<p;k++)s.fwdList.push(k); for(let k=p-1;k>=1;k--)s.revList.push(k); }
@@ -3192,8 +3409,6 @@ function scheduleOneBeat(time){
       const r = list[i];
       const tt = (st.track==='post') ? Math.max(now, offT) : time;
       const rr=!!st.revRank;
-      // The voice SOUNDS its source section's pitch map (mode 5 contra voice =
-      // the opposite section, reversed; mode 6 source===sec so this is a no-op).
       const src=st.source||st.sec;
       emitSectionBeat(src, p, r, list, i, tt, dur, state.track[st.track], rr);
       rings.push({r, sec:st.sec, source:src, track:st.track, revRank:rr});
@@ -3210,9 +3425,8 @@ function scheduleOneBeat(time){
     emitSectionBeat('prelude', p, r, s.rList, s.rIdx, time, dur, state.track.pre);
     emitVisual(time,'prelude',p,r,0,0,0);
     // Goncharova trigger on the prelude note (pitch index = r²), which is a QR.
-    // Each prelude beat is a new r → fresh dedup memory for its quadruples.
-    const cfgOnP=document.getElementById('cfg-trigger');
-    if(cfgOnP&&cfgOnP.checked&&cfg.p===p){ if(typeof cfg!=='undefined') cfg.played.clear(); const r2=(r*r)%p; if(r2!==0) cfgQueueForNote(r2); }
+    // Fires only if 'prelude' is among the selected trigger voices.
+    if(cfg.trigSet&&cfg.trigSet.has('prelude')&&cfg.p===p){ if(typeof cfg!=='undefined') cfg.played.clear(); const r2=(r*r)%p; if(r2!==0) cfgQueueForNote(r2, s.rIdx+1); }
     s.rIdx++;
     return true;
   }
@@ -3244,6 +3458,7 @@ function scheduleOneBeat(time){
       s.aIdx = (s.aDir<0) ? (s.aList.length-1) : 0;
       s.aFresh=false;
       s.contFarIdx=null; s.contFreq=null;   // start a fresh held-note run for this r
+      s.r2FarIdx=null; s.r2Freq=null;        // r² held-note run resets per r too
       if(typeof cfg!=='undefined') cfg.played.clear();   // dedup resets each new screen (new r)
     }
     if(s.aIdx<0 || s.aIdx>=s.aList.length){
@@ -3257,7 +3472,6 @@ function scheduleOneBeat(time){
     const b=(r*invA)%p;
 
     if(b!==0){
-      const dur2=dur*0.95;
       // --- r layer with pulse/cont logic ---
       const fR=freqForIndex(r,p);
       const[lr,rr]=panGains(r,p);
@@ -3287,12 +3501,19 @@ function scheduleOneBeat(time){
         schedulePulseSine(time,dur*0.5,fR,vR,lr,rr,{decay:0.7});
       }
 
-      // r² layer
+      // r² layer — held as ONE continuous note for the whole a-sweep of this r
+      // (r² is constant while r is fixed), so it doesn't re-attack every beat.
       const r2=(r*r)%p;
       if(r2!==0){
         const fR2=freqForIndex(r2,p);
         const[l2,r2g]=panGains(r2,p);
-        schedulePulseSine(time,dur2,fR2,vget('r2'),l2,r2g,{decay:0.8});
+        if(s.r2FarIdx===null || s.r2Freq!==fR2){
+          // beats remaining in the a-sweep from here, in travel order
+          const beatsLeft=(s.aDir<0) ? (s.aIdx+1) : (s.aList.length - s.aIdx);
+          scheduleContinuousSine(time, Math.max(1,beatsLeft)*dur, fR2, vget('r2'), l2, r2g);
+          s.r2FarIdx=s.aIdx; s.r2Freq=fR2;
+        }
+        // else: already inside the held r² note → schedule nothing this beat.
       }
 
       // a layer
@@ -3334,13 +3555,29 @@ function scheduleOneBeat(time){
       }
     }
     emitVisual(time,'main',p,r,s.aIdx,a,b);
-    // Goncharova trigger: the melodic note a plays this beat; queue every
-    // quadruple it belongs to. The dwell at the top of scheduleOneBeat drains
-    // them on subsequent slots before the melody advances.
-    const cfgOn=document.getElementById('cfg-trigger');
-    if(cfgOn&&cfgOn.checked&&cfg.p===p) cfgQueueForNote(a);
+    // Goncharova triggers (multi-voice): each SELECTED voice that sounds this beat
+    // queues the quadruples its value belongs to. Values are residues mod p, so
+    // they index into cfg.index the same way. Dedup via cfg.played (cleared per r).
+    if(cfg.trigSet && cfg.trigSet.size && cfg.p===p && b!==0){
+      const T=cfg.trigSet;
+      const pos=s.aIdx+1;                       // 1-based position in the a-sweep
+      if(T.has('a'))  cfgQueueForNote(a, pos);
+      if(T.has('b'))  cfgQueueForNote(b, pos);
+      if(T.has('r'))  cfgQueueForNote(r, pos);
+      if(T.has('r2')){ const r2=(r*r)%p; if(r2!==0) cfgQueueForNote(r2, pos); }
+      if(T.has('diag') && a===b && a!==0) cfgQueueForNote(a, pos);
+    }
     s.aIdx += s.aDir;
     return true;
+  }
+
+  // ---------- pause-after (the p² closing beat) ----------
+  // One beat of silence after a full prelude+main+postlude cycle, before moving
+  // to the next prime. Makes the total length exactly p² beats.
+  if(s.phase==='pause-after'){
+    emitVisual(time,'pause',s.p,0,0,0,0);
+    s.phase='next-prime';
+    return true;   // consumes exactly one beat slot
   }
 
   if(s.phase==='next-prime'){
@@ -3362,15 +3599,36 @@ function _applyPendingR(s,p){
 // Advance to the next section in the current flow order (set in pause-before).
 // When the flow is exhausted, move to the next prime. aIdx is reset so main
 // starts cleanly. Returns scheduleOneBeat(time) to emit the first beat now.
+// Enter the flow section at s.flowIdx. In converge/self motion, a prelude- or
+// postlude-section becomes a two-stream 'dual' pair; main and all sections in
+// linear motion play normally.
+function _enterFlowPhase(s,p){
+  const sec=s.flow[s.flowIdx];
+  s.rIdx=0; s.aDir=(s.rDir<0)?-1:1; s.aFresh=true; s.aIdx=0;
+  const converge = isDualMode(state.motionMode) && (sec==='prelude'||sec==='postlude');
+  if(converge){
+    s.phase='dual';
+    s.dualStage = (sec==='prelude') ? 0 : 1;
+    s.dualStreams = dualStreamsFor(state.motionMode, s.dualStage, state.playmode);
+    s.dualScatter = dualScatterKind(state.motionMode, s.dualStage);
+    s.fwdList=null; s.revList=null;   // rebuilt for this prime in the dual phase
+  } else {
+    s.phase=sec;
+    s.rList=_sectionRList(sec,p,s.rDir);
+  }
+}
 function _advanceSection(s,p,time){
   s.flowIdx=(s.flowIdx|0)+1;
   if(!s.flow || s.flowIdx>=s.flow.length){
+    // Full cycle done. If all three sections played (prelude+main+postlude), the
+    // section beats sum to (p-1)+(p-1)²+(p-1); a single silent beat here closes
+    // the piece to exactly p² beats before the next prime. Only then is the pause
+    // inserted (with fewer sections the p² identity doesn't hold, so no pause).
+    const m=s.secMask||state.secMask||{};
+    if(m.pre && m.main && m.post){ s.phase='pause-after'; return scheduleOneBeat(time); }
     s.phase='next-prime'; return scheduleOneBeat(time);
   }
-  s.phase=s.flow[s.flowIdx]; s.rIdx=0;
-  s.rList=_sectionRList(s.phase,p,s.rDir);
-  // a-sweep walks forward or backward to match playback direction.
-  s.aDir = (s.rDir<0) ? -1 : 1; s.aFresh=true; s.aIdx=0;
+  _enterFlowPhase(s,p);
   _applyPendingR(s,p);
   return scheduleOneBeat(time);
 }
@@ -4091,6 +4349,128 @@ window.addEventListener('resize',resizeCanvas);
 window.addEventListener('orientationchange',()=>{ setTimeout(resizeCanvas,150); setTimeout(resizeCanvas,500); });
 if(window.visualViewport){ window.visualViewport.addEventListener('resize',resizeCanvas); }
 
+// ---- Zoom / pan / fullscreen for the plot ----------------------------------
+// Horizontal-only zoom: stretches the time axis (x) while the pitch axis (y)
+// stays fixed. CSS-transform overlay; does not touch the render logic.
+const _view={scale:1, tx:0};
+let _ringFrac=0;          // 0..1 position of the sounding ring along the time axis
+let _followRing=true;     // auto-scroll to keep the ring in view when zoomed
+let _userPanning=false;   // suspends follow briefly after a manual pan
+function _applyView(){
+  canvas.style.transform=`translateX(${_view.tx}px) scaleX(${_view.scale})`;
+}
+// Auto-scroll so the sounding ring stays in the viewport when zoomed in.
+function _followCamera(){
+  if(!_followRing || _view.scale<=1 || _userPanning) return;
+  const w=canvas.clientWidth;
+  const ringX=(36+_ringFrac*(w-72));        // unscaled canvas x of the ring (pad≈36)
+  const screenX=ringX*_view.scale + _view.tx;
+  // comfortable band: keep ring between 30% and 70% of the viewport
+  const lo=w*0.30, hi=w*0.70;
+  let target=_view.tx;
+  if(screenX<lo) target=lo - ringX*_view.scale;
+  else if(screenX>hi) target=hi - ringX*_view.scale;
+  if(target!==_view.tx){
+    // ease toward target for smooth scrolling
+    _view.tx += (target-_view.tx)*0.18;
+    _clampPan(); _applyView();
+  }
+}
+function _clampPan(){
+  const w=canvas.clientWidth;
+  const sw=w*_view.scale;
+  const minX=Math.min(0, w-sw);
+  _view.tx=Math.max(minX, Math.min(0, _view.tx));
+}
+function _zoomAt(cx,cy,factor){
+  const ns=Math.max(1, Math.min(8, _view.scale*factor));
+  if(ns===_view.scale) return;
+  // keep the x-point under the cursor fixed
+  _view.tx = cx - (cx-_view.tx)*(ns/_view.scale);
+  _view.scale=ns;
+  _clampPan(); _applyView();
+}
+function _resetView(){ _view.scale=1; _view.tx=0; _applyView(); }
+
+(function _wireZoom(){
+  const viz=document.getElementById('viz');
+  canvas.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const r=canvas.getBoundingClientRect();
+    const cx=e.clientX-r.left, cy=e.clientY-r.top;
+    _zoomAt(cx,cy, e.deltaY<0 ? 1.12 : 1/1.12);
+  },{passive:false});
+  document.getElementById('zoom-in').onclick =()=>{ const r=canvas.getBoundingClientRect(); _zoomAt(r.width/2,r.height/2,1.3); };
+  document.getElementById('zoom-out').onclick=()=>{ const r=canvas.getBoundingClientRect(); _zoomAt(r.width/2,r.height/2,1/1.3); };
+  document.getElementById('zoom-reset').onclick=_resetView;
+  document.getElementById('follow-toggle').onclick=(e)=>{ _followRing=!_followRing; e.currentTarget.classList.toggle('active',_followRing); };
+  // drag to pan (X only) — unless the pointer grabs the chord-graph inset
+  let dragging=false, lx=0;
+  let insetDrag=false, ioffx=0, ioffy=0;
+  function _toCanvas(e){
+    const r=canvas.getBoundingClientRect();
+    // client → CSS-canvas coords. X is affected by the horizontal zoom transform.
+    const cx=(e.clientX-r.left - _view.tx)/_view.scale;
+    const cy=(e.clientY-r.top);
+    return {cx,cy};
+  }
+  function _insetHit(e){
+    if(!_cfgInsetOn || !_insetRect) return false;
+    const {cx,cy}=_toCanvas(e);
+    return (cx>=_insetRect.x && cx<=_insetRect.x+_insetRect.s && cy>=_insetRect.y && cy<=_insetRect.y+_insetRect.s) ? {cx,cy} : false;
+  }
+  canvas.addEventListener('pointerdown',e=>{
+    const hit=_insetHit(e);
+    if(hit){ insetDrag=true; ioffx=hit.cx-_insetRect.x; ioffy=hit.cy-_insetRect.y; canvas.setPointerCapture(e.pointerId); return; }
+    if(_view.scale<=1) return; dragging=true; lx=e.clientX; _userPanning=true; canvas.classList.add('panning'); canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove',e=>{
+    if(insetDrag){ const {cx,cy}=_toCanvas(e); _insetPos.x=cx-ioffx; _insetPos.y=cy-ioffy; return; }
+    if(!dragging) return; _view.tx+=e.clientX-lx; lx=e.clientX; _clampPan(); _applyView();
+  });
+  const endDrag=e=>{ dragging=false; insetDrag=false; canvas.classList.remove('panning'); if(_userPanning){ setTimeout(()=>{_userPanning=false;}, 2500); } };
+  canvas.addEventListener('pointerup',endDrag); canvas.addEventListener('pointercancel',endDrag);
+  // fullscreen — native where supported; on iOS (no element Fullscreen API)
+  // fall back to a CSS "maximize" that covers the viewport.
+  const _fsSupported = !!(viz.requestFullscreen || viz.webkitRequestFullscreen);
+  document.getElementById('fs-toggle').onclick=()=>{
+    const el=viz;
+    if(_fsSupported){
+      if(!document.fullscreenElement && !document.webkitFullscreenElement){
+        (el.requestFullscreen||el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document);
+      }
+    } else {
+      // CSS fallback: toggle a class that pins #viz over the whole screen
+      const on=document.body.classList.toggle('viz-max');
+      document.getElementById('fs-toggle').classList.toggle('active',on);
+      setTimeout(resizeCanvas,80); _resetView();
+    }
+  };
+  document.addEventListener('fullscreenchange',()=>{ setTimeout(resizeCanvas,80); _resetView(); });
+  document.addEventListener('webkitfullscreenchange',()=>{ setTimeout(resizeCanvas,80); _resetView(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape' && document.body.classList.contains('viz-max')){ document.body.classList.remove('viz-max'); document.getElementById('fs-toggle').classList.remove('active'); setTimeout(resizeCanvas,80); } });
+  // When the OS/browser suspends us (minimise, app switch, call) the AudioContext
+  // is paused and timers throttled — background audio isn't allowed on mobile.
+  // On RETURN, resume the context and re-base the scheduler so playback continues
+  // automatically instead of getting stuck on "audio: interrupted".
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden) return;
+    if(typeof ctx==='undefined' || !ctx) return;
+    if(state.running && !state.paused){
+      const go=()=>{
+        nextBeatTime=ctx.currentTime+0.08;          // re-base after the clock woke
+        if(!schedulerInterval) schedulerInterval=setInterval(schedulerTick,LOOKAHEAD_MS);
+        startRenderLoop();
+        setStatus('running',true);
+      };
+      if(ctx.state==='suspended'){ const p=ctx.resume(); if(p&&p.then) p.then(go).catch(go); else go(); }
+      else go();
+    }
+  });
+})();
+
 function startRenderLoop(){
   cancelAnimationFrame(rafId);
   const loop=()=>{
@@ -4173,6 +4553,8 @@ function _buildPPStatic(mode,p,r,W,H,darkBg){
   const C=_colors(darkBg);
   const pad=36, iW=W-pad*2, iH=H-pad*2;
   const cv=_makeOffscreen(W,H), cc=cv.getContext('2d');
+  const susCv=_makeOffscreen(W,H), sc=susCv.getContext('2d');   // anchors on their own layer
+  const scatCv=_makeOffscreen(W,H), pc=scatCv.getContext('2d'); // scatter on its own layer (fades with prepost vol)
   const xFor=i=>pad+(i/p)*iW, yFor=i=>pad+iH-(i/p)*iH;
   const yForR=(rv)=>{
     const r2=(rv*rv)%p;
@@ -4183,18 +4565,19 @@ function _buildPPStatic(mode,p,r,W,H,darkBg){
   cc.fillStyle=C.FG; cc.font=`bold 11px 'SF Mono',monospace`;
   cc.fillText(`p=${p}  [${mode}]`,pad+4,pad-8);
 
-  // Scatter (voice 1). fillRect for large p (much faster than arc, visually
-  // identical at these sizes); round dots for small p.
-  cc.fillStyle=C.CYAN;
+  // Scatter (voice 1) → its own layer. fillRect for large p (much faster than
+  // arc, visually identical at these sizes); round dots for small p.
+  pc.fillStyle=C.CYAN;
   const big=p>2000;
   const sz=big?1.5:3;
   for(let rv=1;rv<p;rv++){
     const cx=xFor(rv), cy=yFor(yForR(rv));
-    if(big) cc.fillRect(cx-0.75,cy-0.75,sz,sz);
-    else { cc.beginPath(); cc.arc(cx,cy,3,0,Math.PI*2); cc.fill(); }
+    if(big) pc.fillRect(cx-0.75,cy-0.75,sz,sz);
+    else { pc.beginPath(); pc.arc(cx,cy,3,0,Math.PI*2); pc.fill(); }
   }
 
-  // p/n sustain overlay (voice 2): anchor segments + diamonds.
+  // p/n sustain overlay (voice 2): anchor segments + diamonds → drawn on susCv so
+  // the live composite can fade them with the sustain layer volume.
   if(PN_SUSTAIN_ENABLED){
     const direction=(state.rDir>=0)?1:-1;
     let anchors=pnSustainAnchors(p).filter(a=>a.r>=1&&a.r<=p-1).slice();
@@ -4205,15 +4588,17 @@ function _buildPPStatic(mode,p,r,W,H,darkBg){
       const endR=(i+1<anchors.length)?anchors[i+1].r:terminalR;
       const yy=yFor(yForR(startR));
       const x0=xFor(startR), x1=xFor(endR);
-      cc.strokeStyle=C.SUS_LINE; cc.lineWidth=3; cc.setLineDash([]);
-      cc.beginPath(); cc.moveTo(x0,yy); cc.lineTo(x1,yy); cc.stroke();
+      sc.strokeStyle=C.SUS_LINE; sc.lineWidth=3; sc.setLineDash([]);
+      sc.beginPath(); sc.moveTo(x0,yy); sc.lineTo(x1,yy); sc.stroke();
       const d=5;
-      cc.fillStyle=C.SUS_LINE; cc.strokeStyle=C.SUS_EDGE; cc.lineWidth=1;
-      cc.beginPath();
-      cc.moveTo(x0,yy-d); cc.lineTo(x0+d,yy); cc.lineTo(x0,yy+d); cc.lineTo(x0-d,yy);
-      cc.closePath(); cc.fill(); cc.stroke();
+      sc.fillStyle=C.SUS_LINE; sc.strokeStyle=C.SUS_EDGE; sc.lineWidth=1;
+      sc.beginPath();
+      sc.moveTo(x0,yy-d); sc.lineTo(x0+d,yy); sc.lineTo(x0,yy+d); sc.lineTo(x0-d,yy);
+      sc.closePath(); sc.fill(); sc.stroke();
     }
   }
+  cv._susLayer=susCv;     // anchor layer for the compositor
+  cv._scatLayer=scatCv;   // scatter layer (fades with prepost volume)
   return cv;
 }
 
@@ -4230,6 +4615,8 @@ function _buildDualSectionStatic(directSec,contraSec,p,W,H,darkBg){
   const C=_colors(darkBg);
   const pad=36, iW=W-pad*2, iH=H-pad*2;
   const cv=_makeOffscreen(W,H), cc=cv.getContext('2d');
+  const scatCv=_makeOffscreen(W,H), pc=scatCv.getContext('2d');   // scatter → fades with prepost vol
+  const susCv=_makeOffscreen(W,H),  sc=susCv.getContext('2d');    // sustains → fade with sustain vol
   const xFor=i=>pad+(i/p)*iW, yFor=i=>pad+iH-(i/p)*iH;
   const yDirect =(rv)=>{ const r2=(rv*rv)%p; return axisMap(ppPitchIndex(directSec,p,r2,false),p); };
   const yReverse=(rv)=>{ const r2=(rv*rv)%p; return axisMap(ppPitchIndex(contraSec,p,r2,true ),p); };
@@ -4241,29 +4628,29 @@ function _buildDualSectionStatic(directSec,contraSec,p,W,H,darkBg){
 
   const big=p>2000, sz=big?1.5:2.7;
 
-  // Direct-rank voice.
-  cc.fillStyle=C.CYAN;
+  // Direct-rank voice → scatter layer.
+  pc.fillStyle=C.CYAN;
   for(let rv=1;rv<p;rv++){
     const cx=xFor(rv), cy=yFor(yDirect(rv));
-    if(big) cc.fillRect(cx-0.75,cy-0.75,sz,sz);
-    else { cc.beginPath(); cc.arc(cx,cy,2.7,0,Math.PI*2); cc.fill(); }
+    if(big) pc.fillRect(cx-0.75,cy-0.75,sz,sz);
+    else { pc.beginPath(); pc.arc(cx,cy,2.7,0,Math.PI*2); pc.fill(); }
   }
-
-  // Reverse-rank voice (its own / contra section).
-  cc.fillStyle=C.ORANGE;
+  // Reverse-rank voice (its own / contra section) → scatter layer.
+  pc.fillStyle=C.ORANGE;
   for(let rv=1;rv<p;rv++){
     const cx=xFor(rv), cy=yFor(yReverse(rv));
-    if(big) cc.fillRect(cx-0.75,cy-0.75,sz,sz);
-    else { cc.beginPath(); cc.arc(cx,cy,2.7,0,Math.PI*2); cc.fill(); }
+    if(big) pc.fillRect(cx-0.75,cy-0.75,sz,sz);
+    else { pc.beginPath(); pc.arc(cx,cy,2.7,0,Math.PI*2); pc.fill(); }
   }
 
-  // p/n sustain overlays for both voices. Direct voice follows the current
-  // section direction; reverse-rank voice moves in counter-direction.
+  // p/n sustain overlays for both voices → sustain layer.
   if(PN_SUSTAIN_ENABLED){
     const dir=(state.rDir>=0)?1:-1;
-    _drawConvergeSustains(cc,p,xFor,yFor,yDirect , dir ,C.SUS_PRE_LINE,C.SUS_PRE_EDGE);
-    _drawConvergeSustains(cc,p,xFor,yFor,yReverse,-dir ,C.SUS_LINE    ,C.SUS_EDGE);
+    _drawConvergeSustains(sc,p,xFor,yFor,yDirect , dir ,C.SUS_PRE_LINE,C.SUS_PRE_EDGE);
+    _drawConvergeSustains(sc,p,xFor,yFor,yReverse,-dir ,C.SUS_LINE    ,C.SUS_EDGE);
   }
+  cv._scatLayer=scatCv;
+  cv._susLayer=susCv;
   return cv;
 }
 
@@ -4295,11 +4682,17 @@ function _drawConvergeSustains(cc,p,xFor,yFor,yMap,dir,lineColor,edgeColor){
 function _buildMainStatic(p,r,W,H,darkBg){
   const C=_colors(darkBg);
   const pad=36, iW=W-pad*2, iH=H-pad*2;
-  const cv=_makeOffscreen(W,H), cc=cv.getContext('2d');
   const yFor=i=>pad+iH-(i/p)*iH;
-  _drawGrid(cc,W,H,pad,iW,iH,p,C);
-  cc.fillStyle=C.FG; cc.font=`bold 11px 'SF Mono',monospace`;
-  cc.fillText(`p=${p}  r=${r}  [main]`,pad+4,pad-8);
+  // Layered offscreens so each can be composited at its own volume-driven alpha.
+  const base=_makeOffscreen(W,H), bc=base.getContext('2d');   // grid, labels, fixed pts (always on)
+  const aL=_makeOffscreen(W,H),  ac=aL.getContext('2d');      // a-diagonal  → layer 'a'
+  const bL=_makeOffscreen(W,H),  bcl=bL.getContext('2d');     // b-cloud     → layer 'b'
+  const rL=_makeOffscreen(W,H),  rc=rL.getContext('2d');      // r line      → layer 'r QR/NQR'
+  const r2L=_makeOffscreen(W,H), r2c=r2L.getContext('2d');    // r² line     → layer 'r2'
+
+  _drawGrid(bc,W,H,pad,iW,iH,p,C);
+  bc.fillStyle=C.FG; bc.font=`bold 11px 'SF Mono',monospace`;
+  bc.fillText(`p=${p}  r=${r}  [main]`,pad+4,pad-8);
 
   const rIsQRm=isQR(r,p);
   const forward=(p%4===1)?rIsQRm:!rIsQRm;
@@ -4309,21 +4702,21 @@ function _buildMainStatic(p,r,W,H,darkBg){
   const qt=qrTable(p);
   const N=aValues.length;
 
-  // a-diagonal line
-  cc.strokeStyle=C.ALINE; cc.lineWidth=1.2; cc.setLineDash([]);
-  cc.beginPath();
+  // a-diagonal line → aL
+  ac.strokeStyle=C.ALINE; ac.lineWidth=1.2; ac.setLineDash([]);
+  ac.beginPath();
   for(let i=0;i<N;i++){
     const a=aValues[i];
     const x=pad+((i+1)/p)*iW, y=yFor(axisMap(a,p));
-    i===0?cc.moveTo(x,y):cc.lineTo(x,y);
+    i===0?ac.moveTo(x,y):ac.lineTo(x,y);
   }
-  cc.stroke();
+  ac.stroke();
 
-  // b cloud — colour by QR/NQR via tables. fillRect for large p.
+  // b cloud → bL (colour by QR/NQR)
   const big=p>2000;
   const sz=big?1.5:2.8;
   for(let pass=0;pass<2;pass++){
-    cc.fillStyle = pass===0 ? C.CYAN : C.ORANGE; // QR then NQR
+    bcl.fillStyle = pass===0 ? C.CYAN : C.ORANGE; // QR then NQR
     for(let i=0;i<N;i++){
       const a=aValues[i];
       const b=(r*inv[a])%p;
@@ -4331,53 +4724,53 @@ function _buildMainStatic(p,r,W,H,darkBg){
       const bQR=qt[b]===1;
       if((bQR?0:1)!==pass) continue;
       const x=pad+((i+1)/p)*iW, y=yFor(axisMap(b,p));
-      if(big) cc.fillRect(x-0.75,y-0.75,sz,sz);
-      else { cc.beginPath(); cc.arc(x,y,2.8,0,Math.PI*2); cc.fill(); }
+      if(big) bcl.fillRect(x-0.75,y-0.75,sz,sz);
+      else { bcl.beginPath(); bcl.arc(x,y,2.8,0,Math.PI*2); bcl.fill(); }
     }
   }
 
-  // r horizontal: dashed outside fixed-pt window, solid between
+  // r horizontal → rL
   const yR=yFor(axisMap(r,p));
   if(!rIsQRm||fixedPts.length<2){
-    cc.strokeStyle=C.RLINE; cc.lineWidth=1.5; cc.setLineDash([5,5]);
-    cc.beginPath(); cc.moveTo(pad,yR); cc.lineTo(pad+iW,yR); cc.stroke();
-    cc.setLineDash([]);
+    rc.strokeStyle=C.RLINE; rc.lineWidth=1.5; rc.setLineDash([5,5]);
+    rc.beginPath(); rc.moveTo(pad,yR); rc.lineTo(pad+iW,yR); rc.stroke();
+    rc.setLineDash([]);
   } else {
     const t0=fixedPts[0],t1=fixedPts[1];
     const x0=pad+((t0+1)/p)*iW, x1=pad+((t1+1)/p)*iW;
-    cc.strokeStyle=C.RLINE; cc.lineWidth=1.5;
-    cc.setLineDash([5,5]);
-    cc.beginPath(); cc.moveTo(pad,yR); cc.lineTo(x0,yR); cc.stroke();
-    cc.setLineDash([]);
-    cc.beginPath(); cc.moveTo(x0,yR); cc.lineTo(x1,yR); cc.stroke();
-    cc.setLineDash([5,5]);
-    cc.beginPath(); cc.moveTo(x1,yR); cc.lineTo(pad+iW,yR); cc.stroke();
-    cc.setLineDash([]);
+    rc.strokeStyle=C.RLINE; rc.lineWidth=1.5;
+    rc.setLineDash([5,5]);
+    rc.beginPath(); rc.moveTo(pad,yR); rc.lineTo(x0,yR); rc.stroke();
+    rc.setLineDash([]);
+    rc.beginPath(); rc.moveTo(x0,yR); rc.lineTo(x1,yR); rc.stroke();
+    rc.setLineDash([5,5]);
+    rc.beginPath(); rc.moveTo(x1,yR); rc.lineTo(pad+iW,yR); rc.stroke();
+    rc.setLineDash([]);
   }
-  cc.fillStyle=C.RLINE; cc.font='10px monospace';
-  cc.fillText(`r=${r}`,pad+iW-2,yR-3);
+  rc.fillStyle=C.RLINE; rc.font='10px monospace';
+  rc.fillText(`r=${r}`,pad+iW-2,yR-3);
 
-  // r² solid line
+  // r² solid line → r2L
   const r2=(r*r)%p;
   if(r2!==0){
     const yR2=yFor(axisMap(r2,p));
-    cc.strokeStyle=C.R2LINE; cc.lineWidth=1.3;
-    cc.beginPath(); cc.moveTo(pad,yR2); cc.lineTo(pad+iW,yR2); cc.stroke();
-    cc.fillStyle=C.R2LINE; cc.font='10px monospace';
-    cc.fillText(`r²=${r2}`,pad+2,yR2-3);
+    r2c.strokeStyle=C.R2LINE; r2c.lineWidth=1.3;
+    r2c.beginPath(); r2c.moveTo(pad,yR2); r2c.lineTo(pad+iW,yR2); r2c.stroke();
+    r2c.fillStyle=C.R2LINE; r2c.font='10px monospace';
+    r2c.fillText(`r²=${r2}`,pad+2,yR2-3);
   }
 
-  // Fixed-point circles (a²≡r). Labels only when sparse enough to read.
+  // Fixed-point circles → base (structural; appear only when r is QR)
   const showLabels=fixedPts.length<=8;
   for(let i=0;i<fixedPts.length;i++){
     const bi=fixedPts[i], a=aValues[bi];
     const x=pad+((bi+1)/p)*iW, y=yFor(axisMap(a,p));
-    cc.strokeStyle=C.FG; cc.lineWidth=2;
-    cc.beginPath(); cc.arc(x,y,7,0,Math.PI*2); cc.stroke();
-    if(showLabels){ cc.fillStyle=C.FG; cc.font='9px monospace'; cc.fillText(`a=${a}`,x+4,y-5); }
+    bc.strokeStyle=C.FG; bc.lineWidth=2;
+    bc.beginPath(); bc.arc(x,y,7,0,Math.PI*2); bc.stroke();
+    if(showLabels){ bc.fillStyle=C.FG; bc.font='9px monospace'; bc.fillText(`a=${a}`,x+4,y-5); }
   }
-  cv._aValues=aValues;
-  return cv;
+  // r is QR or NQR → which layer the r line follows
+  return { base, aL, bL, rL, r2L, rIsQR:rIsQRm, _aValues:aValues };
 }
 
 function drawFrameOnContext(cc,W,H,vs){
@@ -4410,6 +4803,9 @@ function drawFrameOnContext(cc,W,H,vs){
     if(_dualPPStatic.key!==key){ _dualPPStatic={key,cv:_buildDualSectionStatic(directSec,contraSec,p,W,H,darkBg)}; }
     const cv=_dualPPStatic.cv;
     cc.drawImage(cv,0,0);
+    // scatter fades with pre/post volume; sustains with sustain volume
+    if(cv._scatLayer){ const a=_layerAlpha('prepost'); if(a>0.01){ cc.save(); cc.globalAlpha=Math.min(1,a); cc.drawImage(cv._scatLayer,0,0); cc.restore(); } }
+    if(cv._susLayer){ const a=_layerAlpha('sustain'); if(a>0.01){ cc.save(); cc.globalAlpha=Math.min(1,a); cc.drawImage(cv._susLayer,0,0); cc.restore(); } }
     // One ring per stream. y depends on the stream's section; the forward/pre
     // stream is drawn yellow, the rest green.
     const rings=vs.rings||[];
@@ -4430,11 +4826,16 @@ function drawFrameOnContext(cc,W,H,vs){
     const key=[vs.mode,p,W,H,darkBg,state.rDir>=0?1:0,pnNMax(p)].join('_');
     if(_ppStatic.key!==key){ _ppStatic={key,cv:_buildPPStatic(vs.mode,p,r,W,H,darkBg)}; }
     cc.drawImage(_ppStatic.cv,0,0);
+    // scatter fades with the pre/post layer volume (invisible at 0)
+    if(_ppStatic.cv._scatLayer){ const a=_layerAlpha('prepost'); if(a>0.01){ cc.save(); cc.globalAlpha=Math.min(1,a); cc.drawImage(_ppStatic.cv._scatLayer,0,0); cc.restore(); } }
+    // anchors fade with the sustain layer volume (invisible at 0)
+    if(_ppStatic.cv._susLayer){ const a=_layerAlpha('sustain'); if(a>0.01){ cc.save(); cc.globalAlpha=Math.min(1,a); cc.drawImage(_ppStatic.cv._susLayer,0,0); cc.restore(); } }
     // Dynamic: ring on the currently-playing r.
     const r2=(r*r)%p;
     const yv=(vs.mode==='prelude')?axisMap(r2,p):(r2===0?0:axisMap(qrToNqrByRank(r2,p),p));
     if(r>=1&&r<p){
       const cx=pad+(r/p)*iW, cy=yFor(yv);
+      _ringFrac=(cx-pad)/iW;
       cc.strokeStyle=C.RINGA_PRE; cc.lineWidth=2;
       cc.beginPath(); cc.arc(cx,cy,9,0,Math.PI*2); cc.stroke();
     }
@@ -4453,19 +4854,45 @@ function drawFrameOnContext(cc,W,H,vs){
 
   const key=[p,r,W,H,darkBg,state.reorderA,state.reorderR].join('_');
   if(_mainStatic.key!==key){ _mainStatic={key,cv:_buildMainStatic(p,r,W,H,darkBg)}; }
-  cc.drawImage(_mainStatic.cv,0,0);
+  const M=_mainStatic.cv;
+  // base (grid/labels/fixed pts) always full; each layer faded by its volume so
+  // lowering a slider dims that layer's points/line and they vanish at 0.
+  cc.drawImage(M.base,0,0);
+  const _comp=(canvasLayer,alpha)=>{ if(alpha>0.01){ cc.save(); cc.globalAlpha=Math.min(1,alpha); cc.drawImage(canvasLayer,0,0); cc.restore(); } };
+  _comp(M.aL,  _layerAlpha('a'));
+  _comp(M.bL,  _layerAlpha('b'));
+  _comp(M.rL,  _layerAlpha(M.rIsQR?'qr':'nqr'));   // r line follows r's QR/NQR layer
+  _comp(M.r2L, _layerAlpha('r2'));
 
   // Dynamic: current-beat rings (the only thing that changes each frame). The
   // beat index runs backwards in reverse, so the ring travels right→left.
-  const aValues=_mainStatic.cv._aValues;
+  // Each ring's opacity tracks its layer volume, so lowering a layer fades its
+  // marker and it vanishes at 0 (solo-aware via vget).
+  const aValues=M._aValues;
   if(aValues && vs.beat>=0 && vs.beat<aValues.length){
     const x=pad+((vs.beat+1)/p)*iW;
+    _ringFrac=(x-pad)/iW;   // 0..1 along the time axis, for zoom auto-follow
     const yA=yFor(axisMap(vs.a,p)), yB=yFor(axisMap(vs.b,p));
-    cc.strokeStyle=C.RING_A; cc.lineWidth=2.5;
-    cc.beginPath(); cc.arc(x,yA,10,0,Math.PI*2); cc.stroke();
-    cc.strokeStyle=C.RING_B; cc.lineWidth=2.5;
-    cc.beginPath(); cc.arc(x,yB,10,0,Math.PI*2); cc.stroke();
+    const aA=_layerAlpha('a'), aB=_layerAlpha('b');
+    if(aA>0.01){
+      cc.save(); cc.globalAlpha=aA; cc.strokeStyle=C.RING_A; cc.lineWidth=2.5;
+      cc.beginPath(); cc.arc(x,yA,10,0,Math.PI*2); cc.stroke(); cc.restore();
+    }
+    if(aB>0.01){
+      cc.save(); cc.globalAlpha=aB; cc.strokeStyle=C.RING_B; cc.lineWidth=2.5;
+      cc.beginPath(); cc.arc(x,yB,10,0,Math.PI*2); cc.stroke(); cc.restore();
+    }
   }
+}
+
+// Map a layer's current effective volume to a drawing alpha in [0,1]. Uses the
+// same solo-aware getter as audio, normalised by the slider's max so a layer at
+// full reads ~1 and a layer at 0 reads 0 (its visual disappears).
+const _VOL_MAX={qr:0.5,nqr:0.5,r2:0.4,a:0.4,b:0.4,diag:0.5,hat:0.3,kick:0.5,prepost:0.6,sustain:0.6,chord:0.6,glue:0.6};
+function _layerAlpha(key){
+  const v=vget(key); const mx=_VOL_MAX[key]||0.5;
+  let a=v/mx; if(!isFinite(a)) a=0;
+  return Math.max(0, Math.min(1, a));
 }
 
 function drawFrame(){
@@ -4478,6 +4905,7 @@ function drawFrame(){
   };
   drawFrameOnContext(cctx,W,H,vs);
   if(typeof cfg!=='undefined' && cfg.overlay) cfgDrawOverlay(cctx,W,H);
+  _followCamera();
 }
 
 // ---------- UI helpers ----------
@@ -4498,62 +4926,195 @@ function setExportMsg(m){ document.getElementById('export-msg').textContent=m; }
 
 function bindRangePair(rId,nId,cb){
   const r=document.getElementById(rId),n=document.getElementById(nId);
-  r.addEventListener('input',()=>{n.value=r.value;cb(parseFloat(r.value));});
-  n.addEventListener('input',()=>{r.value=n.value;cb(parseFloat(n.value));});
+  // Slider: live (dragging reacts immediately).
+  r.addEventListener('input',()=>{ n.value=r.value; cb(parseFloat(r.value)); });
+  // Number field: does NOT react while typing — commits only on Enter or blur.
+  // (Prevents half-typed values like "1" from "120" taking effect mid-keystroke.)
+  const commit=()=>{ const v=parseFloat(n.value); if(!isNaN(v)){ r.value=v; n.value=v; cb(v); } };
+  n.addEventListener('keydown',e=>{ if(e.key==='Enter'){ commit(); n.blur(); } });
+  n.addEventListener('blur',commit);
 }
 
 // ---------- UI bindings ----------
 document.getElementById('btn-start').onclick=startAudio;
 document.getElementById('btn-pause').onclick=pauseAudio;
-document.getElementById('btn-reverse').onclick=()=>{state.reqReverse=true;};
 
-document.getElementById('btn-jump').onclick=()=>{
-  const p=parseInt(document.getElementById('jump-p').value)||11;
-  const r=parseInt(document.getElementById('jump-r').value)||1;
-  const sec=parseInt(document.getElementById('jump-section').value)||0;
-  state.playmode=sec;
-  document.getElementById('playmode').value=sec;
-  state.reqP=p; state.reqR=r; state.reqSkip=true;
-};
-
-document.getElementById('playmode').onchange=e=>{
-  state.playmode=parseInt(e.target.value);
-  if(state.running){
-    // Restart the current prime from the top so section gating takes effect
-    // immediately at a clean boundary (no leftover main beats/frames between
-    // prelude and postlude in pre/post-only modes).
-    state.reqP=(synthState?synthState.p:state.p);
-    state.visQueue.length=0;     // drop stale visual events
-    state.vizMode='pause'; state.vizR=0;  // stop showing main right away
-  }
-  state.reqSkip=true;
-};
-
-
-document.getElementById('motion-mode').onchange=e=>{
-  state.motionMode=parseInt(e.target.value);
+// Clean restart at a section boundary so structure changes take effect at once.
+function _restartCurrentPrime(){
   if(state.running){
     state.reqP=(synthState?synthState.p:state.p);
     state.visQueue.length=0;
     state.vizMode='pause'; state.vizR=0;
   }
   state.reqSkip=true;
+}
+
+// ---- Direction (forward / reverse) ----
+// Forward is the natural flow; pressing reverse requests an in-place reversal.
+function setDirection(rev){
+  document.getElementById('btn-fwd').classList.toggle('active',!rev);
+  document.getElementById('btn-rev').classList.toggle('active', rev);
+  // Only fire a reversal request when the desired direction differs from current.
+  const curRev = (state.pDir<0);
+  if(rev!==curRev){ state.reqReverse=true; state.pDir = rev?-1:1; }
+}
+document.getElementById('btn-fwd').onclick=()=>setDirection(false);
+document.getElementById('btn-rev').onclick=()=>setDirection(true);
+
+// ---- Structure: sections-in-playback + exclusive motion mode + sustain toggle ----
+const _secActive={pre:true,main:true,post:true};
+let _motion='linear';   // 'linear' | 'prepost' | 'self'
+
+function _playmodeFromSections(){
+  const {pre,main,post}=_secActive;
+  if(pre&&main&&post) return 0;            // all
+  if(pre&&post&&!main) return 2;           // pre+post
+  if(pre&&!main&&!post) return 1;          // prelude
+  if(post&&!main&&!pre) return 3;          // postlude
+  if(main&&!pre&&!post) return 4;          // main only
+  return 0;                                // mixed/none → all
+}
+function _applyStructure(){
+  const pm=_playmodeFromSections();
+  // motion: linear=0, pre/post converge=5, self-converge=6 (engine codes)
+  const mo = _motion==='prepost' ? 5 : _motion==='self' ? 6 : 0;
+  state.playmode=pm; state.motionMode=mo;
+  // Authoritative section mask — sectionFlow/allow-flags read THIS, so the two
+  // combos the 5-value playmode can't express (pre+main, main+post) work too.
+  state.secMask={pre:_secActive.pre, main:_secActive.main, post:_secActive.post};
+  // Section button visuals
+  document.getElementById('sec-pre').classList.toggle('active',_secActive.pre);
+  document.getElementById('sec-main').classList.toggle('active',_secActive.main);
+  document.getElementById('sec-post').classList.toggle('active',_secActive.post);
+  // Motion button visuals (exclusive)
+  document.querySelectorAll('.mo-btn').forEach(b=>b.classList.toggle('active', b.dataset.mo===_motion));
+  // Readout in plain words (reflects the actual mask, not the lossy playmode)
+  const parts=[]; if(_secActive.pre)parts.push('prelude'); if(_secActive.main)parts.push('main'); if(_secActive.post)parts.push('postlude');
+  const moNames={linear:'linear', prepost:'pre/post converge', self:'self-converge'};
+  const lbl=document.getElementById('struct-state');
+  if(lbl) lbl.textContent = `${parts.length?parts.join(' + '):'(none)'} · ${moNames[_motion]}`;
+  // While playing, DON'T restart: the engine reads state.secMask / motionMode
+  // live at every section transition, so a motion/section change is picked up at
+  // the NEXT prelude/main/postlude boundary — playback continues from the current
+  // beat with no jump. Only refresh the flow ordering for the current section so
+  // it's consistent if a section was just toggled off mid-stream.
+  if(state.running && synthState){
+    const s=synthState;
+    s.flow=sectionFlow(state.playmode, s.rDir<0);
+    const curSec = (s.phase==='dual') ? (s.dualStage===0?'prelude':'postlude') : s.phase;
+    const stillOn = (curSec==='prelude'&&_secActive.pre)||(curSec==='main'&&_secActive.main)||(curSec==='postlude'&&_secActive.post);
+    if(!stillOn && (curSec==='prelude'||curSec==='main'||curSec==='postlude')){
+      // current section turned off → advance to the next enabled section now
+      s.flowIdx = Math.max(0, s.flow.indexOf(curSec));
+      _advanceSectionSoft(s, s.p);
+    } else if(curSec==='prelude' || curSec==='postlude'){
+      // We're INSIDE a prelude/postlude: a motion change takes effect IMMEDIATELY,
+      // recasting this section to the new mode at the SAME beat position (rIdx).
+      // (In main we leave it for the next boundary, per the earlier behaviour.)
+      _recastCurrentSection(s, curSec);
+    }
+  } else {
+    _restartCurrentPrime();   // stopped: safe to re-seed the preview
+  }
+}
+// Rebuild the prelude/postlude we're currently in to match the live motionMode,
+// preserving the beat index (s.rIdx) so playback continues from the same place.
+function _recastCurrentSection(s, sec){
+  const p=s.p;
+  const keepIdx = s.rIdx|0;
+  // keep flowIdx pointing at this section in the (possibly new) flow
+  const fi = s.flow.indexOf(sec);
+  if(fi>=0) s.flowIdx=fi;
+  if(isDualMode(state.motionMode)){
+    // linear → converge/self: become a dual-pair for this section, same rIdx.
+    s.phase='dual';
+    s.dualStage = (sec==='prelude') ? 0 : 1;
+    s.dualStreams = dualStreamsFor(state.motionMode, s.dualStage, state.playmode);
+    s.dualScatter = dualScatterKind(state.motionMode, s.dualStage);
+    s.fwdList=null; s.revList=null;     // rebuilt lazily in the dual phase
+  } else {
+    // converge/self → linear: become a plain single-voice section, same rIdx.
+    s.phase=sec;
+    s.rList=_sectionRList(sec,p,s.rDir);
+  }
+  s.rIdx=keepIdx;   // stay exactly where we are
+}
+// Move to the next section in the flow without a full prime restart.
+function _advanceSectionSoft(s,p){
+  s.flowIdx=(s.flowIdx|0)+1;
+  if(!s.flow || s.flowIdx>=s.flow.length){ s.phase='next-prime'; return; }
+  _enterFlowPhase(s,p);
+}
+document.querySelectorAll('.sec-btn').forEach(b=>{
+  b.onclick=()=>{ const s=b.dataset.sec; _secActive[s]=!_secActive[s]; _applyStructure(); };
+});
+document.querySelectorAll('.mo-btn').forEach(b=>{
+  b.onclick=()=>{ _motion=b.dataset.mo; _applyStructure(); };   // exclusive: clicking sets it
+});
+// Independent sustain-anchor toggle (n ≤ √p). Turning it off zeroes the sustain
+// layer; turning it on restores a default level. Also force n-range to sqrt.
+document.getElementById('sustain-on').onchange=e=>{
+  const on=e.target.checked;
+  PN_SUSTAIN_ENABLED = on;          // gates BOTH the audio voices and the drawn anchors
+  state.pnNMode='sqrt';
+  const sel=document.getElementById('pn-nmode'); if(sel) sel.value='sqrt';
+  if(on){
+    if(state.vol.sustain<=0) state.vol.sustain=0.20;
+  } else {
+    state.vol.sustain=0;
+  }
+  const sl=document.getElementById('v-sustain'); if(sl) sl.value=state.vol.sustain;
+  if(typeof _invalidatePPAnchorCache==='function') _invalidatePPAnchorCache();
+  // Anchors are baked into the prelude/postlude AND main static layers — drop
+  // those caches so the change is visible immediately, not on the next prime.
+  _mainStatic.key=null; _ppStatic.key=null; _dualPPStatic.key=null;
+  if(typeof refreshAnchorInfo==='function') refreshAnchorInfo();
 };
 
 bindRangePair('bpm','bpm-num',v=>{state.bpm=Math.max(5,Math.min(999,v));});
 bindRangePair('fmin','fmin-num',v=>{state.minFreq=v;});
 bindRangePair('fmax','fmax-num',v=>{state.maxFreq=v;});
 
-document.querySelectorAll('input[name=reorderR]').forEach(el=>{
-  el.onchange=()=>{state.reorderR=parseInt(el.value);state.reqSkip=true;};
-});
-document.querySelectorAll('input[name=reorderA]').forEach(el=>{
-  el.onchange=()=>{state.reorderA=parseInt(el.value);state.reqSkip=true;};
+// ---- Playback order symbol buttons (R order / A order) ----
+function _setOrder(grp,val){
+  if(grp==='R') state.reorderR=val; else state.reorderA=val;
+  document.querySelectorAll(`.ord-btn[data-grp="${grp}"]`).forEach(b=>{
+    b.classList.toggle('active', parseInt(b.dataset.val)===val);
+  });
+  state.reqSkip=true;
+}
+document.querySelectorAll('.ord-btn').forEach(b=>{
+  b.onclick=()=>_setOrder(b.dataset.grp, parseInt(b.dataset.val));
 });
 
 document.getElementById('harm-mode').onchange=e=>state.harmMode=parseInt(e.target.value);
+state.harmMode=1;   // default RATIONAL (matches the selected option)
 document.getElementById('gliss-a').onchange=e=>state.glissA=e.target.checked;
 document.getElementById('gliss-b').onchange=e=>state.glissB=e.target.checked;
+
+// ---- p / r number inputs (typed entry; arrows handled separately) ----
+document.getElementById('p-num').addEventListener('change',e=>{
+  let p=parseInt(e.target.value)||11; if(p<3)p=3; if(!isPrime(p))p=nextPrime(p);
+  e.target.value=p;
+  state.reqP=p; state.reqSkip=true;
+  if(!state.running){ state.p=p; state.vizP=p; }
+  // If the prelude is NOT in the playback set, land directly in main (r=1)
+  // rather than starting from a section boundary.
+  if(state.running && !_secActive.pre){ state.reqGotoMain=1; }
+  _refreshLiveP();
+});
+document.getElementById('r-num').addEventListener('change',e=>{
+  const p=_liveP(); let r=parseInt(e.target.value)||1;
+  if(r<1)r=1; if(r>p-1)r=p-1; e.target.value=r;
+  state.vizR=r;
+  if(state.running){
+    // typed r → jump to that r within MAIN
+    state.reqGotoMain=r;
+  } else {
+    state.reqR=r; state.reqSkip=true;
+  }
+  _refreshLiveP();
+});
 
 // ---- p/n sustain anchor density ----
 // Changing the anchor set must invalidate the prelude/postlude static-layer
@@ -4592,7 +5153,7 @@ document.getElementById('t-post').oninput=e=>{ state.track.post=parseFloat(e.tar
 bindRangePair('t-postoff','t-postoff-num',v=>{ state.postOffsetBeats=Math.max(-1,Math.min(1,v)); });
 
 // Layers with a volume slider — each also has a solo checkbox.
-const VOL_LAYERS=['qr','nqr','r2','a','b','diag','hat','kick','prepost','sustain','chord'];
+const VOL_LAYERS=['qr','nqr','r2','a','b','diag','hat','kick','prepost','sustain','chord','glue'];
 const SOLO_LAYERS=VOL_LAYERS.slice();
 for(const k of VOL_LAYERS){
   const el=document.getElementById('v-'+k);
@@ -4647,24 +5208,47 @@ function _refreshLiveP(){
   if(p!==_lastShownP){ el.textContent='p = '+p; _lastShownP=p; }
   const er=document.getElementById('live-r');
   if(er){ er.textContent='r = '+_liveR(); }
+  // Keep the typed boxes tracking playback, unless the user is editing them.
+  const af=document.activeElement;
+  const pn=document.getElementById('p-num');
+  if(pn && af!==pn) pn.value=p;
+  const rn=document.getElementById('r-num');
+  if(rn && af!==rn) rn.value=_liveR();
 }
 function stepPrime(dir){
   const cur=_liveP();
   const np=(dir>0)?nextPrime(cur):prevPrime(cur);
   state.reqP=np; state.reqSkip=true;          // live jump via the existing engine path
   if(!state.running){ state.p=np; state.vizP=np; }  // when stopped: pick the start prime (and preview it)
-  const jp=document.getElementById('jump-p'); if(jp) jp.value=np;
+  const jp=document.getElementById('p-num'); if(jp) jp.value=np;
   _refreshLiveP();
 }
 function stepR(dir){
+  if(state.running){
+    const ph = synthState ? synthState.phase : null;
+    const P  = _liveP();
+    if(dir>0){
+      // NEXT
+      if(ph==='prelude'){ state.reqGoto={p:P, sec:'main', rPos:1}; }              // → main r=1
+      else if(ph==='postlude'){ state.reqGoto={p:nextPrime(P), sec:'prelude', rPos:'first'}; } // → next p, prelude r=1
+      else { state.reqRStep=1; }                                                  // main / other: step within
+    } else {
+      // PREV
+      if(ph==='postlude'){ state.reqGoto={p:P, sec:'main', rPos:P-1}; }           // → main r=p−1
+      else if(ph==='prelude'){ const pp=prevPrime(P); state.reqGoto={p:pp, sec:'postlude', rPos:'last'}; } // → prev p, postlude end
+      else { state.reqRStep=-1; }                                                 // main / other: step within
+    }
+    setTimeout(_refreshLiveP, 60);
+    return;
+  }
+  // stopped: just set the preview r with simple 1↔p−1 wrap
   const p=_liveP();
   const cur=_liveR();
   let nr=cur+dir;
   if(nr<1) nr=p-1;
   if(nr>p-1) nr=1;
-  state.reqR=nr; state.reqSkip=true;
-  state.vizR=nr;
-  const jr=document.getElementById('jump-r'); if(jr) jr.value=nr;
+  state.reqR=nr; state.vizR=nr;
+  const jr=document.getElementById('r-num'); if(jr) jr.value=nr;
   _refreshLiveP();
 }
 document.getElementById('btn-p-up').onclick  =()=>stepPrime(+1);
@@ -4806,35 +5390,30 @@ const cfg = {
   overlay:null, flashes:[],           // time-synced chord highlights
   chordQueue:[],                      // pending quadruples to play before melody resumes
   played:new Set(),                   // quadruple indices already sounded this pass (dedup)
-  _demoTimer:null,                    // standalone "demo all" cycle handle
+  _demoTimer:null,                    // standalone sequence cycle handle
+  chordDir:1,                         // +1 low→high, -1 high→low (⇅ button)
+  trigSet:new Set(),                  // voices selected to trigger chords
 };
 
 // Order in which a note's quadruples are queued: follows playback direction by
 // default (forward → ascending index, reverse → descending), or forced up/down.
 function cfgChordDir(){
-  const el=document.getElementById('cfg-chord-dir');
-  const mode=el?el.value:'auto';
-  if(mode==='up') return +1;
-  if(mode==='down') return -1;
-  // auto: follow the a-sweep / playback direction
-  const d=(synthState&&synthState.aDir)?synthState.aDir:(state.rDir||1);
-  return d<0 ? -1 : +1;
+  // Chord-arpeggio direction is controlled solely by the ⇅ chord-dir button
+  // (cfg.chordDir: +1 low→high, -1 high→low), independent of global playback.
+  return (cfg.chordDir<0) ? -1 : +1;
 }
 
 // Slider readouts.
 function cfgArpSub(){ const v=parseInt((document.getElementById('cfg-arp-sub')||{}).value)||2; return Math.max(1,v); }
-function cfgMaxPerNote(){
-  const el=document.getElementById('cfg-maxplay'); if(!el) return Infinity;
-  const v=parseInt(el.value);
-  return (el.dataset.inf==='1'||isNaN(v)) ? Infinity : Math.max(1,v);
-}
+function cfgMaxPerNote(){ return Infinity; }   // (per-note cap control removed)
+// Stepped chord-length values (in beats) and their display labels.
+// Two runs: unit fractions 1/1…1/16, then whole beats 1…32.
+const CFG_DUR_STEPS = (()=>{ const a=[]; for(let n=16;n>=2;n--)a.push(1/n); for(let k=1;k<=32;k++)a.push(k); return a; })();
+const CFG_DUR_LABELS= (()=>{ const a=[]; for(let n=16;n>=2;n--)a.push('1/'+n); for(let k=1;k<=32;k++)a.push(''+k); return a; })();
 function cfgDurBeats(){
-  const typed=document.getElementById('cfg-dur-typed');
-  const src = (typed&&typed.checked) ? document.getElementById('cfg-dur-num')
-                                     : document.getElementById('cfg-dur');
-  if(!src) return 2;
-  const v=parseFloat(src.value); if(isNaN(v)||v<=0) return 2;
-  return v;   // no cap — chord length is free
+  const sl=document.getElementById('cfg-dur');
+  let i=sl?parseInt(sl.value):15; if(isNaN(i))i=15; i=Math.max(0,Math.min(CFG_DUR_STEPS.length-1,i));
+  return CFG_DUR_STEPS[i];
 }
 
 function cfgRefresh(){
@@ -4858,6 +5437,7 @@ function cfgRefresh(){
   cfgUpdateUI(`${t.name} · ${t.edges} edge(s) · ${word} QR-quadruples${extra}`);
   cfgSyncOverlay();
   if(cfg._syncDurUI) cfg._syncDurUI();
+  if(cfg._updateTypeCounts) cfg._updateTypeCounts();
 }
 
 function cfgCurrent(){ return cfg.quads.length? cfg.quads[((cfg.idx%cfg.quads.length)+cfg.quads.length)%cfg.quads.length] : null; }
@@ -4878,20 +5458,37 @@ function cfgSyncOverlay(){
 // type that contains the note AND has not yet been played this pass, ordered by
 // the chord-traversal direction, capped by max-per-note. Queued quadruples are
 // immediately marked played so later notes won't repeat them. Returns count.
-function cfgQueueForNote(noteVal){
+// Sort key for a quadruple = its residues sorted ascending, compared
+// lexicographically (i.e. as a multi-digit number in base p). Lower set → lower key.
+function _quadKey(qi){
+  const q=cfg.quads[qi]; if(!q) return 0;
+  const s=q.slice().sort((a,b)=>a-b);
+  const p=cfg.p;
+  return ((s[0]*p)+s[1])*p*p + s[2]*p + s[3];   // base-p weighting, no digit collisions
+}
+function cfgQueueForNote(noteVal, pos){
   if(!cfg.index || !cfg.quads.length) return 0;
   let v=((noteVal%cfg.p)+cfg.p)%cfg.p;
   const list=cfg.index.get(v);
   if(!list || !list.length) return 0;
-  // candidates: not yet played; ordered by direction (asc index / desc index)
-  const dir=cfgChordDir();
-  const ordered = dir<0 ? list.slice().reverse() : list;
+  const p=cfg.p;
+  // Base direction of the chord SEQUENCE follows the QR/NQR rhythm of the playback
+  // position on [1,p-1]: QR position → ascending by pitch, nonQR → descending.
+  // The ⇅ chord button and the global reverse each flip it (signs multiply).
+  let base = 1;
+  if(pos && pos>=1){ base = isQR(((pos-1)%(p-1))+1, p) ? 1 : -1; }
+  const manual = (cfg.chordDir<0) ? -1 : 1;
+  const glob   = (synthState && synthState.rDir<0) ? -1 : 1;
+  const asc = (base*manual*glob) >= 0;          // true → low→high by quad key
+  // candidates not yet played, sorted by pitch (sorted-quadruple key)
   const fresh=[];
-  for(const qi of ordered){ if(!cfg.played.has(qi)) fresh.push(qi); }
+  for(const qi of list){ if(!cfg.played.has(qi)) fresh.push(qi); }
   if(!fresh.length) return 0;
+  fresh.sort((a,b)=> asc ? (_quadKey(a)-_quadKey(b)) : (_quadKey(b)-_quadKey(a)) );
   const cap=cfgMaxPerNote();
   const take=(cap===Infinity)? fresh.length : Math.min(cap, fresh.length);
-  for(let i=0;i<take;i++){ const qi=fresh[i]; cfg.chordQueue.push({qi, hit:v}); cfg.played.add(qi); }
+  const P=(pos|0)||0;
+  for(let i=0;i<take;i++){ const qi=fresh[i]; cfg.chordQueue.push({qi, hit:v, pos:P}); cfg.played.add(qi); }
   return take;
 }
 
@@ -4907,14 +5504,23 @@ function cfgUpdateUI(infoText){
 // spaced `subBeats` beats (= 1/n of a beat). vol scales the layer. It also pushes
 // a time-synced visual "flash" so the chord lights up the plot exactly when it
 // sounds; hitV (or null) marks the note the melody landed on.
-function cfgChordAt(at, quad0, vol, bd, hitV){
+function cfgChordAt(at, quad0, vol, bd, hitV, pos){
   const quad=quad0;
   const p=cfg.p;
   const durBeats=cfgDurBeats();
   const arp=document.getElementById('cfg-arp').checked;
   const subBeats=1/cfgArpSub();
   const totalSec=Math.max(0.18, durBeats*bd);
-  const order=[0,1,2,3].sort((a,b)=>quad[a]-quad[b]);   // low → high
+  // Base direction follows the QR/NQR rhythm of the playback POSITION on [1,p-1]:
+  // a position that is a quadratic residue → ascending (low→high), else descending.
+  // The ⇅ chord button and the global reverse each flip this (signs multiply).
+  let base = 1;
+  if(pos && pos>=1){ base = isQR(((pos-1)%(p-1))+1, p) ? 1 : -1; }
+  const manual = (cfg.chordDir<0) ? -1 : 1;                  // ⇅ button
+  const glob   = (synthState && synthState.rDir<0) ? -1 : 1; // global reverse
+  const dirSign = base*manual*glob;
+  const order=[0,1,2,3].sort((a,b)=>quad[a]-quad[b]);        // low → high
+  if(dirSign<0) order.reverse();                             // high → low
   const onsets=[0,0,0,0], lengths=[0,0,0,0];
   order.forEach((vi,n)=>{
     const v=quad[vi];
@@ -4931,6 +5537,23 @@ function cfgChordAt(at, quad0, vol, bd, hitV){
   if(hitV!=null){ const hv=((hitV%p)+p)%p; hi=quad.findIndex(v=>v===hv); }
   cfg.flashes.push({ tStart:at, p, quad:quad.slice(), onsets, lengths, hit:hi });
   if(cfg.flashes.length>48) cfg.flashes.splice(0,cfg.flashes.length-32);
+
+  // ---- glue voices: one faint tone per QR-difference edge (an "agreeing
+  // difference"). The lattice of edges is thus literally audible and differs per
+  // graph type. Pitched at the geometric mean of the two endpoint frequencies so
+  // it binds them; scaled by the dedicated 'glue' layer (solo-aware).
+  const gv=vget('glue');
+  if(gv>0){
+    const edges=(cfg.overlay&&cfg.overlay.info&&cfg.overlay.info.edges)?cfg.overlay.info.edges:[];
+    for(const e of edges){
+      const va=quad[e[0]], vb=quad[e[1]];
+      const ia=axisMap(((va%p)+p)%p,p), ib=axisMap(((vb%p)+p)%p,p);
+      const fa=freqForIndex(ia,p), fb=freqForIndex(ib,p);
+      const fg=Math.sqrt(fa*fb);                 // geometric-mean binding tone
+      const [l,r]=panGains(((ia+ib)>>1),p);
+      scheduleSustainVoice(at, totalSec, fg, gv*0.6, l, r);
+    }
+  }
 }
 // Manual trigger from the "sound it" button. Uses the chord layer's raw level
 // (state.vol.chord) so auditioning is always audible regardless of solo.
@@ -4964,18 +5587,9 @@ function cfgDrawOverlay(cc,W,H){
     cc.globalAlpha=1;
   }
 
-  // ---- static (selected) configuration: dim so it doesn't fight the main viz
-  const pts=ov.quad.map(v=>({v, x:xFor(v), y:yFor(v)}));
-  cc.globalAlpha=0.55; cc.lineWidth=2; cc.strokeStyle=C.RING_B;
-  ov.info.edges.forEach(e=>{ cc.beginPath(); cc.moveTo(pts[e[0]].x,pts[e[0]].y); cc.lineTo(pts[e[1]].x,pts[e[1]].y); cc.stroke(); });
-  cc.globalAlpha=0.8;
-  pts.forEach(pt=>{
-    cc.beginPath(); cc.arc(pt.x,pt.y,6,0,Math.PI*2);
-    cc.fillStyle=C.RING_A; cc.fill();
-    cc.lineWidth=1.5; cc.strokeStyle=C.BG; cc.stroke();
-  });
-  cc.globalAlpha=1; cc.fillStyle=C.FG; cc.font="bold 10px 'SF Mono',monospace";
-  pts.forEach(pt=>cc.fillText(String(pt.v), pt.x+8, pt.y-7));
+  // (The persistent "selected configuration" overlay was removed — only the
+  // time-synced chord flashes below are drawn, so nothing sits statically on the
+  // canvas when no chord is sounding.)
 
   // ---- animated chord flashes (time-synced to audio) ----
   // Per-node envelope: fast attack, then decay over the note's length, so each
@@ -4988,33 +5602,35 @@ function cfgDrawOverlay(cc,W,H){
     const x=(local-atk)/Math.max(0.05,len-atk);
     return x>=1?0:Math.pow(1-x,1.6);
   };
+  // Per-layer visual gain: edges follow the glue level, nodes follow chord.
+  const _aGlue=_layerAlpha('glue'), _aChord=_layerAlpha('chord');
   for(const fl of cfg.flashes){
     if(fl.p!==p) continue;
     const fpts=fl.quad.map(v=>({v, x:xFor(v), y:yFor(v)}));
     const inten=fl.quad.map((v,i)=>envAt(now-(fl.tStart+fl.onsets[i]), fl.lengths[i]));
     if(inten.every(x=>x<=0)) continue;
-    // pulsing edges (use the selected type's edge list; both endpoints active)
+    // pulsing edges (the glue lattice) — fade with the glue layer
     cc.lineWidth=3; cc.strokeStyle=C.RING_B;
-    ov.info.edges.forEach(e=>{
+    if(_aGlue>0.01) ov.info.edges.forEach(e=>{
       const a=Math.min(inten[e[0]],inten[e[1]]); if(a<=0) return;
-      cc.globalAlpha=0.85*a; cc.beginPath();
+      cc.globalAlpha=0.85*a*_aGlue; cc.beginPath();
       cc.moveTo(fpts[e[0]].x,fpts[e[0]].y); cc.lineTo(fpts[e[1]].x,fpts[e[1]].y); cc.stroke();
     });
-    // glowing nodes + bloom halo
-    fpts.forEach((pt,i)=>{
+    // glowing nodes + bloom halo — fade with the chord layer
+    if(_aChord>0.01) fpts.forEach((pt,i)=>{
       const a=inten[i]; if(a<=0) return;
       const isHit=(i===fl.hit);
       // halo
-      cc.globalAlpha=0.30*a;
+      cc.globalAlpha=0.30*a*_aChord;
       cc.fillStyle = isHit ? C.RING_A : C.CYAN;
       cc.beginPath(); cc.arc(pt.x,pt.y, 10 + 22*a, 0, Math.PI*2); cc.fill();
       // core
-      cc.globalAlpha=Math.min(1,0.5+0.5*a);
+      cc.globalAlpha=Math.min(1,0.5+0.5*a)*_aChord;
       cc.fillStyle = isHit ? C.RING_A : C.CYAN;
       cc.beginPath(); cc.arc(pt.x,pt.y, 6 + 4*a, 0, Math.PI*2); cc.fill();
       cc.globalAlpha=1; cc.lineWidth=2; cc.strokeStyle=C.BG; cc.stroke();
       if(isHit){
-        cc.globalAlpha=0.9*a; cc.lineWidth=2; cc.strokeStyle=C.RING_A;
+        cc.globalAlpha=0.9*a*_aChord; cc.lineWidth=2; cc.strokeStyle=C.RING_A;
         cc.beginPath(); cc.arc(pt.x,pt.y, 8 + 26*(1-Math.min(1,(now-fl.tStart)/0.5)), 0, Math.PI*2); cc.stroke();
       }
     });
@@ -5032,6 +5648,60 @@ function cfgDrawOverlay(cc,W,H){
   const t=CFG_TYPES.find(t=>t.id===cfg.typeId);
   cc.fillStyle=C.FG; cc.font="bold 11px 'SF Mono',monospace";
   cc.fillText(`config: ${t?t.name:''}  {${ov.quad.join(', ')}}`, pad+4, H-pad+18);
+
+  // ---- chord-graph inset (always readable regardless of p) ----
+  // A small draggable panel: the 4 residues as nodes on a square, the agreeing-
+  // difference edges drawn boldly, and — during playback — the CURRENTLY SOUNDING
+  // quadruple's values and bloom (falls back to the selected one when idle).
+  if(_cfgInsetOn){
+    const S=Math.max(96, Math.min(150, Math.round(W*0.13)));
+    // position: draggable; default just below the top-right zoom controls
+    if(_insetPos.x==null){ _insetPos.x=W-S-10; _insetPos.y=52; }
+    const x0=Math.max(0,Math.min(W-S,_insetPos.x)), y0=Math.max(0,Math.min(H-S,_insetPos.y));
+    _insetRect={x:x0,y:y0,s:S};   // remember for hit-testing in the drag handler
+    cc.save();
+    // panel backdrop
+    cc.globalAlpha=0.82; cc.fillStyle=C.BG;
+    cc.beginPath(); (cc.roundRect?cc.roundRect(x0,y0,S,S,10):cc.rect(x0,y0,S,S)); cc.fill();
+    cc.globalAlpha=1; cc.lineWidth=1; cc.strokeStyle=C.FG;
+    cc.beginPath(); (cc.roundRect?cc.roundRect(x0,y0,S,S,10):cc.rect(x0,y0,S,S)); cc.stroke();
+    const cx=x0+S/2, cy=y0+S/2 + 4, R=S*0.30;
+    const corners=[ {x:cx-R,y:cy-R}, {x:cx+R,y:cy-R}, {x:cx+R,y:cy+R}, {x:cx-R,y:cy+R} ];
+    // pick the most recent ACTIVE flash → show its quad + intensities live
+    let quadShown=ov.quad, inten=[0,0,0,0];
+    for(const fl of cfg.flashes){
+      if(fl.p!==p) continue;
+      const ii=fl.quad.map((v,i)=>{ const local=now-(fl.tStart+fl.onsets[i]); if(local<0)return 0; const atk=0.05; if(local<atk)return local/atk; const xx=(local-atk)/Math.max(0.05,fl.lengths[i]-atk); return xx>=1?0:Math.pow(1-xx,1.6); });
+      if(ii.some(v=>v>0)){ inten=ii; quadShown=fl.quad; }   // most recent active wins
+    }
+    // title
+    cc.fillStyle=C.FG; cc.font="bold 9px 'SF Mono',monospace"; cc.textAlign='left';
+    cc.fillText('chord graph', x0+8, y0+13);
+    // edges (the lattice topology is fixed by the selected type)
+    cc.lineWidth=2.5; cc.strokeStyle=C.RING_B;
+    ov.info.edges.forEach(e=>{
+      const lit=Math.max(inten[e[0]],inten[e[1]]);
+      cc.globalAlpha=0.45+0.55*lit;
+      cc.beginPath(); cc.moveTo(corners[e[0]].x,corners[e[0]].y); cc.lineTo(corners[e[1]].x,corners[e[1]].y); cc.stroke();
+    });
+    cc.globalAlpha=1;
+    // nodes — labels are the LIVE sounding values when a chord is playing
+    corners.forEach((c,i)=>{
+      const lit=inten[i];
+      if(lit>0){ cc.globalAlpha=0.30*lit; cc.fillStyle=C.CYAN; cc.beginPath(); cc.arc(c.x,c.y,9+12*lit,0,Math.PI*2); cc.fill(); }
+      cc.globalAlpha=1; cc.fillStyle = lit>0?C.CYAN:C.FG;
+      cc.beginPath(); cc.arc(c.x,c.y,7,0,Math.PI*2); cc.fill();
+      cc.lineWidth=1.5; cc.strokeStyle=C.BG; cc.stroke();
+      cc.fillStyle=C.BG; cc.font="bold 9px 'SF Mono',monospace"; cc.textAlign='center'; cc.textBaseline='middle';
+      cc.fillText(String(quadShown[i]), c.x, c.y);
+    });
+    cc.textAlign='left'; cc.textBaseline='alphabetic';
+    cc.globalAlpha=0.8; cc.fillStyle=C.FG; cc.font="9px 'SF Mono',monospace";
+    cc.fillText(`${ov.info.edges.length} edge(s) · drag to move`, x0+8, y0+S-8);
+    cc.globalAlpha=1;
+    cc.restore();
+  }
+
   cc.restore();
 }
 
@@ -5069,27 +5739,61 @@ function cfgRenderGlyphs(){
   CFG_TYPES.forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=`${t.edges}e — ${t.name}`; sel.appendChild(o); });
   sel.value=cfg.typeId;
   sel.onchange=()=>{ if(cfg._stopDemo)cfg._stopDemo(); cfg.typeId=sel.value; cfgRenderGlyphs(); cfgRefresh(); };
+  // Relabel options with the count of quadruples available at the current p, so
+  // empty types (e.g. "complete" below p=53) are visibly marked and never look
+  // broken. Recomputed whenever the prime changes.
+  cfg._updateTypeCounts=function(){
+    const p=cfg.p|0;
+    if(!isPrime(p)||p%4!==1){
+      [...sel.options].forEach(o=>{ const t=CFG_TYPES.find(x=>x.id===o.value); o.textContent=`${t.edges}e — ${t.name}`; });
+      return;
+    }
+    for(const o of sel.options){
+      const t=CFG_TYPES.find(x=>x.id===o.value);
+      let n=0; try{ n=cfgBuild(p,t.id).quads.length; }catch(e){ n=0; }
+      o.textContent=`${t.edges}e — ${t.name}  (${n})`;
+    }
+  };
   cfgRenderGlyphs();
-  document.getElementById('cfg-prev').onclick=()=>{ if(cfg.quads.length){ cfg.idx=(cfg.idx-1+cfg.quads.length)%cfg.quads.length; cfgSyncOverlay(); cfgUpdateUI(document.getElementById('cfg-info').textContent); } };
-  document.getElementById('cfg-next').onclick=()=>{ if(cfg.quads.length){ cfg.idx=(cfg.idx+1)%cfg.quads.length; cfgSyncOverlay(); cfgUpdateUI(document.getElementById('cfg-info').textContent); } };
-  const demoBtn=document.getElementById('cfg-demo');
-  function cfgStopDemo(){ if(cfg._demoTimer){ clearInterval(cfg._demoTimer); cfg._demoTimer=null; } if(demoBtn){ demoBtn.classList.remove('primary'); demoBtn.textContent='⟲ demo all'; } }
-  function cfgStartDemo(){
+  // ---- Sequence play/stop + single-chord prev/next ----
+  const playBtn=document.getElementById('cfg-play');
+  function cfgStopSeq(){ if(cfg._demoTimer){ clearInterval(cfg._demoTimer); cfg._demoTimer=null; } if(playBtn){ playBtn.classList.remove('warn'); playBtn.classList.add('primary'); playBtn.textContent='▶ play'; } }
+  function cfgStartSeq(){
     if(!cfg.quads.length) return;
     const step=()=>{
       const q=cfgCurrent();
       if(q){ cfgSound(q); cfgSyncOverlay(); cfgUpdateUI(document.getElementById('cfg-info').textContent); }
       cfg.idx=(cfg.idx+1)%cfg.quads.length;
     };
-    // one chord per slot: chord-length plus a small gap, in ms
     const periodMs=Math.max(350, cfgDurBeats()*beatDur()*1000 + 200);
     step();
     cfg._demoTimer=setInterval(step, periodMs);
-    demoBtn.classList.add('primary'); demoBtn.textContent='■ stop demo';
+    playBtn.classList.remove('primary'); playBtn.classList.add('warn'); playBtn.textContent='⏹ stop';
   }
-  demoBtn.onclick=()=>{ if(cfg._demoTimer) cfgStopDemo(); else cfgStartDemo(); };
-  cfg._stopDemo=cfgStopDemo;
-  document.getElementById('cfg-play').onclick=()=>{ const q=cfgCurrent(); if(q) cfgSound(q); };
+  cfg._stopDemo=cfgStopSeq;
+  playBtn.onclick=()=>{ if(cfg._demoTimer) cfgStopSeq(); else cfgStartSeq(); };
+  // prev / next play exactly ONE chord and stop any running sequence
+  document.getElementById('cfg-prev').onclick=()=>{
+    cfgStopSeq();
+    if(cfg.quads.length){ cfg.idx=(cfg.idx-1+cfg.quads.length)%cfg.quads.length; const q=cfgCurrent(); if(q) cfgSound(q); cfgSyncOverlay(); cfgUpdateUI(document.getElementById('cfg-info').textContent); }
+  };
+  document.getElementById('cfg-next').onclick=()=>{
+    cfgStopSeq();
+    if(cfg.quads.length){ cfg.idx=(cfg.idx+1)%cfg.quads.length; const q=cfgCurrent(); if(q) cfgSound(q); cfgSyncOverlay(); cfgUpdateUI(document.getElementById('cfg-info').textContent); }
+  };
+  // chord-arpeggio direction (independent of global playback reverse)
+  cfg.chordDir = 1;   // +1 low→high, -1 high→low
+  document.getElementById('cfg-dir').onclick=(e)=>{
+    cfg.chordDir = -(cfg.chordDir||1);
+    e.currentTarget.classList.toggle('active', cfg.chordDir<0);
+    e.currentTarget.textContent = cfg.chordDir<0 ? '⇅ chord dir ↓' : '⇅ chord dir';
+    const st=document.getElementById('cfg-dir-state'); if(st) st.textContent = cfg.chordDir<0 ? '(flipped)' : '';
+  };
+  // multi-voice triggers: a set of layer keys that fire the chords as they play
+  cfg.trigSet = new Set();
+  document.querySelectorAll('.cfg-trig').forEach(cb=>{
+    cb.onchange=()=>{ if(cb.checked) cfg.trigSet.add(cb.value); else cfg.trigSet.delete(cb.value); };
+  });
   // arpeggio subdivision label (1/n)
   const arpSub=document.getElementById('cfg-arp-sub');
   const arpVal=document.getElementById('cfg-arp-val');
@@ -5102,36 +5806,493 @@ function cfgRenderGlyphs(){
   arpSub.oninput=syncArpUI;
   arpChk.onchange=syncArpUI;
   syncArpUI();
+  // chord-graph inset toggle
+  const insetChk=document.getElementById('cfg-inset');
+  if(insetChk){ insetChk.onchange=()=>{ _cfgInsetOn=insetChk.checked; }; _cfgInsetOn=insetChk.checked; }
   // chord duration in beats — no cap. A checkbox switches between the slider and
   // a numeric entry (the number input is unbounded); the two mirror each other.
   const durEl=document.getElementById('cfg-dur');
-  const durNum=document.getElementById('cfg-dur-num');
   const durVal=document.getElementById('cfg-dur-val');
-  const durTyped=document.getElementById('cfg-dur-typed');
   function syncDurUI(){
-    const typed=durTyped.checked;
-    durEl.style.display  = typed? 'none':'';
-    durNum.style.display = typed? '':'none';
-    let v=parseFloat((typed?durNum:durEl).value); if(isNaN(v)||v<=0) v=2;
-    durVal.textContent=`${(+v).toFixed(2)} beats`;
+    let i=parseInt(durEl.value); if(isNaN(i))i=15; i=Math.max(0,Math.min(CFG_DUR_STEPS.length-1,i));
+    durVal.textContent = `${CFG_DUR_LABELS[i]} ${CFG_DUR_STEPS[i]>=1?'beats':'beat'}`;
   }
-  durEl.oninput=()=>{ durNum.value=durEl.value; syncDurUI(); };
-  durNum.oninput=()=>{ if(parseFloat(durNum.value)<=parseFloat(durEl.max)) durEl.value=durNum.value; syncDurUI(); };
-  durTyped.onchange=syncDurUI;
+  durEl.oninput=syncDurUI;
   syncDurUI();
   cfg._syncDurUI=syncDurUI;
-  // max chords per note (∞ when the slider is at its maximum)
-  const mp=document.getElementById('cfg-maxplay'), mpVal=document.getElementById('cfg-maxplay-val');
-  function syncMaxPlay(){
-    const atMax = (parseInt(mp.value)>=parseInt(mp.max));
-    mp.dataset.inf = atMax ? '1':'0';
-    mpVal.textContent = atMax ? '∞' : mp.value;
-  }
-  mp.oninput=syncMaxPlay; syncMaxPlay();
+  // (max-chords-per-note control removed; cfgMaxPerNote() defaults to ∞)
   cfgRefresh();
   // keep configurations in sync as the live prime changes
   setInterval(()=>{ const p=(synthState?synthState.p:state.p)|0; if(p!==cfg.p) cfgRefresh(); }, 400);
 })();
+
+// ===========================================================================
+//  SMART DEMO — a settings-free guided tour through contrasting regimes.
+//  Drives the engine through the SAME public channels the UI uses (reqP/reqR/
+//  reqSkip, structure setters, range setters), so it can never desync the core.
+//  Each step is a hand-picked "character of sound"; it advances every few bars.
+// ===========================================================================
+const autopilot = (()=>{
+  let on=false, timer=null, idx=0;
+  function _setP(p){
+    if(p<3)p=3; if(!isPrime(p))p=nextPrime(p);
+    state.reqP=p; state.reqSkip=true;
+    if(!state.running){ state.p=p; state.vizP=p; }
+    const el=document.getElementById('p-num'); if(el) el.value=p;
+    _refreshLiveP();
+  }
+  function _setBpm(b){
+    b=Math.max(5,Math.min(999,b|0)); state.bpm=b;
+    const r=document.getElementById('bpm'), n=document.getElementById('bpm-num');
+    if(r)r.value=b; if(n)n.value=b;
+  }
+  function _setFreq(lo,hi){
+    lo=Math.max(20,Math.min(2000,lo|0)); hi=Math.max(lo+20,Math.min(8000,hi|0));
+    state.minFreq=lo; state.maxFreq=hi;
+    const a=document.getElementById('fmin'),an=document.getElementById('fmin-num');
+    const b=document.getElementById('fmax'),bn=document.getElementById('fmax-num');
+    if(a)a.value=lo; if(an)an.value=lo; if(b)b.value=hi; if(bn)bn.value=hi;
+  }
+  function _setPitch(mode){ state.harmMode=mode; const s=document.getElementById('harm-mode'); if(s)s.value=String(mode); }
+  function _setSections(pre,main,post){ _secActive.pre=pre; _secActive.main=main; _secActive.post=post; }
+  function _setMotion(m){ _motion=m; }
+  function _commitStructure(){ if(typeof _applyStructure==='function') _applyStructure(); }
+  function _setReorder(rO,aO){
+    if(typeof _setOrder==='function'){ _setOrder('R',rO); _setOrder('A',aO); }
+    else { state.reorderR=rO; state.reorderA=aO; }
+  }
+  function _setType(t){
+    cfg.typeId=t; const sel=document.getElementById('cfg-type'); if(sel) sel.value=t;
+    if(typeof cfgRenderGlyphs==='function') cfgRenderGlyphs();
+    if(typeof cfgRefresh==='function') cfgRefresh();
+  }
+  function _setTriggers(list){
+    cfg.trigSet=new Set(list||[]);
+    document.querySelectorAll('.cfg-trig').forEach(cb=>{ cb.checked=cfg.trigSet.has(cb.value); });
+  }
+  function _setInset(on){ _cfgInsetOn=!!on; const c=document.getElementById('cfg-inset'); if(c) c.checked=!!on; }
+
+  // ---------------------------------------------------------------------------
+  // Curated tour. Each scene carries human-readable notes: `title` (what you're
+  // hearing), `change` (what just changed), `where` (the control's location in
+  // the menu). The tour deliberately visits: all section combinations, all three
+  // motions (linear / pre-post converge / self-converge), both directions, both
+  // reorderings (R and A), the pitch maps, and the Goncharova chords with several
+  // different trigger voices and graph types.
+  // ---------------------------------------------------------------------------
+  const TOUR=[
+    { title:'1 · Origin',
+      change:'one melodic voice; chords triggered from a (melody)',
+      where:'Structure ▸ main · Goncharova ▸ trigger a',
+      p:29, bpm:66, freq:[120,1500], pitch:1, sec:[0,1,0], motion:'linear', reorder:[0,0],
+      type:'path4', trig:['a'], inset:true, hold:6 },
+
+    { title:'2 · Reorderings',
+      change:'a-voice residues-first; r residues-first — the sweep turns jagged',
+      where:'Transport ▸ "a: residues first" + "r: residues first"',
+      p:37, bpm:104, freq:[160,2600], pitch:1, sec:[0,1,0], motion:'linear', reorder:[1,1],
+      type:'triangle', trig:['a','b'], inset:true, hold:6 },
+
+    { title:'3 · Rotate / start-at-r',
+      change:'a rotated by r; equal-tempered pitch map (LOG-EQ)',
+      where:'Transport ▸ "a: rotate by r" · pitch map → LOG-EQ',
+      p:61, bpm:132, freq:[180,3200], pitch:0, sec:[0,1,0], motion:'linear', reorder:[0,2],
+      type:'star', trig:['a','r2','diag'], inset:true, hold:6 },
+
+    { title:'4 · The full arc',
+      change:'prelude → main → postlude, the whole shape',
+      where:'Structure ▸ prelude · main · postlude',
+      p:41, bpm:80, freq:[110,1760], pitch:1, sec:[1,1,1], motion:'linear', reorder:[0,0],
+      type:'paw', trig:['a','prelude'], inset:true, hold:7 },
+
+    { title:'5 · Converge',
+      change:'pre/post converge, then self-converge against its mirror',
+      where:'Structure ▸ pre/post converge · self-converge',
+      p:53, bpm:60, freq:[90,1500], pitch:1, sec:[1,1,1], motion:'prepost', reorder:[0,0],
+      type:'diamond', trig:['r'], inset:true, hold:7 },
+
+    { title:'6 · Dense lattice',
+      change:'large prime; the rare Complete-K4 chords sound; reversed',
+      where:'Transport ▸ p, ◀ reverse · Goncharova ▸ Complete K4',
+      p:101, bpm:150, freq:[240,4800], pitch:1, sec:[0,1,1], motion:'linear', reorder:[0,0],
+      type:'complete', trig:['a','b','diag'], reverse:true, inset:true, hold:7 },
+
+    { title:'7 · Deep & still',
+      change:'low register, very slow — the structure breathes',
+      where:'Transport ▸ tempo / freq range',
+      p:17, bpm:24, freq:[44,360], pitch:1, sec:[1,1,1], motion:'self', reorder:[0,0],
+      type:'matching', trig:['a'], inset:true, hold:6 },
+  ];
+
+  function applyScene(sc){
+    // direction first (so a fresh section starts the right way)
+    if(typeof setDirection==='function') setDirection(!!sc.reverse);
+    _setP(sc.p); _setBpm(sc.bpm); _setFreq(sc.freq[0],sc.freq[1]); _setPitch(sc.pitch);
+    _setReorder(sc.reorder[0], sc.reorder[1]);
+    _setType(sc.type); _setTriggers(sc.trig); _setInset(sc.inset!==false);
+    _setSections(sc.sec[0],sc.sec[1],sc.sec[2]); _setMotion(sc.motion); _commitStructure();
+    // on-screen explanation
+    const el=document.getElementById('ap-scene');
+    if(el){
+      el.innerHTML =
+        `<b style="color:var(--accent)">${sc.title}</b><br>`+
+        `<span style="color:var(--fg)">→ ${sc.change}</span><br>`+
+        `<span style="color:var(--muted)">menu: ${sc.where}</span><br>`+
+        `<span style="color:var(--muted)">p=${_liveP()} · ${sc.bpm} bpm · ${sc.reverse?'reverse':'forward'}</span>`;
+    }
+  }
+  function _barMs(){ return Math.max(150,(60/Math.max(5,state.bpm))*1000*4); }
+  function _arm(holdBars){
+    if(timer) clearTimeout(timer);
+    // keep each scene between ~6 and ~14 s regardless of tempo, so the guided
+    // tour stays brisk (a slow scene at many bars would otherwise drag).
+    const ms=Math.max(6000, Math.min(14000, holdBars*_barMs()));
+    timer=setTimeout(()=>{ if(!on)return; idx=(idx+1)%TOUR.length; const sc=TOUR[idx]; applyScene(sc); _arm(sc.hold); }, ms);
+  }
+  function start(){
+    on=true; idx=0;
+    const btn=document.getElementById('ap-toggle');
+    btn.classList.add('active'); btn.textContent='⏹ stop demo';
+    if(!state.running){ try{startAudio();}catch(e){} }
+    const sc=TOUR[0]; applyScene(sc); _arm(sc.hold);
+  }
+  function stop(){
+    on=false; if(timer){clearTimeout(timer); timer=null;}
+    const btn=document.getElementById('ap-toggle');
+    btn.classList.remove('active'); btn.textContent='▶ smart demo';
+    const el=document.getElementById('ap-scene'); if(el) el.textContent='—';
+  }
+  function next(){
+    if(!on){ start(); return; }
+    idx=(idx+1)%TOUR.length; const sc=TOUR[idx]; applyScene(sc); _arm(sc.hold);
+  }
+  return {toggle:()=>on?stop():start(), next, isOn:()=>on};
+})();
+document.getElementById('ap-toggle').onclick=()=>autopilot.toggle();
+document.getElementById('ap-next').onclick=()=>autopilot.next();
+
+// ===========================================================================
+//  SCENES — capture / restore the full setup. In-session list + file export.
+//  No backend: scenes live in memory for the session, and export/import via a
+//  .json file carries them between sessions.
+// ===========================================================================
+const scenes = (()=>{
+  let store=[];   // [{name, state:{...}}]
+  function capture(){
+    return {
+      p:_liveP(), r:_liveR(), bpm:state.bpm, dir:(state.pDir<0?-1:1),
+      harmMode:state.harmMode, minFreq:state.minFreq, maxFreq:state.maxFreq,
+      glissA:state.glissA, glissB:state.glissB,
+      reorderR:state.reorderR, reorderA:state.reorderA,
+      secMask:{...(state.secMask||{pre:true,main:true,post:true})}, motion:_motion,
+      sustainOn:PN_SUSTAIN_ENABLED,
+      vol:{...state.vol},
+      typeId:cfg.typeId, trig:[...cfg.trigSet], chordDir:cfg.chordDir,
+      arp:document.getElementById('cfg-arp')?.checked||false,
+      arpSub:parseInt(document.getElementById('cfg-arp-sub')?.value||'2'),
+      durIdx:parseInt(document.getElementById('cfg-dur')?.value||'15'),
+      inset:_cfgInsetOn
+    };
+  }
+  function restore(s){
+    if(!s) return;
+    // transport
+    const setNum=(id,v)=>{const e=document.getElementById(id); if(e)e.value=v;};
+    state.bpm=s.bpm; setNum('bpm',s.bpm); setNum('bpm-num',s.bpm);
+    state.harmMode=s.harmMode; const hm=document.getElementById('harm-mode'); if(hm)hm.value=String(s.harmMode);
+    state.minFreq=s.minFreq; state.maxFreq=s.maxFreq;
+    setNum('fmin',s.minFreq); setNum('fmin-num',s.minFreq); setNum('fmax',s.maxFreq); setNum('fmax-num',s.maxFreq);
+    state.glissA=s.glissA; const ga=document.getElementById('gliss-a'); if(ga)ga.checked=s.glissA;
+    state.glissB=s.glissB; const gb=document.getElementById('gliss-b'); if(gb)gb.checked=s.glissB;
+    if(typeof _setOrder==='function'){ _setOrder('R',s.reorderR); _setOrder('A',s.reorderA); }
+    if(typeof setDirection==='function') setDirection(s.dir<0);
+    // structure
+    if(s.secMask){ _secActive.pre=s.secMask.pre; _secActive.main=s.secMask.main; _secActive.post=s.secMask.post; }
+    _motion=s.motion||'linear';
+    const so=document.getElementById('sustain-on'); if(so){ so.checked=!!s.sustainOn; PN_SUSTAIN_ENABLED=!!s.sustainOn; }
+    if(typeof _applyStructure==='function') _applyStructure();
+    // volumes
+    if(s.vol){ for(const k in s.vol){ state.vol[k]=s.vol[k]; const sl=document.getElementById('v-'+k); if(sl) sl.value=s.vol[k]; } }
+    // goncharova
+    cfg.chordDir=s.chordDir||1;
+    cfg.typeId=s.typeId||'complete'; const ts=document.getElementById('cfg-type'); if(ts)ts.value=cfg.typeId;
+    cfg.trigSet=new Set(s.trig||[]);
+    document.querySelectorAll('.cfg-trig').forEach(cb=>{ cb.checked=cfg.trigSet.has(cb.value); });
+    const arp=document.getElementById('cfg-arp'); if(arp)arp.checked=!!s.arp;
+    setNum('cfg-arp-sub', s.arpSub||2);
+    setNum('cfg-dur', s.durIdx!=null?s.durIdx:15);
+    _cfgInsetOn=!!s.inset; const ic=document.getElementById('cfg-inset'); if(ic)ic.checked=_cfgInsetOn;
+    if(typeof cfgRenderGlyphs==='function') cfgRenderGlyphs();
+    if(typeof cfgRefresh==='function') cfgRefresh();
+    if(cfg._syncDurUI) cfg._syncDurUI();
+    // p / r — jump live
+    setNum('p-num', s.p);
+    if(state.running){ state.reqP=s.p; state.reqSkip=true; if(s.r){ state.reqGotoMain=s.r; } }
+    else { state.p=s.p; state.vizP=s.p; state.vizR=s.r||1; }
+    setNum('r-num', s.r||1);
+    _refreshLiveP();
+  }
+  function render(){
+    const list=document.getElementById('scene-list');
+    const msg=document.getElementById('scene-msg');
+    if(!list) return;
+    list.innerHTML='';
+    if(!store.length){ if(msg) msg.textContent='no scenes yet'; if(typeof composer!=='undefined')composer.refreshPicker(); return; }
+    if(msg) msg.textContent=`${store.length} scene(s)`;
+    store.forEach((sc,i)=>{
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;gap:3px;align-items:center';
+      const b=document.createElement('button');
+      b.textContent=sc.name; b.style.cssText='flex:1;text-align:left;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      b.title='recall this scene (load its settings)'; b.onclick=()=>restore(sc.state);
+      const mkBtn=(txt,title,fn)=>{ const e=document.createElement('button'); e.textContent=txt; e.title=title; e.style.cssText='flex:0;width:24px;padding:0'; e.onclick=fn; return e; };
+      const upd=mkBtn('↺','update this scene from the current settings',()=>{ sc.state=capture(); if(msg)msg.textContent=`"${sc.name}" updated`; });
+      const ren=mkBtn('✎','rename',()=>{ const nn=prompt('Rename scene:',sc.name); if(nn&&nn.trim()){ sc.name=nn.trim(); render(); } });
+      const dup=mkBtn('⧉','duplicate (save as copy)',()=>{ store.splice(i+1,0,{name:sc.name+' copy', state:JSON.parse(JSON.stringify(sc.state))}); render(); });
+      const add=mkBtn('＋','add to session',()=>{ if(typeof composer!=='undefined'){ composer.add(i); } });
+      const x  =mkBtn('✕','delete',()=>{ store.splice(i,1); render(); });
+      row.appendChild(b); row.appendChild(add); row.appendChild(upd); row.appendChild(ren); row.appendChild(dup); row.appendChild(x);
+      list.appendChild(row);
+    });
+    if(typeof composer!=='undefined') composer.refreshPicker();
+  }
+  function save(name){
+    const nm=(name||'').trim() || `scene ${store.length+1}`;
+    store.push({name:nm, state:capture()});
+    render();
+  }
+  function exportAll(){
+    const data=JSON.stringify({app:'qr-engine',version:1,scenes:store},null,2);
+    const blob=new Blob([data],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='qr-engine-scenes.json';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function importFile(file){
+    const rd=new FileReader();
+    rd.onload=()=>{ try{
+      const obj=JSON.parse(rd.result);
+      const arr=Array.isArray(obj)?obj:(obj.scenes||[]);
+      let added=0;
+      for(const sc of arr){ if(sc&&sc.state){ store.push({name:sc.name||`scene ${store.length+1}`, state:sc.state}); added++; } }
+      render();
+      const msg=document.getElementById('scene-msg'); if(msg) msg.textContent=`imported ${added} scene(s)`;
+    }catch(e){ const msg=document.getElementById('scene-msg'); if(msg) msg.textContent='import failed: not a valid scenes file'; } };
+    rd.readAsText(file);
+  }
+  function get(i){ return store[i]; }
+  function list(){ return store; }
+  return {save,exportAll,importFile,render,capture,restore,get,list};
+})();
+document.getElementById('scene-save').onclick=()=>{ const n=document.getElementById('scene-name'); scenes.save(n.value); n.value=''; };
+document.getElementById('scene-name').addEventListener('keydown',e=>{ if(e.key==='Enter'){ scenes.save(e.target.value); e.target.value=''; } });
+document.getElementById('scene-export').onclick=()=>scenes.exportAll();
+document.getElementById('scene-import-btn').onclick=()=>document.getElementById('scene-import').click();
+document.getElementById('scene-import').addEventListener('change',e=>{ if(e.target.files&&e.target.files[0]) scenes.importFile(e.target.files[0]); e.target.value=''; });
+
+// ===========================================================================
+//  SESSION RECORDER (Layer A) — records a live improvisation as a sequence of
+//  SCENE-SEGMENTS. Each structural change (p, sections, motion, graph, triggers,
+//  direction, sustain, reorder) closes the current segment (giving it the seconds
+//  it lasted) and opens a new one. The result lands directly in `composer` as an
+//  editable scene list. (Layer B will add a smooth slider track within segments.)
+// ===========================================================================
+const session = (()=>{
+  const SAMPLE_MS=150;
+  let recording=false, recTimer=null, segStart=0, lastKey='';
+  function _status(t){ const el=document.getElementById('sess-status'); if(el) el.textContent=t; }
+  function _btns(){
+    const b=document.getElementById('sess-rec');
+    b.classList.toggle('active',recording);
+    b.textContent = recording? '■ stop rec' : '● record';
+  }
+  // Structural signature — only these fields cut a new segment (sliders do not).
+  function _structKey(s){
+    return JSON.stringify({p:s.p, sec:s.secMask, motion:s.motion, type:s.typeId,
+      trig:s.trig, dir:(s.dir<0?-1:1), sustain:s.sustainOn, rR:s.reorderR, rA:s.reorderA});
+  }
+  function startRec(){
+    if(composer.isPlaying && composer.isPlaying()) composer.stop();
+    composer.clearSilent();
+    recording=true; segStart=performance.now();
+    const s=scenes.capture(); lastKey=_structKey(s);
+    // open first segment
+    composer.pushSegment(s);
+    if(!state.running){ try{startAudio();}catch(e){} }
+    recTimer=setInterval(()=>{
+      const s=scenes.capture(); const k=_structKey(s);
+      if(k!==lastKey){
+        const now=performance.now();
+        const durSec=Math.max(0.3,(now-segStart)/1000);
+        composer.setLastDuration(durSec);   // the segment that just ended gets its real length
+        segStart=now; lastKey=k;
+        composer.pushSegment(s);            // open the new segment
+      }
+    }, SAMPLE_MS);
+    _btns(); _status('● recording… (make changes to add steps)');
+  }
+  function stopRec(){
+    recording=false; if(recTimer){clearInterval(recTimer); recTimer=null;}
+    // close the final segment with its elapsed time
+    const durSec=Math.max(0.3,(performance.now()-segStart)/1000);
+    composer.setLastDuration(durSec);
+    composer.render();
+    _btns();
+    const n=composer.count();
+    _status(n? `recorded ${n} step(s) — edit below, then ▶ play` : 'nothing recorded');
+  }
+  function toggleRec(){ recording?stopRec():startRec(); }
+  return { toggleRec };
+})();
+document.getElementById('sess-rec').onclick=()=>session.toggleRec();
+document.getElementById('sess-play').onclick=()=>composer.toggle();
+document.getElementById('sess-clear').onclick=()=>composer.clear();
+document.getElementById('sess-export').onclick=()=>composer.exportS();
+document.getElementById('sess-import-btn').onclick=()=>document.getElementById('sess-import').click();
+document.getElementById('sess-import').addEventListener('change',e=>{ if(e.target.files&&e.target.files[0]) composer.importFile(e.target.files[0]); e.target.value=''; });
+
+
+// ===========================================================================
+//  COMPOSER — a session is an ordered playlist of scenes, each with a duration.
+//  Scenes are stored by COPY (editing a scene later won't change the session).
+//  Playback applies each scene's state (hard cut, no morph) and holds for its
+//  duration: N seconds, one full p-traversal, or a fraction of a full traversal.
+// ===========================================================================
+const composer = (()=>{
+  let items=[];          // [{name, state, durMode:'sec'|'full'|'frac', durValue}]
+  let playing=false, timers=[], curIdx=-1;
+  function _status(t){ const el=document.getElementById('sess-status'); if(el) el.textContent=t; }
+  function refreshPicker(){
+    const sel=document.getElementById('comp-pick'); if(!sel) return;
+    const lst=scenes.list();
+    const prev=sel.value;
+    sel.innerHTML='';
+    if(!lst.length){ const o=document.createElement('option'); o.textContent='(no scenes yet)'; o.value=''; sel.appendChild(o); return; }
+    lst.forEach((sc,i)=>{ const o=document.createElement('option'); o.value=String(i); o.textContent=sc.name; sel.appendChild(o); });
+    if(prev && +prev<lst.length) sel.value=prev;
+  }
+  function add(idx){
+    const lst=scenes.list();
+    let i = (idx!=null) ? idx : parseInt(document.getElementById('comp-pick').value);
+    const sc=lst[i]; if(!sc) return;
+    items.push({ name:sc.name, state:JSON.parse(JSON.stringify(sc.state)), durMode:'full', durValue:1 });
+    render();
+  }
+  // ---- recorder-facing helpers (Session record builds segments here) ----
+  function _segName(s){
+    // a short human label for a recorded segment
+    const secs=s.secMask?[s.secMask.pre&&'pre',s.secMask.main&&'main',s.secMask.post&&'post'].filter(Boolean).join('+'):'';
+    const mo = s.motion && s.motion!=='linear' ? ' '+s.motion : '';
+    return `p${s.p} ${secs}${mo}`.trim();
+  }
+  function pushSegment(s){
+    items.push({ name:_segName(s), state:JSON.parse(JSON.stringify(s)), durMode:'sec', durValue:4 });
+    render();
+  }
+  function setLastDuration(sec){
+    if(!items.length) return;
+    const it=items[items.length-1];
+    it.durMode='sec'; it.durValue=Math.round(sec*10)/10;
+    render();
+  }
+  function clearSilent(){ items=[]; curIdx=-1; render(); }
+  function count(){ return items.length; }
+  function isPlaying(){ return playing; }
+  function _oneTraversalMs(state){
+    // a full p-traversal = (p-1) beats per section × number of enabled sections,
+    // at the scene's bpm. Rough but musically sensible.
+    const p=state.p||13, bpm=state.bpm||60;
+    const beatMs=60000/Math.max(5,bpm);
+    const secs=(state.secMask?((state.secMask.pre?1:0)+(state.secMask.main?1:0)+(state.secMask.post?1:0)):1)||1;
+    return Math.max(beatMs, (p-1)*beatMs*secs);
+  }
+  function _itemMs(it){
+    if(it.durMode==='sec')  return Math.max(200, it.durValue*1000);
+    if(it.durMode==='frac') return Math.max(200, _oneTraversalMs(it.state)*it.durValue);
+    return _oneTraversalMs(it.state);   // 'full'
+  }
+  function render(){
+    const list=document.getElementById('comp-list'); if(!list) return;
+    list.innerHTML='';
+    if(!items.length){ _status('session is empty'); return; }
+    let total=0; items.forEach(it=>total+=_itemMs(it));
+    _status(`${items.length} step(s) · ~${(total/1000).toFixed(0)}s total`);
+    items.forEach((it,i)=>{
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;gap:3px;align-items:center;flex-wrap:wrap;border:1px solid var(--border);border-radius:6px;padding:4px';
+      if(i===curIdx) row.style.borderColor='var(--accent)';
+      const nm=document.createElement('span'); nm.textContent=`${i+1}. ${it.name}`;
+      nm.style.cssText='flex:1;min-width:80px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      // duration mode selector
+      const mode=document.createElement('select'); mode.style.cssText='flex:0;font-size:10px';
+      [['full','whole p'],['frac','fraction'],['sec','seconds']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; mode.appendChild(o); });
+      mode.value=it.durMode;
+      const val=document.createElement('input'); val.type='number'; val.style.cssText='flex:0;width:54px;font-size:10px';
+      function syncVal(){
+        if(it.durMode==='sec'){ val.style.display=''; val.min='0.2'; val.step='0.5'; if(it.durValue>200||it.durValue<0.2) it.durValue=8; }
+        else if(it.durMode==='frac'){ val.style.display=''; val.min='0.1'; val.step='0.1'; val.max='1'; if(it.durValue>1||it.durValue<0.1) it.durValue=1; }
+        else { val.style.display='none'; }
+        val.value=it.durValue;
+      }
+      mode.onchange=()=>{ it.durMode=mode.value; if(it.durMode==='sec'&&it.durValue<=1)it.durValue=8; if(it.durMode==='frac')it.durValue=1; syncVal(); render(); };
+      val.oninput=()=>{ const v=parseFloat(val.value); if(!isNaN(v)) it.durValue=v; render(); };
+      syncVal();
+      const mk=(txt,title,fn)=>{ const e=document.createElement('button'); e.textContent=txt; e.title=title; e.style.cssText='flex:0;width:24px;padding:0'; e.onclick=fn; return e; };
+      const up=mk('↑','move up',()=>{ if(i>0){ [items[i-1],items[i]]=[items[i],items[i-1]]; render(); } });
+      const dn=mk('↓','move down',()=>{ if(i<items.length-1){ [items[i+1],items[i]]=[items[i],items[i+1]]; render(); } });
+      const ld=mk('▸','preview: load this step\u2019s settings now',()=>scenes.restore(it.state));
+      const x =mk('✕','remove',()=>{ items.splice(i,1); render(); });
+      row.appendChild(nm); row.appendChild(mode); row.appendChild(val); row.appendChild(up); row.appendChild(dn); row.appendChild(ld); row.appendChild(x);
+      list.appendChild(row);
+    });
+  }
+  function play(){
+    if(!items.length){ _status('nothing to play'); return; }
+    stop();
+    playing=true;
+    const pb=document.getElementById('sess-play'); if(pb){ pb.classList.add('active'); pb.textContent='■ stop'; }
+    if(!state.running){ try{startAudio();}catch(e){} }
+    let t=0;
+    items.forEach((it,i)=>{
+      timers.push(setTimeout(()=>{
+        curIdx=i; scenes.restore(it.state);
+        if(!(state.running && !state.paused)){ try{startAudio();}catch(e){} }
+        render(); _status(`▶ step ${i+1}/${items.length}: ${it.name}`);
+      }, t));
+      t+=_itemMs(it);
+    });
+    timers.push(setTimeout(()=>{ stop(); _status(`session finished (${items.length} steps)`); }, t));
+  }
+  function stop(){
+    playing=false; timers.forEach(clearTimeout); timers=[]; curIdx=-1;
+    const b=document.getElementById('sess-play'); if(b){ b.classList.remove('active'); b.textContent='▶ play'; }
+    render();
+  }
+  function clear(){ stop(); items=[]; render(); _status('empty — record, or add scenes below'); }
+  function exportS(){
+    if(!items.length){ _status('nothing to export'); return; }
+    const data=JSON.stringify({app:'qr-engine',type:'session',version:1,items},null,2);
+    const blob=new Blob([data],{type:'application/json'}); const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='qr-engine-session.json';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function importFile(file){
+    const rd=new FileReader();
+    rd.onload=()=>{ try{
+      const obj=JSON.parse(rd.result);
+      const arr=obj.items||(Array.isArray(obj)?obj:[]);
+      if(!arr.length||!arr[0].state) throw new Error('bad');
+      items=arr.map(it=>({name:it.name||'step', state:it.state, durMode:it.durMode||'full', durValue:it.durValue!=null?it.durValue:1}));
+      render(); _status(`imported ${items.length} step(s)`);
+    }catch(e){ _status('import failed: not a valid session file'); } };
+    rd.readAsText(file);
+  }
+  return { add, refreshPicker, play, stop, clear, exportS, importFile, render,
+           pushSegment, setLastDuration, clearSilent, count, isPlaying,
+           toggle:()=>playing?stop():play() };
+})();
+document.getElementById('comp-add').onclick=()=>composer.add();
+composer.refreshPicker();
 
 // Init
 window.addEventListener('load',resizeCanvas);
