@@ -851,6 +851,7 @@ details.acc[open] { padding-bottom: 0; }
       <button id="sess-rev" title="reverse the order of the selected steps (or the whole session if none selected)">⇄ reverse</button>
       <button id="sess-del" title="delete the selected steps">✕ del sel</button>
       <label style="display:inline-flex;align-items:center;gap:3px;font:10px ui-monospace,monospace;color:var(--muted)"><input type="checkbox" id="sess-smooth" checked>smooth</label>
+      <label title="STRICT TIMING (for montages): while the session plays, p/r changes apply on the next beat instead of waiting for an anchor — the montage tracks its primes second by second. Off = the transAtAnchors rule keeps its voice: steps land on allowed slots, which can lag the timeline." style="display:inline-flex;align-items:center;gap:3px;font:10px ui-monospace,monospace;color:var(--muted)"><input type="checkbox" id="sess-strict">strict timing</label>
       <button id="sess-rtz" title="return to start (Home)">⇤</button>
       <button id="sess-prev" title="previous scene (Shift+←)">⏮</button>
       <button id="sess-play">▶ play</button>
@@ -872,6 +873,7 @@ details.acc[open] { padding-bottom: 0; }
       <button id="sess-export-wav" title="render the WHOLE session to a WAV by playing it through the live engine and recording the master — captures the per-note QR/NQR trajectory, the groove (archetypes, fills, drops) and the per-layer reverb exactly as heard. Runs in real time.">⬇ render WAV</button>
       <button id="sess-export" title="save the session structure as a .json file (re-importable here)">⬇ export json</button>
       <button id="sess-import-btn">⬆ import</button>
+      <button id="sess-import-url" title="import by LINK — paste a URL of a session, scenes or knowledge JSON (e.g. one hosted on the qr-engine site); the importer detects the kind itself. Works on the phone, where local file pickers are awkward.">🔗 url</button>
       <input type="file" id="sess-import" accept="application/json,.json" style="display:none">
       <button id="sess-restore-last" title="restore the last playback — the autobackup keeps the most recent session + live setup">⟲ last playback</button>
     </div>
@@ -3175,6 +3177,7 @@ function _nearestPnAnchorR(p, r){
 // sweep, where the motion changes direction. Between sections (no r-list) is free.
 // Worst-case wait is one sweep: the edge slots always qualify, so requests can't hang.
 function _transPointOK(s){
+  if(state._strictSession) return true;   // a montage with strict timing owns the clock — no anchor holds while it plays
   if(!(state.rules && state.rules.transAtAnchors)) return true;
   if(!s || !state.running) return true;
   try{
@@ -3913,6 +3916,9 @@ function _drawCaption(cc,W,H){
 const LWET={};    // per-layer reverb-send gain on the PER-NOTE send (sp→ns→LWET[k]→LSEND[k]→conv). POST-fader by default (=vget, so reverb scales with volume AND respects solo); in pre-fader mode it carries only the solo gate (nominal send)
 const LVOL={};    // per-layer LIVE volume gains (note → LVOL[layer] → voiceBus); volume changes apply instantly, even to held notes
 const LPAN={};    // per-layer stereo pan (LVOL[layer] → LPAN[layer] → voiceBus); −1..+1, spatial only, never touches pitch
+const LBREATH={}; // SINGING BREATH (author 29.07): per-layer slow swell gains for the sustained family — bow strokes, not tremolo
+const _BR_FAMILY=new Set(['sustain','susA','susB','prelude','postlude','chord']);   // «дыхание нужно и аккордам — им в первую очередь»
+const _BR_LIGHT=new Set(['kick','hat']);   // the groove BREATHES with the texture (author 29.07: «дыхание распространяется и на грув») — 0.6 of the full depth, subordinated to the same χ-order through the breath
 // Tonal voices (long notes + pulses) that carry per-note timbre/pan/send trajectories.
 // Percussion (diag bell, kick, hat) is excluded. Their reverb send is per-note, not the shared layer send.
 const TRAJ_LAYERS=new Set(['qr','nqr','r2','a','b','prelude','postlude','sustain','chord','glue']);
@@ -4079,17 +4085,23 @@ function flushVoices(){
   try{ _ringReg.length=0; }catch(e){}   // tail-governor registry: those sinks are orphaned now
   if(!ctx||!voiceBus) return;
   ctx.__keepPhase=true;                         // the rebuilt bus + layer nodes are persistent
-  try{ voiceBus.disconnect(); }catch(e){}
+  // не обрываться (author 29.07): the old bus and its layer nodes get ~380 ms to
+  // EXHALE (fast fade, −27 dB by the disconnect) while the fresh bus takes over —
+  // an r/p jump no longer guillotines every ringing voice
+  try{
+    const _oldBus=voiceBus;
+    _oldBus.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.06);
+    setTimeout(function(){ try{ _oldBus.disconnect(); }catch(e){} }, 380);
+  }catch(e){ try{ voiceBus.disconnect(); }catch(e2){} }
   voiceBus=ctx.createGain(); voiceBus.gain.value=1; voiceBus.connect(_breathGain||((qrBus&&qrBus.inp)||masterGain));
   // Per-layer volume/send nodes are persistent, so already-scheduled notes keep
   // feeding the OLD ones. Rebuild them fresh: the old nodes (still fed by those
   // notes) are now orphaned → their dry AND reverb go silent, while new notes use
   // the new nodes wired to the new voiceBus.
   if(qrBus && qrBus.conv){
-    for(const k in LVOL){ try{ LVOL[k].disconnect(); }catch(e){} }
-    for(const k in LPAN){ try{ LPAN[k].disconnect(); }catch(e){} }
-    for(const k in LSEND){ try{ LSEND[k].disconnect(); }catch(e){} }
-    for(const k in LWET){ try{ LWET[k].disconnect(); }catch(e){} }
+    const _oldNodes=[];
+    for(const m of [LVOL,LPAN,LSEND,LWET,LBREATH]) for(const k in m){ if(m[k]) _oldNodes.push(m[k]); }
+    setTimeout(function(){ for(const n of _oldNodes){ try{ n.disconnect(); }catch(e){} } }, 380);   // they die with the old bus's exhale
     _buildLayerNodes();
   }
   ctx.__keepPhase=false;                        // back to normal — per-note nodes stay collectable
@@ -4444,9 +4456,13 @@ function _buildLayerNodes(){
     // Honest per-layer loudness tap: an analyser has no audio output, so this only
     // OBSERVES the layer (post-fader, with real note envelopes) for the canvas.
     try{ const an=ctx.createAnalyser(); an.fftSize=256; an.smoothingTimeConstant=0; vol.connect(an); LMETER[k]=an; }catch(e){ LMETER[k]=null; }
+    // the sustained family breathes: LVOL → LBREATH → pan — deep slow swells that
+    // no fader write can wipe (nothing else ever touches these nodes)
+    const br=(_BR_FAMILY.has(k)||_BR_LIGHT.has(k))?ctx.createGain():null;
+    if(br){ br.gain.value=1; vol.connect(br); LBREATH[k]=br; }
     const pan=ctx.createStereoPanner?ctx.createStereoPanner():null;
-    if(pan){ pan.pan.value=(state.pan&&state.pan[k]!=null)?state.pan[k]:0; vol.connect(pan); pan.connect(voiceBus); LPAN[k]=pan; }
-    else { vol.connect(voiceBus); }
+    if(pan){ pan.pan.value=(state.pan&&state.pan[k]!=null)?state.pan[k]:0; (br||vol).connect(pan); pan.connect(voiceBus); LPAN[k]=pan; }
+    else { (br||vol).connect(voiceBus); }
     const snd=ctx.createGain(); snd.gain.value=(state.send&&state.send[k]!=null)?state.send[k]:0.30; snd.connect(qrBus.conv); LSEND[k]=snd;
     // Per-note reverb send gain. POST-fader (default): = vget(k), so a note's reverb
     // scales with the volume fader and is muted by solo. PRE-fader: = solo gate only
@@ -4590,7 +4606,7 @@ setInterval(()=>{ try{
   ringing.sort((a,b)=>a.t0-b.t0);
   let excess=ringing.length-CEIL, n=0;
   for(const v of ringing){ if(excess<=0) break; if(newest[v.lay]===v) continue;
-    try{ v.sp.gain.setTargetAtTime(0.0001, now, 0.09); }catch(e){}
+    try{ v.sp.gain.cancelScheduledValues(now); v.sp.gain.setTargetAtTime(0.0001, now, 0.09); }catch(e){}   // cancel breath swells so a reaped tail cannot breathe back
     v.reaped=true; excess--; n++; }
   if(n && performance.now()-_reapLogT>10000){ _reapLogT=performance.now();
     try{ _fl('reaper', n+' stale tails damped (ceiling '+CEIL+')'); }catch(e){} }
@@ -4606,6 +4622,25 @@ function makePannedSink(lG,rG,noteVol,traj){
   sp.connect(gL); sp.connect(gR);
   gL.connect(mg,0,0); gR.connect(mg,0,1);
   mg.connect(d);
+  // SINGING BREATH, per note (author 29.07): every LONG tone — held, drone or
+  // glissando — swells and recedes on its own slow bow-stroke cycle. Combined
+  // with the layer breath, this is what keeps a long sound alive, not frozen.
+  if(traj && traj.t!=null && (traj.dur||0)>=((lay==='chord')?1.6:2.6)){
+    try{
+      const bt0=traj.t, bdu=traj.dur, bT=3.8+Math.random()*2.2, bdep=(lay==='chord')?0.28:0.24, binF=0.38;
+      const bend=bt0+bdu-0.35;
+      sp.gain.setValueAtTime(1,bt0);
+      let bph=Math.random(), btt=bt0, bg2=0;
+      while(btt<bend && ++bg2<64){
+        const brem=(bph<binF)?((binF-bph)*bT):((1-bph)*bT);
+        const btN=Math.min(bend, btt+Math.max(0.12,brem));
+        sp.gain.linearRampToValueAtTime((bph<binF)?1:(1-bdep), btN);
+        bph=(bph<binF)?binF:0;
+        btt=btN;
+      }
+      sp.gain.linearRampToValueAtTime(1, Math.max(bend, bt0+bdu-0.05));
+    }catch(e){}
+  }
   const trajOK = traj && lay && TRAJ_LAYERS.has(lay);
   // Independent per-note gesture depths (each 0..1). PAN and SEND have their own
   // sliders; both fall back to the timbre depth (state.timbreTilt) when unset so
@@ -4767,7 +4802,8 @@ function schedulePulseSine(t,dur,freq,vol,pL,pR,opts){
 function scheduleContinuousSine(t,dur,freq,vol,pL,pR,qrBeats){
   const osc=ctx.createOscillator(); osc.setPeriodicWave(voiceWave(_emitLayer, freq)); osc.frequency.value=freq;
   const env=ctx.createGain();
-  const a=Math.max(0.004,QRA.attQR||0.012), rl=Math.max(0.006,QRA.relQR||0.018);
+  const a=(dur>1.2)?Math.min(0.45,Math.max(0.03,dur*0.08)):Math.max(0.004,QRA.attQR||0.012);   // long tones enter like a bow
+  const rl=(dur>1.2)?Math.min(0.7,Math.max(0.12,dur*0.14)):Math.max(0.006,QRA.relQR||0.018);    // and leave on an exhale
   const hold0=t+a, hold1=t+Math.max(a+0.001,dur-rl);
   envHoldTremolo(env.gain, t, hold0, hold1, vol, qrBeats, 60/state.bpm);
   if(qrBeats) detuneHoldTremolo(osc.detune, t, hold0, hold1, qrBeats, 60/state.bpm);
@@ -4791,7 +4827,7 @@ const _LONG_SUS=[];
 function killLongSustains(reason,fadeTau){
   if(typeof ctx==='undefined'||!ctx||!_LONG_SUS.length) return 0;
   const now=ctx.currentTime; let n=0;
-  fadeTau=(fadeTau!=null)?fadeTau:0.12;                      // gentle release, not a click
+  fadeTau=(fadeTau!=null)?fadeTau:0.30;                      // a real exhale, not a click (panic paths still pass 0.05)
   for(const v of _LONG_SUS){
     if(!v || v.until<=now) continue;
     try{ v.env.gain.cancelScheduledValues(now);
@@ -4806,7 +4842,9 @@ function scheduleSustainVoice(t,dur,freq,vol,pL,pR,qrBeats){
   const osc=ctx.createOscillator(); osc.setPeriodicWave(voiceWave(_emitLayer, freq)); osc.frequency.value=freq;
   const env=ctx.createGain();
   const edge=Math.min(Math.max(0.006,QRA.relQR||0.018), dur*0.25);
-  const hold0=t+edge, hold1=t+Math.max(edge+0.001,dur-edge);
+  const _attS=(dur>2)?Math.min(0.8,Math.max(0.12,dur*0.10)):edge;   // a bowed entrance for long drones
+  const _relS=(dur>2)?Math.min(1.2,Math.max(0.25,dur*0.12)):edge;   // and a real exhale at the end
+  const hold0=t+_attS, hold1=t+Math.max(_attS+0.001,dur-_relS);
   envHoldTremolo(env.gain, t, hold0, hold1, vol, qrBeats, 60/state.bpm);
   if(qrBeats) detuneHoldTremolo(osc.detune, t, hold0, hold1, qrBeats, 60/state.bpm);
   env.gain.exponentialRampToValueAtTime(1e-4,t+dur);
@@ -4924,8 +4962,11 @@ function scheduleGlissSine(t,dur,f0,f1,vol,pL,pR){
   const osc=ctx.createOscillator(); osc.setPeriodicWave(voiceWave(_emitLayer, f0));
   osc.frequency.setValueAtTime(f0,t); osc.frequency.linearRampToValueAtTime(f1,t+dur);
   const env=ctx.createGain();
-  env.gain.setValueAtTime(0,t); env.gain.linearRampToValueAtTime(vol,t+0.010);
-  env.gain.setValueAtTime(vol,t+Math.max(0.011,dur-0.012));
+  // a sung entrance and a real exhale (author 29.07) — the old 10/12 ms gates read as cuts
+  const _gAtt=Math.min(0.25,Math.max(0.010,dur*0.06));
+  const _gRel=Math.min(0.6,Math.max(0.09,dur*0.16));
+  env.gain.setValueAtTime(0,t); env.gain.linearRampToValueAtTime(vol,t+_gAtt);
+  env.gain.setValueAtTime(vol,t+Math.max(_gAtt+0.001,dur-_gRel));
   env.gain.exponentialRampToValueAtTime(1e-4,t+dur);
   env.gain.setValueAtTime(0,t+dur);
   const bf=_brightFilter(t,dur,(f0+f1)/2,true); osc.connect(bf.in); bf.out.connect(env); env.connect(makePannedSink(pL,pR,vol,{t,dur}));   // glide = held → settle+hold
@@ -7234,6 +7275,12 @@ setInterval(()=>{
 // the whole Markova block): her ear, and the call-response lead (−1 he leads … +1 she).
 let _mkLead=0, _mkLeadTarget=0, _mkTurn='', _mkMoments=0;   // _mkMoments: how many moments of her OWN Markova has lived (her diverging memory)
 const _mkEar={ his:0, hers:0, hisPeak:1e-3, room:0.5 };
+// SINGING BREATH state (author 29.07): seconds-based, drifting period, urgent-boost
+let _brPhase=Math.random(), _brT=6.0, _brDepth=0.30, _brUrgent=0, _brLast=null, _brTick=0, _brBuf=null;
+const _brWin=[];
+window._breathState=function(){ return {ph:_brPhase, T:_brT}; };
+window._breathAdopt=function(ph,T){ if(T>2&&T<15) _brT=T;
+  if(ph!=null){ const df=((ph-_brPhase)%1+1)%1; if(Math.min(df,1-df)>0.12) _brPhase=ph; } };
 setInterval(()=>{
   if(!(ctx && state.running && !state.paused && _breathGain)) return;
   try{
@@ -7247,6 +7294,57 @@ setInterval(()=>{
                        : (0.5+0.5*Math.cos(Math.PI*(x-inh)/Math.max(0.001,T-inh)));
     const depth=Math.min(0.15,Math.max(0.02,1/Math.sqrt(Math.max(5,p_))));
     _breathGain.gain.setTargetAtTime(1+depth*(shape-0.5)*2, ctx.currentTime, 0.15);
+    // SINGING BREATH (author 29.07: «дай им дыхание — как смычки, как пение; если
+    // звук перестал дышать, быть живым — срочно дай ему дыхание»). A second, DEEPER
+    // breath on the sustained family only. Seconds-based (a body, not a metronome),
+    // period drifting 4.5–8.5 s, inhale shorter than the exhale, floor at 1−depth —
+    // the note recedes and returns, it never breaks. The liveness guard watches the
+    // RAW output (the ear's copy is breath-compensated on purpose — useless here):
+    // audibly alive but flat for ~6 s ⇒ the breath deepens at once.
+    const nowS=ctx.currentTime;
+    if(_brLast==null) _brLast=nowS;
+    let bdt=nowS-_brLast; if(!(bdt>0)||bdt>1) bdt=0.13; _brLast=nowS;
+    // the activity may stage-direct the breath (lyric plays a whole erotic scene
+    // with it; prayer breathes long and low) — hints are per-scene, self-validating
+    const bH=(window._breathHint && window._breathHint.act===state.activity)?window._breathHint:null;
+    let bTlo=bH?bH.Tlo:3.5, bThi=bH?bH.Thi:7.0;
+    let bDepBase=bH&&bH.depth!=null?bH.depth:0.38;
+    if(bH && bH.Tlo2!=null){   // a staged ramp (the passion climax): interpolate the corridor over hint.ramp seconds
+      const bkk=Math.max(0,Math.min(1,(Date.now()-(bH.ts||0))/1000/Math.max(1,bH.ramp||20)));
+      bTlo=bH.Tlo+(bH.Tlo2-bH.Tlo)*bkk; bThi=bH.Thi+(bH.Thi2-bH.Thi)*bkk;
+      if(bH.depth2!=null) bDepBase=bH.depth+(bH.depth2-bH.depth)*bkk;
+    }
+    _brPhase+=bdt/_brT;
+    if(_brPhase>=1){ _brPhase-=1; _brT=Math.max(bTlo,Math.min(bThi,_brT+(Math.random()-0.5)*1.6)); }
+    if(_brT<bTlo-0.5||_brT>bThi+0.5) _brT=Math.max(bTlo,Math.min(bThi,_brT));   // adopt a new corridor mid-cycle
+    const inhF=bH&&bH.inh?bH.inh:0.38, bx=_brPhase;
+    const bShape=(bx<inhF)? (0.5-0.5*Math.cos(Math.PI*bx/inhF))
+                          : (0.5+0.5*Math.cos(Math.PI*(bx-inhF)/(1-inhF)));
+    const bBase=bDepBase;   // deeper by default (author 29.07: «углубить и участить»); ramps come from the hint
+    _brDepth += ((_brUrgent>nowS?Math.min(0.66,bBase+0.2):bBase)-_brDepth)*0.05;   // and the depth follows faster — a climax cannot wait
+    // THE ORDER (author 29.07): the breath reads the residue class of the sounding
+    // beat — rise on QR, descend on NQR — the arch graph over χ, one of our orders
+    let _chiT=0;
+    try{ const _rQ=(typeof synthState!=='undefined'&&synthState)?(synthState.currentR||1):1;
+         const _pQ=(synthState&&synthState.p)||state.p||11;
+         _chiT=(typeof isQR==='function' && isQR(_rQ,_pQ))?0.10:-0.10; }catch(e){}
+    const bGain=Math.max(0.30,Math.min(1.08, 1-_brDepth*(1-bShape)+_chiT*_brDepth ));
+    const bLight=1-(1-bGain)*0.6;    // the groove's share of the same breath — it pumps with the lungs, not against them
+    for(const bk in LBREATH){ const bn=LBREATH[bk]; if(bn&&bn.gain){ try{ bn.gain.setTargetAtTime(_BR_LIGHT.has(bk)?bLight:bGain, nowS, 0.18); }catch(e){} } }
+    if(((_brTick=(_brTick+1)&3)===0) && typeof _outMeter!=='undefined' && _outMeter){
+      try{
+        if(!_brBuf) _brBuf=new Float32Array(_outMeter.fftSize);
+        _outMeter.getFloatTimeDomainData(_brBuf);
+        let s2=0; for(let bi=0;bi<_brBuf.length;bi++){ const bv=_brBuf[bi]; s2+=bv*bv; }
+        const brms=Math.sqrt(s2/_brBuf.length);
+        _brWin.push(brms); if(_brWin.length>12) _brWin.shift();
+        if(_brWin.length>=10){
+          let bm=0; for(const bv of _brWin) bm+=bv; bm/=_brWin.length;
+          let bsd=0; for(const bv of _brWin) bsd+=(bv-bm)*(bv-bm); bsd=Math.sqrt(bsd/_brWin.length);
+          if(bm>0.004 && bsd/bm<0.055) _brUrgent=nowS+8;
+        }
+      }catch(e){}
+    }
     // bloodstream: susA/susB circulate in counter-phase, sustain follows a φ² behind
     const cT=2*T, cx=2*Math.PI*(((beats%cT)+cT)%cT)/cT;
     const PHI=(1+Math.sqrt(5))/2;
@@ -8792,9 +8890,23 @@ const groove=(()=>{
     // the lub-DUB needs room: it sits 0.382 of a beat after the lub, so it only
     // reads as a heart when kicks are ≥ a felt beat apart (kc ≤ M/4). On a dense
     // dance pattern the doubling is a machine gun, not a heart (author 17.07).
-    if(roomy!==false && (state.activity==='lyric' || state.activity==='meditate' || bpmFelt<100)){
+    // DOSED (author 29.07: «колотушки сердца утомительны — сердце можно, но очень
+    // дозированно»): no more blanket lub-DUB on every kick of every slow piece.
+    // Only lyric/meditate keep the heart at all; the second thump lands only near
+    // the crest of the breath's inhale, only sometimes, and a φ quieter than before.
+    if(roomy!==false && (state.activity==='lyric' || state.activity==='meditate')){
+      // the heart OBEYS THE ORDER (author 29.07: «сердце тоже подчиним одному из
+      // ордеров»): the second thump only on a QR beat — χ decides, not dice — and
+      // only near the crest of the inhale. Dosed by construction.
       const PHI=(1+Math.sqrt(5))/2;
-      _kick(t2+feltQuarter()*(1-1/PHI), v/(PHI*PHI));
+      const _onInhale=(typeof _brPhase!=='undefined') ? (_brPhase>0.20 && _brPhase<0.50) : false;
+      let _chiQR=false;
+      try{ const _rH=(typeof synthState!=='undefined'&&synthState)?(synthState.currentR||1):1;
+           const _pH=(synthState&&synthState.p)||state.p||11;
+           _chiQR=(typeof isQR==='function' && isQR(_rH,_pH)); }catch(e){}
+      if(_onInhale && _chiQR){
+        _kick(t2+feltQuarter()*(1-1/PHI), v/(PHI*PHI*PHI));
+      }
     }
   }
   function _step(t){
@@ -11651,6 +11763,41 @@ document.getElementById('sess-export').onclick=()=>composer.exportS();
 document.getElementById('sess-export-wav').onclick=()=>composer.exportAudio();
 document.getElementById('sess-import-btn').onclick=()=>document.getElementById('sess-import').click();
 document.getElementById('sess-import').addEventListener('change',e=>{ if(e.target.files&&e.target.files[0]) composer.importFile(e.target.files[0]); e.target.value=''; });
+// ---- IMPORT BY LINK (author 29.07: «на телефоне он готов только импортировать
+// локальный файл») — one URL, the importer detects the kind itself: a session
+// (composer), a scene collection (scenes) or a knowledge file (learner join).
+// GitHub Pages serves with open CORS, so links to the qr-engine site work from
+// anywhere — file://, localhost, the deployed engine, the phone.
+window._qrImportURL=async function(u){
+  u=(u||'').trim(); if(!u) return;
+  try{
+    const r=await fetch(u,{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const txt=await r.text();
+    const o=JSON.parse(txt);
+    try{ localStorage.setItem('qr-import-url',u); }catch(e){}
+    if(o && o.kind==='qr-knowledge'){
+      const n=learner.importKnowledge(o);
+      alert(n<0?'not a knowledge file':(n?('knowledge merged - '+n+' impression(s) strengthened'):'nothing new - already absorbed'));
+      return;
+    }
+    if(o && (o.type==='session' || Array.isArray(o.items))){
+      composer.importFile(new Blob([txt],{type:'application/json'}));
+      try{ if(typeof _fl==='function') _fl('import','session imported by link'); }catch(e){}
+      return;
+    }
+    if(o && (Array.isArray(o.scenes) || Array.isArray(o))){
+      scenes.importFile(new Blob([txt],{type:'application/json'}));
+      return;
+    }
+    throw new Error('unrecognized JSON kind');
+  }catch(e){ alert('link import failed: '+String(e&&e.message||e).slice(0,80)); }
+};
+document.getElementById('sess-import-url').onclick=()=>{
+  const dflt=localStorage.getItem('qr-import-url')||'https://jacobhieronymus.github.io/qr-engine/zov-dlya-markovoy-session.json';
+  const u=prompt('Import by link (session / scenes / knowledge JSON):', dflt);
+  if(u) window._qrImportURL(u);
+};
 
 
 // ===========================================================================
@@ -11916,6 +12063,7 @@ const composer = (()=>{
     if(!items.length){ _status('nothing to play'); return; }
     if(!opts.noClear) stop();
     _playOpts=opts; playing=true;
+    state._strictSession=!!document.getElementById('sess-strict')?.checked;   // montage tracks its primes (applied scenes can't override — the flag outranks their rules)
     const pb=document.getElementById('sess-play'); if(pb){ pb.classList.add('active'); pb.textContent='■ stop'; }
     if(!state.running){ try{startAudio();}catch(e){} }
     _runStep(0);
@@ -12016,6 +12164,7 @@ const composer = (()=>{
   }
   function stop(){
     _stopLanes();
+    state._strictSession=false;   // live playing gets the anchor rule back
     if(_glideTimer){ clearInterval(_glideTimer); _glideTimer=null; }
     playing=false; _clearAdv(); timers.forEach(clearTimeout); timers=[]; curIdx=-1;
     const b=document.getElementById('sess-play'); if(b){ b.classList.remove('active'); b.textContent='▶ play'; }
@@ -13131,6 +13280,7 @@ const learner = (()=>{
       out.reorderA=[0,4,8][Math.floor(Math.random()*3)]; // the timbre/pitch walk follows line / arch / spiral order
       out.modDepth=Math.max(out.modDepth||0,0.4);
       out.fxSatBypass=true;                              // clean, no grit
+      window._breathHint={act:'meditate', Tlo:7.5, Thi:11.0, depth:0.34, inh:0.34};   // the prayer breathes long and low
       // PRAYER (author 29.07): a REAL address to the Creator of everything and of
       // all numbers. A cycle of seven scenes: one invocation, five litany verses —
       // the same address repeated with elevation, call and answer over the ground —
@@ -13223,11 +13373,15 @@ const learner = (()=>{
       // crossing at full body · 3 AFTERGLOW — suddenly almost nothing, very close.
       // CANTILENA throughout: legato, glissando, long tied tones — singers, always.
       const P_=_lyricPhase;
+      // breath dramaturgy helper: consecutive scenes of the SAME stage keep the
+      // original timestamp, so the climax ramp builds across scenes, not per scene
+      const _setBH=(o)=>{ const pv=window._breathHint; o.act='lyric'; o.ts=(pv&&pv.stage===o.stage)?pv.ts:Date.now(); window._breathHint=o; };
       out.motion='prepost'; out.secMask={pre:true,main:true,post:true};
       out.glissA=true; out.tie=true; out.arp=false;
       out.exprArticOn=true; out.exprArticDepth=Math.max(out.exprArticDepth||0,0.7);
       if(!out.vol) out.vol={};
       if(P_===0){                     // TENDER
+        _setBH({stage:'tender', Tlo:5.5, Thi:8.0, depth:0.32, inh:0.38});   // calm, close breathing
         out.abOffsetBeats=0.06+Math.random()*0.06;            // b answers a with a breath's delay
         out.postOffsetBeats=0.08+Math.random()*0.06;
         out.durIdx=Math.max(out.durIdx||18,24);
@@ -13240,6 +13394,7 @@ const learner = (()=>{
         out.minFreq=Math.round(Math.max(out.minFreq||90,150));
         out.voiceInst=Object.assign({},out.voiceInst||{},{a:'flute',b:'str',sustain:'str',chord:'bell',prelude:'flute',postlude:'reed'});
       } else if(P_===1){              // DESIRE: pursuit — the lead changes hands scene by scene
+        _setBH({stage:'desire', Tlo:4.0, Thi:6.0, depth:0.44, inh:0.42});   // quickening, deepening
         out.abOffsetBeats=(_actBeatN%2?1:-1)*(0.04+Math.random()*0.06);
         out.postOffsetBeats=0.10;                             // a held breath
         out.durIdx=Math.max(out.durIdx||18,20);
@@ -13253,6 +13408,11 @@ const learner = (()=>{
         out.minFreq=Math.round(Math.max(out.minFreq||90,130));
         out.voiceInst=Object.assign({},out.voiceInst||{},{a:'reed',b:'str',sustain:'str',chord:'bell',prelude:'reed',postlude:'reed'});
       } else if(P_===2){              // PASSION
+        _setBH({stage:'passion', Tlo:3.6, Thi:5.0, Tlo2:1.3, Thi2:2.0, depth:0.50, depth2:0.66, inh:0.46, ramp:22});
+        // THE CLIMAX (author 29.07: «страсть гораздо быстрее в кульминации»): the
+        // breath ACCELERATES through passion — over ~22 s the period collapses from
+        // ~4 s to 1.3–2 s and deepens to 66%; the afterglow's sudden 8–11 s calm is
+        // the release. The contrast IS the culmination.
         out.abOffsetBeats=-(0.03+Math.random()*0.05);         // a leaps ahead
         out.postOffsetBeats=0.04;
         out.durIdx=Math.max(out.durIdx||18,17);
@@ -13266,6 +13426,7 @@ const learner = (()=>{
         out.minFreq=Math.round(Math.max(out.minFreq||90,110));   // the full body sings
         out.voiceInst=Object.assign({},out.voiceInst||{},{a:'str',b:'str',chord:'brass',sustain:'str',prelude:'reed',postlude:'reed'});
       } else {                        // AFTERGLOW: suddenly very quiet, very close
+        _setBH({stage:'afterglow', Tlo:8.0, Thi:11.0, depth:0.26, inh:0.30});   // long, settling, spent
         out.abOffsetBeats=0.15;                               // b far behind — an echo of what just was
         out.postOffsetBeats=0.12;
         out.durIdx=Math.max(out.durIdx||18,26);
@@ -16034,6 +16195,9 @@ startRenderLoop();
       }
     } }
     else if(m.t==='ratio'){ _freeRatio=(m.v>0)?m.v:null; if(selRatio) selRatio.value=(m.k||'off'); if(!IS_LEADER) _applyRatioBpm(); }
+    else if(m.t==='breath'){ if(!IS_LEADER && state.duo.mode!=='free' && window._breathAdopt){
+      window._breathAdopt(((m.ph||0)+0.5)%1, m.T);   // ANTI-phase: her inhale on his exhale — two singers listening to each other
+    } }
     else if(m.t==='bye'){ if(m.id===state.duo.peerId){ state.duo.peer=false; state.duo.peerId=null; _dropRoleMask(); } }
     _applyRoleMask();
     _paint();
@@ -16046,6 +16210,7 @@ startRenderLoop();
   setInterval(function(){
     if(state.duo.on) send({t:'hello'});
     if(state.duo.on && !IS_LEADER && state.duo.peer){ var _c=snapshot(); if(_c) send({t:'mycap', snap:_c}); }   // her side of a duet like/save
+    if(state.duo.on && IS_LEADER && state.duo.peer && window._breathState){ var _bs=window._breathState(); send({t:'breath', ph:_bs.ph, T:_bs.T}); }   // his inhale/exhale, for her to answer
     if(state.duo.peer && (Date.now()-state.duo.lastPeer>6000)){ state.duo.peer=false; state.duo.peerId=null; _dropRoleMask(); _paint(); }
   },2000);
   setInterval(function(){ try{ broadcastScene(false); _applyRoleMask(); }catch(e){} },250);   // mask re-asserts after any local restore overwrote solo
@@ -16436,6 +16601,14 @@ startRenderLoop();
     mim.title='Merge a knowledge file exported on the desktop into this phone.';
     mim.onclick=function(){ try{ var i=document.getElementById('mind-file'); if(i) i.click(); }catch(e){} };
     mrow.appendChild(mex); mrow.appendChild(mim);
+    var murl=document.createElement('button'); murl.className='pb-genre'; murl.textContent='🔗';
+    murl.title='import by link: a session, scenes or knowledge JSON by URL — no file picker needed on the phone.';
+    murl.onclick=function(){ try{
+      var dflt=localStorage.getItem('qr-import-url')||'https://jacobhieronymus.github.io/qr-engine/zov-dlya-markovoy-session.json';
+      var u=prompt('Import by link:', dflt);
+      if(u && window._qrImportURL) window._qrImportURL(u);
+    }catch(e){} };
+    mrow.appendChild(murl);
     bar.appendChild(mrow);
     setInterval(function(){
       try{
