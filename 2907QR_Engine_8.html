@@ -623,7 +623,7 @@ details.acc[open] { padding-bottom: 0; }
       <div class="chk-row" style="margin-top:3px"><input type="checkbox" id="rule-prime-ratio"><label for="rule-prime-ratio" title="RULE: force the max:min frequency ratio to be a prime number — the frame of the pitch space becomes prime, like everything else here. Snaps the ratio to the nearest prime, keeping freq min fixed.">rule · ratio = prime</label></div>
       <div class="chk-row"><input type="checkbox" id="rule-freq-lock"><label for="rule-freq-lock" title="RULE: the frequency range is frozen WITHIN one SCREEN — one prelude / postlude pass, or one r of the main section. It may step only when the screen changes: a new r, a new section, a new prime. The drift keeps breathing silently and lands its value at each boundary.">rule · freq fixed per screen</label></div>
       <div class="chk-row"><input type="checkbox" id="rule-sus-hold"><label for="rule-sus-hold" title="RULE: sustain HOLDS its anchor — a crossed p/n anchor rings until the NEXT anchor (the 12 s cap is lifted), and a section that opens between anchors latches the nearest one at once. At giant primes (anchors are one slot in hundreds) this turns the sustain into a continuous, slowly shifting drone — one room for the whole session; at small primes it barely changes anything.">rule · sustain holds anchor</label></div>
-      <div class="chk-row"><input type="checkbox" id="rule-trans-anchor"><label for="rule-trans-anchor" title="RULE: every p or r change waits for a structurally marked slot — a p/n sustain anchor, its mirror p−anchor, or a turnaround (the first/last slot of the current sweep, where motion changes direction). The request stays pending and fires at the next marked beat; worst-case wait is one sweep. Applies to your jumps AND the Markovs' scene changes alike.">rule · p/r change at anchors</label></div>
+      <div class="chk-row"><input type="checkbox" id="rule-trans-anchor"><label for="rule-trans-anchor" title="RULE (01.08): transitions BETWEEN screens (p changes) pass only through anchors, their mirrors or turnarounds — and a held p-request now approaches the gate by itself, hopping the 1/n² ladder toward the nearest anchor every 2 beats (halving the distance — even a huge meditation room arrives in ~2·log₂P beats). WITHIN a screen, jumps are free but LAND on the ladder: allowed positions sit at distances P/n² (n<√P) from an anchor — inverse squares, condensing toward it. Stepping is walking and is never held.">rule · anchors + 1/n² ladder</label></div>
       <div class="row" style="margin-top:6px">
         <label>tempo (BPM)</label>
         <input type="range" id="bpm" min="5" max="999" step="1" value="60">
@@ -3191,6 +3191,38 @@ function _transPointOK(s){
   }catch(e){ return true; }
   return false;
 }
+// ---- THE 1/n² LADDER (author 01.08): «все переходы между экранами через якоря;
+// внутри экрана можно прыгнуть гораздо ближе к якорю — разрешено оказаться на
+// расстоянии P/n² при n<√P». Squares are native here (quadratic residues ARE
+// squares mod p); the allowed landings condense toward each anchor like inverse
+// squares — the Basel ladder. Minimum rung = 1 (the anchor's neighbour).
+let _ladderCache={p:0,set:null};
+function _ladderRungs(P){
+  if(_ladderCache.p===P && _ladderCache.set) return _ladderCache.set;
+  const S=new Set([0]);
+  const N=Math.floor(Math.sqrt(Math.max(4,P)));
+  for(let n=1;n<=N;n++) S.add(Math.round(P/(n*n)));
+  _ladderCache={p:P,set:S};
+  return S;
+}
+function _ladderSnap(P, tr){
+  try{
+    if(!(state.rules && state.rules.transAtAnchors)) return tr;   // the rule owns the ladder
+    if(state._strictSession) return tr;                            // montages own their clock AND their landings
+    P=P|0; if(P<7) return tr;
+    const A=pnSustainAnchorSet(P); if(!A || !A.size) return tr;
+    let ba=null, bd=Infinity;
+    for(const a of A){ const m=[a,P-a]; for(let j=0;j<2;j++){ const d0=Math.abs(tr-m[j]); if(d0<bd){ bd=d0; ba=m[j]; } } }
+    if(ba==null) return tr;
+    let best=tr, be=Infinity;
+    for(const g of _ladderRungs(P)){
+      const c1=ba+g, c2=ba-g;
+      if(c1>=1&&c1<=P-1){ const e1=Math.abs(c1-tr); if(e1<be){ be=e1; best=c1; } }
+      if(c2>=1&&c2<=P-1){ const e2=Math.abs(c2-tr); if(e2<be){ be=e2; best=c2; } }
+    }
+    return best;
+  }catch(e){ return tr; }
+}
 
 // ---------- State ----------
 const state={
@@ -4059,6 +4091,10 @@ function initAudio(){
   // Tap the FINAL output (post-master) so the watchdog can tell "graph died / silent"
   // from "clock frozen". An analyser has no output, so this never changes the sound.
   try{ _outMeter=ctx.createAnalyser(); _outMeter.fftSize=1024; masterGain.connect(_outMeter); }catch(e){ _outMeter=null; }
+  // ctx/masterGain are LEXICAL bindings — invisible as window properties from the
+  // parent window (fw.ctx === undefined always). The duet stage recorder needs the
+  // frame's live audio, so publish getters explicitly (always-current, read-only).
+  try{ window._qrAudio={ get ctx(){ return ctx; }, get master(){ return masterGain; } }; }catch(e){}
   // QR-derived bus: voices → voiceBus → [dry + QR-diffusor reverb] → symmetric
   // saturation → limiter → masterGain. Every stage carries a parameter from p.
   qrBus=buildQRChain(ctx, masterGain, _liveP());
@@ -5275,7 +5311,35 @@ function consumeRequests(){
   }
   // RULE transAtAnchors: p/r-change requests are HELD (stay pending) until the stream
   // stands on an allowed slot — anchor / mirror anchor / turnaround. See _transPointOK.
-  const _tOK=(typeof _transPointOK==='function')?_transPointOK(s):true;
+  let _tOK=(typeof _transPointOK==='function')?_transPointOK(s):true;
+  // a held BETWEEN-screen request approaches the gate BY THE LADDER (author 01.08:
+  // «оно зависло» must be impossible): every 2 beats hop to the highest rung at or
+  // below HALF the current distance to the nearest anchor — a quadratically
+  // condensing runway; even a p≈90000 meditation room reaches its anchor in
+  // ~2·log₂P beats instead of hours.
+  if(!_tOK && state.running && s.rList && s.rList.length &&
+     (state.reqP!==null || state.reqGotoSim || (state.reqGoto && state.reqGoto.p && (state.reqGoto.p|0)!==(s.p|0)))){
+    s._appN=(s._appN|0)+1;
+    if(s._appN>=2){ s._appN=0;
+      try{
+        const P2=s.p|0, A2=pnSustainAnchorSet(P2);
+        const r2=((s.currentR!=null?s.currentR:s.rList[s.rIdx])|0);
+        let ba=null, bd=Infinity;
+        for(const a of A2){ const m=[a,P2-a]; for(let j=0;j<2;j++){ const d0=Math.abs(r2-m[j]); if(d0<bd){ bd=d0; ba=m[j]; } } }
+        if(ba!=null && bd>0){
+          let nd=0;
+          for(const g of _ladderRungs(P2)){ if(g<=bd/2 && g>nd) nd=g; }
+          const tr=Math.max(1,Math.min(P2-1, ba+((r2>=ba)?1:-1)*nd));
+          const i2=s.rList.indexOf(tr);
+          if(i2>=0){ s.rIdx=i2; state.visQueue.length=0;
+            // the hop may have landed ON the anchor — re-open the gate in the SAME
+            // beat, or the next walking step slips off before the next check
+            _tOK=(typeof _transPointOK==='function')?_transPointOK(s):true;
+          }
+        }
+      }catch(e){}
+    }
+  } else s._appN=0;
   if(_tOK && state.reqP!==null){
     let p=state.reqP|0; if(p<3)p=3; if(!isPrime(p))p=nextPrime(p);
     s.p=p; state.p=p; s.phase='pause-before'; s.rIdx=0; s.aIdx=0; s.rList=[];
@@ -5284,8 +5348,8 @@ function consumeRequests(){
     state.reqP=null;
     state.visQueue.length=0;  // drop stale frames so no wrong-section visuals linger
   }
-  if(_tOK && state.reqR!==null){
-    s.pendingR=state.reqR|0; state.reqR=null;
+  if(state.reqR!==null){   // WITHIN-screen jump: free to fire — the LANDING snaps to the 1/n² ladder
+    s.pendingR=_ladderSnap(s.p|0, Math.max(1,Math.min((s.p|0)-1, state.reqR|0))); state.reqR=null;
     // Apply immediately within the CURRENT section's r-list (don't wait for the
     // section to end). Restart the a-sweep so the new r is heard at once.
     if(state.running && s.rList && s.rList.length){
@@ -5301,7 +5365,7 @@ function consumeRequests(){
       }
     }
   }
-  if(_tOK && state.reqRStep && state.running && s.rList && s.rList.length){
+  if(state.reqRStep && state.running && s.rList && s.rList.length){   // stepping is WALKING, not jumping — never held
     const dir=state.reqRStep>0?1:-1; state.reqRStep=0;
     let ni=s.rIdx+dir;
     if(ni>=0 && ni<s.rList.length){
@@ -5340,7 +5404,7 @@ function consumeRequests(){
   // current playback direction for the a-sweep.
   // Unified jump: {p, sec:'prelude'|'main'|'postlude', rPos:'first'|'last'|<int>}.
   // If the requested section is disabled, fall back to main at the same end.
-  if(_tOK && state.reqGoto && state.running){
+  if(state.reqGoto && state.running && ((!state.reqGoto.p || (state.reqGoto.p|0)===(s.p|0)) ? true : _tOK)){   // same-screen goto is free; a p-change waits at the gate
     const req=state.reqGoto; state.reqGoto=null;
     const tp=req.p|0;
     if(tp>=3 && isPrime(tp)){
@@ -5440,8 +5504,8 @@ function consumeRequests(){
     state.visQueue.length=0;
     flushVoices();
   }
-  if(_tOK && state.reqGotoMain!==null && state.reqGotoMain!==undefined && state.running){
-    const tr=Math.max(1,Math.min(s.p-1,state.reqGotoMain|0));
+  if(state.reqGotoMain!==null && state.reqGotoMain!==undefined && state.running){   // within-screen: free, ladder-landed
+    const tr=_ladderSnap(s.p|0, Math.max(1,Math.min(s.p-1,state.reqGotoMain|0)));
     state.reqGotoMain=null;
     s.flow=sectionFlow(state.playmode, s.rDir<0);
     const fi=s.flow.indexOf('main');
@@ -16374,21 +16438,36 @@ startRenderLoop();
           var fw=_mkFrameEl?_mkFrameEl.contentWindow:null;
           if(lp && fp && (lp.width<2||lp.height<2||fp.width<2||fp.height<2)){
             _recFlash('a canvas has no size yet ('+lp.width+'x'+lp.height+' / '+fp.width+'x'+fp.height+') — resize or open the ⛶ stage, then record'); fp=null; }
+          var _hA=(fw&&fw._qrAudio)?fw._qrAudio:null;   // her audio, via the published getters (fw.ctx is NEVER visible — lexical binding)
           if(lp && fp && lp.captureStream){
             var W1=Math.max(2,lp.width), W2=Math.max(2,fp.width), H=Math.max(lp.height,fp.height,2);
             var cv=document.createElement('canvas'); cv.width=W1+W2; cv.height=H;
             var g=cv.getContext('2d');
             g.drawImage(lp,0,0); g.drawImage(fp,W1,0);   // taint probe: throws HERE on an opaque frame → picker path
+            // captureStream on a canvas that is NOT in the document delivers no
+            // frames in Chrome — the 01.08 black-take bug: the compositor never
+            // renders a detached canvas, so the encoder saw nothing. Capture at
+            // 0 fps and PUSH every painted frame via requestFrame(); if that API
+            // is missing, keep the canvas composited on-page as a 2-px ghost.
+            var cstream=cv.captureStream(0);
+            var _vtr=cstream.getVideoTracks()[0];
+            if(!(_vtr && _vtr.requestFrame)){
+              try{ cstream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+              cstream=cv.captureStream(60); _vtr=null;
+              cv.style.cssText='position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:1';
+              document.body.appendChild(cv);
+            }
             var run={on:true};
             (function paint(){ if(!run.on) return;
               try{ g.fillStyle='#000'; g.fillRect(0,0,cv.width,cv.height);
-                g.drawImage(lp,0,0); g.drawImage(fp,W1,0); }catch(e){}
+                g.drawImage(lp,0,0); g.drawImage(fp,W1,0);
+                if(_vtr) _vtr.requestFrame();
+              }catch(e){}
               requestAnimationFrame(paint); })();
-            var cstream=cv.captureStream(60);
             // audio: mix every master bus that exists into ONE context's destination
             var _clean=[], mixCtx=null;
             if(typeof ctx!=='undefined' && ctx) mixCtx=ctx;
-            else if(fw && fw.ctx) mixCtx=fw.ctx;
+            else if(_hA && _hA.ctx) mixCtx=_hA.ctx;
             var audioN=0;
             if(mixCtx){
               try{
@@ -16396,14 +16475,15 @@ startRenderLoop();
                 if(typeof masterGain!=='undefined' && masterGain && mixCtx===ctx){
                   masterGain.connect(mixDest); _clean.push(function(){ masterGain.disconnect(mixDest); }); audioN++;
                 }
-                if(fw && fw.ctx && fw.masterGain){
-                  if(fw.ctx===mixCtx){ fw.masterGain.connect(mixDest); _clean.push(function(){ fw.masterGain.disconnect(mixDest); }); audioN++; }
+                if(_hA && _hA.ctx && _hA.master){
+                  var _hC=_hA.ctx, _hM=_hA.master;
+                  if(_hC===mixCtx){ _hM.connect(mixDest); _clean.push(function(){ _hM.disconnect(mixDest); }); audioN++; }
                   else{
-                    var fdest=fw.ctx.createMediaStreamDestination();
-                    fw.masterGain.connect(fdest);
+                    var fdest=_hC.createMediaStreamDestination();
+                    _hM.connect(fdest);
                     var herSrc=mixCtx.createMediaStreamSource(fdest.stream);
                     herSrc.connect(mixDest);
-                    _clean.push(function(){ fw.masterGain.disconnect(fdest); }); _clean.push(function(){ herSrc.disconnect(); });
+                    _clean.push(function(){ _hM.disconnect(fdest); }); _clean.push(function(){ herSrc.disconnect(); });
                     audioN++;
                   }
                 }
@@ -16412,7 +16492,8 @@ startRenderLoop();
             }
             if(!audioN) _recFlash(audioN===0&&!mixCtx?'no audio running yet — video-only take (press play first for sound)':'video-only take');
             else if(audioN===1) _recFlash('one engine\'s audio in the take (the other has not started sound)');
-            _comp={stream:cstream, cleanup:function(){ run.on=false; _clean.forEach(function(fn){ try{ fn(); }catch(e){} }); }};
+            _comp={stream:cstream, cleanup:function(){ run.on=false; _clean.forEach(function(fn){ try{ fn(); }catch(e){} });
+              try{ if(cv.parentNode) cv.parentNode.removeChild(cv); }catch(e){} }};
           } else if(!fp){ _recFlash('her frame is not readable here (file://) — falling back to the tab-capture picker'); }
         }catch(e){ _comp=null; _recFlash('composite unavailable ('+String(e&&e.message||e).slice(0,40)+') — falling back to the picker'); }
         try{
