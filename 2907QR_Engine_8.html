@@ -15944,7 +15944,7 @@ startRenderLoop();
   // whose total length is the free form-dur field; he plays it start-to-end, she plays
   // the SAME plan end-to-start with every scene direction flipped and entered from its
   // end. At any moment t her material equals his at T-t; they meet in the middle.
-  var _palTimer=null,_palActive=false,btnPal=null;
+  var _palTimer=null,_palActive=false,btnPal=null,selDuoFmt=null;
   var _needMirrorJump=true;   // retro: force ONE position mirror on the next scene (armed on entering retro)
   function _palStopLocal(){ if(_palTimer){ clearTimeout(_palTimer); _palTimer=null; } _palActive=false; _paint(); }
   function _palRun(seq){
@@ -16440,10 +16440,27 @@ startRenderLoop();
             _recFlash('a canvas has no size yet ('+lp.width+'x'+lp.height+' / '+fp.width+'x'+fp.height+') — resize or open the ⛶ stage, then record'); fp=null; }
           var _hA=(fw&&fw._qrAudio)?fw._qrAudio:null;   // her audio, via the published getters (fw.ctx is NEVER visible — lexical binding)
           if(lp && fp && lp.captureStream){
+            var _fmt=(selDuoFmt&&selDuoFmt.value)||'side';
             var W1=Math.max(2,lp.width), W2=Math.max(2,fp.width), H=Math.max(lp.height,fp.height,2);
-            var cv=document.createElement('canvas'); cv.width=W1+W2; cv.height=H;
+            var cv=document.createElement('canvas');
+            if(_fmt==='insta'){ cv.width=1080; cv.height=1920; }
+            else if(_fmt==='square'){ cv.width=1080; cv.height=1080; }
+            else { cv.width=W1+W2; cv.height=H; }
             var g=cv.getContext('2d');
-            g.drawImage(lp,0,0); g.drawImage(fp,W1,0);   // taint probe: throws HERE on an opaque frame → picker path
+            try{ window.__lastComp={w:cv.width, h:cv.height, fmt:_fmt}; }catch(e){}   // take geometry, for verification
+            // COVER-fit a source into a slot (fill it, crop the overflow, centred)
+            var _cover=function(src,dx,dy,dw,dh){
+              var sw=src.width, sh=src.height; if(sw<2||sh<2) return;
+              var k=Math.max(dw/sw, dh/sh), cw=dw/k, ch=dh/k;
+              g.drawImage(src,(sw-cw)/2,(sh-ch)/2,cw,ch,dx,dy,dw,dh);
+            };
+            var _draw=function(){
+              g.fillStyle='#000'; g.fillRect(0,0,cv.width,cv.height);
+              if(_fmt==='insta'){ _cover(lp,0,0,1080,960); _cover(fp,0,960,1080,960); }        // Markov ABOVE, Markova BELOW
+              else if(_fmt==='square'){ _cover(lp,0,0,1080,540); _cover(fp,0,540,1080,540); }
+              else { g.drawImage(lp,0,0); g.drawImage(fp,W1,0); }
+            };
+            _draw();   // taint probe: throws HERE on an opaque frame → picker path
             // captureStream on a canvas that is NOT in the document delivers no
             // frames in Chrome — the 01.08 black-take bug: the compositor never
             // renders a detached canvas, so the encoder saw nothing. Capture at
@@ -16459,8 +16476,7 @@ startRenderLoop();
             }
             var run={on:true};
             (function paint(){ if(!run.on) return;
-              try{ g.fillStyle='#000'; g.fillRect(0,0,cv.width,cv.height);
-                g.drawImage(lp,0,0); g.drawImage(fp,W1,0);
+              try{ _draw();
                 if(_vtr) _vtr.requestFrame();
               }catch(e){}
               requestAnimationFrame(paint); })();
@@ -16515,7 +16531,8 @@ startRenderLoop();
             var isMp4=/mp4/.test(mime||'');
             var blob=new Blob(_dChunks,{type:(mime||'video/webm').split(';')[0]});
             var d2=new Date(), pad=function(n){ return String(n).padStart(2,'0'); };
-            var name='qr-duet-'+d2.getFullYear()+pad(d2.getMonth()+1)+pad(d2.getDate())+'-'+pad(d2.getHours())+pad(d2.getMinutes())+pad(d2.getSeconds())+(isMp4?'.mp4':'.webm');
+            var _fx=(_comp&&selDuoFmt)?((selDuoFmt.value==='insta')?'-916':(selDuoFmt.value==='square')?'-11':''):'';
+            var name='qr-duet-'+d2.getFullYear()+pad(d2.getMonth()+1)+pad(d2.getDate())+'-'+pad(d2.getHours())+pad(d2.getMinutes())+pad(d2.getSeconds())+_fx+(isMp4?'.mp4':'.webm');
             var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
             document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },4000);
             _recFlash('take saved: '+name+' ('+Math.round(total/1024/102.4)/10+' MB)');
@@ -16530,6 +16547,19 @@ startRenderLoop();
           _dRec=null; _dChunks=null; _paint(); }
       };
       bodyEl.appendChild(btnRec);
+      // duet take format (author 01.08): side-by-side native, or the Reels vertical
+      // with one screen ABOVE the other, or a square stack — same idea as the
+      // single-screen recorder's format select
+      selDuoFmt=document.createElement('select');
+      selDuoFmt.title='duet video format: ▭ both screens side by side at native canvas resolution · ▯ 9:16 1080×1920 (Reels/Stories) — Markov ABOVE, Markova BELOW, each half covering 1080×960 · □ 1:1 1080×1080 square stack. Takes effect from the next take.';
+      selDuoFmt.style.cssText='margin-left:4px';
+      [['side','▭ 16:9'],['insta','▯ 9:16'],['square','□ 1:1']].forEach(function(o){
+        var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; selDuoFmt.appendChild(op);
+      });
+      try{ selDuoFmt.value=localStorage.getItem('qr_duet_video_format')||'side'; }catch(e){}
+      selDuoFmt.onchange=function(){ try{ localStorage.setItem('qr_duet_video_format', selDuoFmt.value); }catch(e){} };
+      selDuoFmt.onclick=function(ev){ ev.stopPropagation(); };
+      bodyEl.appendChild(selDuoFmt);
       // crab-canon composer: length taken from the free form-dur field
       btnPal=document.createElement('button');
       btnPal.title='PALINDROME - compose a form of the form-dur length (any seconds): the improviser plans the scenes; Markov plays them start-to-end while Markova plays the same plan end-to-start, each scene reversed. His whole performance equals hers read backwards. Click again to stop.';
