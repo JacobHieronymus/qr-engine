@@ -60,6 +60,11 @@ body { display: flex; flex-direction: column; }
    (uimir/uifw) carries the single console's will into her engine. */
 body.duo-framed #top-dock { margin-right: -50vw; position: relative; z-index: 60; }
 body.mk-embedded #top-dock { display: none !important; }
+/* (05.08 author: «где кнопка записи видео?») the ONE console stays OVER the pair
+   stage — ⛶ used to bury the bar under the fullscreen canvases, and with the
+   pill's rec retired the stage had no record button at all. Solo fullscreen
+   (no duo-split) keeps the clean picture as before. */
+body.duo-split.duo-framed #top-dock { display: flex; position: fixed; top: 0; left: 0; right: 0; z-index: 10001; margin-right: 0; }
 header {
   padding: 9px 14px;
   border-bottom: 1px solid var(--border);
