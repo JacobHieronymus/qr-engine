@@ -54,6 +54,12 @@ body { display: flex; flex-direction: column; }
   background: linear-gradient(180deg,#101316,#0c0f11);
   border-bottom: 1px solid var(--border);
 }
+/* (05.08 author: «подними пульт над обоими экранами») ONE console for the pair:
+   with Markova's frame open the parent's bar escapes the half-width squeeze and
+   spans BOTH screens; the frame hides its own bar — no duplication, the wire
+   (uimir/uifw) carries the single console's will into her engine. */
+body.duo-framed #top-dock { margin-right: -50vw; position: relative; z-index: 60; }
+body.mk-embedded #top-dock { display: none !important; }
 header {
   padding: 9px 14px;
   border-bottom: 1px solid var(--border);
@@ -11891,6 +11897,17 @@ const scenes = (()=>{
     if(s.primeArch!=null){ state.primeArch=!!s.primeArch; const pa=document.getElementById('mode-prime-arch'); if(pa) pa.classList.toggle('active',!!s.primeArch); }
     if(s.mainAnchorsOnly!=null){ state.mainAnchorsOnly=!!s.mainAnchorsOnly; const mao=document.getElementById('main-anchors-only'); if(mao) mao.checked=state.mainAnchorsOnly; }
     if(typeof _applyStructure==='function') _applyStructure();
+    // (05.08i) DIRECTION MUST SURVIVE THE REBUILD: setDirection queues reqReverse,
+    // but a p-change restore rebuilds synthState and the queued request dies with
+    // it — scenes saved with dir<0 played FORWARD (the crab's silent killer, and
+    // every reversed session step before today). Apply the direction directly.
+    if(s.dir!=null){ const _rv=(s.dir<0);
+      state.pDir=_rv?-1:1; state.rDir=_rv?-1:1; state.reqReverse=false;
+      if(typeof synthState!=='undefined' && synthState){
+        synthState.pDir=state.pDir; synthState.rDir=state.rDir;
+        synthState.aDir=_rv?-1:1; synthState.rListDirty=true;
+      }
+    }
     // volumes
     if(s.vol){ for(const k in s.vol){ state.vol[k]=s.vol[k]; const sl=document.getElementById('v-'+k); if(sl) sl.value=s.vol[k]; } }
     // solo set (per-voice) — rebuild, sync the checkboxes, re-gate the live mix
@@ -16344,6 +16361,7 @@ startRenderLoop();
   // via the hash; both-present-and-different = not my pair. Tokenless senders (a
   // manually opened second window) stay accepted, as before.
   var PAIR=(HASH.match(/pair=([a-z0-9]+)/)||[])[1]||null;
+  if(!IS_LEADER){ try{ if(window.parent && window.parent!==window) document.body.classList.add('mk-embedded'); }catch(e){} }   // (05.08) the embedded half yields its bar to the ONE console above both
   if(IS_LEADER && !PAIR){ try{ PAIR=Math.random().toString(36).slice(2,8); }catch(e){ PAIR='p0'; } }
   var _lastPeerSynced=null, _lastPeerSeeded=null;   // [29.07 fix] was read undeclared below — the ReferenceError killed the 'hello' handler, so a new peer never got the full sync (dead right half on the duet stage; Safari surfaced it hardest)
   // ---- PALINDROME FORMS (author 29.07: «эти палиндромы важны») ---------------------
@@ -16352,9 +16370,29 @@ startRenderLoop();
   // the SAME plan end-to-start with every scene direction flipped and entered from its
   // end. At any moment t her material equals his at T-t; they meet in the middle.
   var _palTimer=null,_palActive=false,btnPal=null,selDuoFmt=null,btnBoth=null,_prePalMode='parts';
+  // (05.08i author: «он играет от А до Я, она от Я до А — её последняя сцена это
+  // развёрнутая его первая») THE TRUE CRAB needs exact segment mirroring: a step of
+  // dur seconds plays only PART of its scene, so entering «from the end» made her
+  // play the TAIL against his HEAD — two unrelated pieces. She must enter at the
+  // point HIS traversal reaches by step end, and walk BACK to his entry: then her
+  // segment is his segment read backwards, whatever the duration.
+  function _palEndPos(st, durSec){
+    try{
+      var p=st.p|0; if(p<3) return null;
+      var bpm=Math.max(5,(st.bpm||state.bpm||60));
+      var B=Math.max(0, Math.round(durSec*bpm/60));
+      var m=st.secMask||{pre:true,main:true,post:true};
+      var pre=m.pre?(p-1):0, mainL=m.main?(p-1)*(p-1):0, post=m.post?(p-1):0;
+      var total=pre+mainL+post; if(total<1) return null;
+      B=B%total;
+      if(B<pre) return {sec:'prelude', rV:B+1, aV:1};
+      if(B<pre+mainL){ var q=B-pre; return {sec:'main', rV:Math.floor(q/(p-1))+1, aV:(q%(p-1))+1}; }
+      return {sec:'postlude', rV:(B-pre-mainL)+1, aV:1};
+    }catch(e){ return null; }
+  }
   var _needMirrorJump=true;   // retro: force ONE position mirror on the next scene (armed on entering retro)
   function _palStopLocal(){ if(_palTimer){ clearTimeout(_palTimer); _palTimer=null; } _palActive=false; _paint(); }
-  function _palRun(seq, t0){
+  function _palRun(seq, t0, isRev){
     _palActive=true; var i=0;
     // (05.08 audit) ABSOLUTE schedule against a SHARED start: both windows cut every
     // seam on the same wall instant. Chained relative timers accumulated drift and
@@ -16375,7 +16413,14 @@ startRenderLoop();
         var mk=st.secMask||{};
         var first=mk.pre?'prelude':(mk.main?'main':'postlude');
         var last =mk.post?'postlude':(mk.main?'main':'prelude');
-        state.reqGoto={p:st.p, sec:(st.dir<0)?last:first, rPos:(st.dir<0)?'last':'first'};
+        if(isRev && it.end){
+          // (05.08i) the TRUE crab: enter at the point his forward traversal reaches
+          // by this step's end, and walk BACK to his entry — her segment is his
+          // segment read backwards, whatever the duration.
+          state.reqGotoSim={sec:it.end.sec, rV:it.end.rV, aV:it.end.aV, fromP:st.p};
+        } else {
+          state.reqGoto={p:st.p, sec:(st.dir<0)?last:first, rPos:(st.dir<0)?'last':'first'};
+        }
       }catch(e){}
       i++;
       var _next=_base; for(var q=0;q<i;q++) _next+=Math.max(1000,(seq[q].dur||10)*1000);
@@ -16417,9 +16462,10 @@ startRenderLoop();
     // used to run the plan into the wall — the timers ate it inaudibly. The crab is
     // a performance: choosing it STARTS the pair.
     try{ if(!(state.running&&!state.paused)){ _xpApplying=true; try{ _xport(true); }finally{ _xpApplying=false; } send({t:'xport', on:true}); } }catch(e){}
+    plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur); });   // (05.08i) each step's reach — the reversed twin enters THERE
     var _t0=Date.now()+700;   // the shared downbeat: both windows enter the crab together
     send({t:'pal', plan:plan, t0:_t0});
-    _palRun(plan.slice());
+    _palRun(plan.slice(), _t0, false);   // (05.08i fix: the sender used to skip its own t0 — a constant 700ms skew in every crab)
     _paint();
   }
   // ---- point-symmetric retro: deliberate r-jumps mirror over the wire ---------------
@@ -16727,11 +16773,11 @@ startRenderLoop();
     else if(m.t==='clearpins'){ if(_isLead()) apClearPins(); }
     else if(m.t==='pins'){ if(!_isLead() && typeof _apPinSet==='function'){ var s2=_apPinSet(); s2.clear(); (m.pins||[]).forEach(function(k){ s2.add(k); }); if(typeof _apRenderPins==='function') _apRenderPins(); } }
     else if(m.t==='pal'){ if(m.plan && m.plan.length){   // whoever RECEIVES the plan answers in reverse — either window may start it
-      var _rev=m.plan.slice().reverse().map(function(x){ var st=Object.assign({},x.state); if(st.duo) delete st.duo; st.dir=(st.dir<0)?1:-1; return {state:st, dur:x.dur}; });
+      var _rev=m.plan.slice().reverse().map(function(x){ var st=Object.assign({},x.state); if(st.duo) delete st.duo; st.dir=(st.dir<0)?1:-1; return {state:st, dur:x.dur, end:x.end}; });
       _palStopLocal();
       if(state.duo.mode!=='pal'){ _prePalMode=state.duo.mode; state.duo.mode='pal'; }   // the receiving window joins the pal state of the family
       try{ if(typeof learner!=='undefined' && learner.isAutoOn && learner.isAutoOn()) learner.toggleAuto(); }catch(e){}   // (05.08 audit) the free-mode autopilot stands down — two schedulers must not fight over the scene
-      _palRun(_rev, m.t0);
+      _palRun(_rev, m.t0, true);
     } }
     else if(m.t==='pal-stop'){ _palStopLocal(); if(state.duo.mode==='pal'){ state.duo.mode=_prePalMode||'parts'; } }
     else if(m.t==='pos'){ if(!_isLead() && state.duo.mode==='retro' && !_palActive && state.running && !state.paused && typeof synthState!=='undefined' && synthState){
@@ -16824,6 +16870,12 @@ startRenderLoop();
       if(_isLead()){ broadcastScene(true); _sendPins(); }
       if(!_palActive) _mkFreeSync();   // (05.08 audit) in free mode the NEW follower must start improvising, the new lead's mirror must stand down
     } }
+    else if(m.t==='uimir'){ try{ var _ue=document.getElementById(m.eid); if(_ue){ _uiEcho=true;   // eid, NOT id — send() stamps msg.id with the SENDER uuid (the 05.08h field collision)
+      if(m.val!=null){ if(_ue.value!==m.val){ _ue.value=m.val; _ue.dispatchEvent(new Event('change')); } }
+      else if(m.chk!=null){ if(!!_ue.checked!==!!m.chk){ _ue.checked=!!m.chk; _ue.dispatchEvent(new Event('change')); } }
+      else _ue.click();
+      _uiEcho=false; } }catch(e){ _uiEcho=false; } }
+    else if(m.t==='uifw'){ if(IS_LEADER){ try{ var _uf=document.getElementById(m.eid); if(_uf) _uf.click(); }catch(e){} } }
     else if(m.t==='bye'){ if(m.id===state.duo.peerId){ state.duo.peer=false; state.duo.peerId=null; _dropRoleMask(); } }
     _applyRoleMask();
     _paint();
@@ -16915,6 +16967,7 @@ startRenderLoop();
       btnOpen.title='open Markova as a FRAME in this window — right half, ✕ to close. One window, two engines side by side. (Note: both engines share this window’s render thread; for the heaviest scenes two separate windows are still lighter.)';
       var _mkWrap=null;
       function _frClose(){ if(_mkWrap){ _mkWrap.remove(); _mkWrap=null; }
+        document.body.classList.remove('duo-framed');
         // give Markov his full width back and let every canvas re-measure
         document.body.style.marginRight='';
         try{ window.dispatchEvent(new Event('resize')); }catch(e){}
@@ -16971,6 +17024,12 @@ startRenderLoop();
         zi.onclick=function(){ _mkManual=true; _mkScale=Math.min(1,+(_mkScale+0.05).toFixed(2)); _frScale(); try{ localStorage.setItem('qr_mk_scale',String(_mkScale)); }catch(e){} };
         _mkWrap.appendChild(fr); _mkWrap.appendChild(zo); _mkWrap.appendChild(zi); _mkWrap.appendChild(xb);
         document.body.appendChild(_mkWrap);
+        // (05.08) the ONE console: the parent's top bar spans both screens; the
+        // frame band starts right below it.
+        document.body.classList.add('duo-framed');
+        var _wrapTop=function(){ try{ if(!_mkWrap) return; var _td=document.getElementById('top-dock'); var h=(_td&&_td.offsetHeight)||0; _mkWrap.style.top=h+'px'; _mkWrap.style.height='calc(100vh - '+h+'px)'; }catch(e){} };
+        _wrapTop(); setTimeout(_wrapTop,150);
+        window.addEventListener('resize',_wrapTop);
         // squeeze Markov's own page into the LEFT half (author 26.07: «экран Маркова не
         // полный» — the frame used to cover half of his still-full-width layout) and
         // fire a resize so his canvases re-measure to the visible half.
@@ -17039,6 +17098,9 @@ startRenderLoop();
             _recFlash('a canvas has no size yet ('+lp.width+'x'+lp.height+' / '+fp.width+'x'+fp.height+') — resize or open the ⛶ stage, then record'); fp=null; }
           var _hA=(fw&&fw._qrAudio)?fw._qrAudio:null;   // her audio, via the published getters (fw.ctx is NEVER visible — lexical binding)
           if(lp && fp && lp.captureStream){
+            var _fmtMapTB={screen:'side',insta:'insta',square:'square'};
+            var _tbF=(document.getElementById('tb-vid-fmt')||{}).value;
+            if(selDuoFmt && _fmtMapTB[_tbF]) selDuoFmt.value=_fmtMapTB[_tbF];   // (05.08h) the top-bar select rules the pair take
             var _fmt=(selDuoFmt&&selDuoFmt.value)||'side';
             var W1=Math.max(2,lp.width), W2=Math.max(2,fp.width), H=Math.max(lp.height,fp.height,2);
             var cv=document.createElement('canvas');
@@ -17182,7 +17244,9 @@ startRenderLoop();
           _recFlash('recording did not start: '+String(e&&e.message||e).slice(0,60));
           _dRec=null; _dChunks=null; _paint(); }
       };
-      bodyEl.appendChild(btnRec);
+      // (05.08h author: «убери rec из окошка дуэта — video пишется обычной кнопкой»)
+      // btnRec stays as the MACHINE (its title carries status), but it is not shown:
+      // the top-bar ● video records the PAIR whenever Markova's frame is open.
       // duet take format (author 01.08): side-by-side native, or the Reels vertical
       // with one screen ABOVE the other, or a square stack — same idea as the
       // single-screen recorder's format select
@@ -17195,7 +17259,7 @@ startRenderLoop();
       try{ selDuoFmt.value=localStorage.getItem('qr_duet_video_format')||'side'; }catch(e){}
       selDuoFmt.onchange=function(){ try{ localStorage.setItem('qr_duet_video_format', selDuoFmt.value); }catch(e){} };
       selDuoFmt.onclick=function(ev){ ev.stopPropagation(); };
-      bodyEl.appendChild(selDuoFmt);
+      // (05.08h) not appended — the top-bar format select rules the pair take too
     }
     // (05.08 audit: «равенство прав» in the BUTTONS too) — the musical controls
     // (pal, ratio, mode, baton, pair transport) exist in BOTH windows: the wire was
@@ -17258,16 +17322,8 @@ startRenderLoop();
         if(!_palActive) _mkFreeSync();
         _paint(); };
       bodyEl.appendChild(btnLead);
-      // one button, two engines
-      btnBoth=document.createElement('button');
-      btnBoth.title='PAIR TRANSPORT: one click starts BOTH engines together (his and hers, audio and all); one click rests both. Works from either window.';
-      btnBoth.style.cssText='margin-left:4px;font-weight:600';
-      btnBoth.onclick=function(ev){ ev.stopPropagation();
-        var on=!(state.running&&!state.paused);
-        _xport(on);
-        send({t:'xport', on:on});
-        _paint(); };
-      bodyEl.appendChild(btnBoth);
+      // (05.08h author: «убери both») — ▶ play IS the pair transport since 05.08c;
+      // the extra button became duplication and left the pill.
     }
     panel.appendChild(bodyEl);
     document.body.appendChild(panel);
@@ -17300,15 +17356,14 @@ startRenderLoop();
     if(btnStage){ var _st=document.body.classList.contains('duo-split');
       btnStage.textContent=_st?'⛶ stage ✓':'⛶ stage';
       btnStage.style.color=_st?'var(--accent,#6cf)':''; }
-    if(btnRec){ var _rc=!!(typeof _dRec!=='undefined' && _dRec);
-      btnRec.textContent=_rc?'■ rec ●':'⏺ rec';
-      btnRec.style.color=_rc?'#ff5f5f':''; }
+    try{ var _rc=!!(typeof _dRec!=='undefined' && _dRec);
+      var _tv=document.getElementById('tb-rec-vid');
+      if(_tv){ if(_rc){ _tv.textContent='■ video ●'; _tv.style.color='#ff5f5f'; _tv._duoTint=true; }
+        else if(_tv._duoTint){ _tv.textContent='● '+(_tv._lbl||'video'); _tv.style.color=''; _tv._duoTint=false; } } }catch(e){}
     if(btnPal){ btnPal.textContent=_palActive?'■ pal ●':'◆ pal';
       btnPal.style.color=_palActive?'#ff5f5f':''; }
     if(selRatio){ selRatio.style.opacity=(state.duo.mode==='free')?'1':'0.45'; }
-    if(btnBoth){ var _bp=(state.running&&!state.paused);
-      btnBoth.textContent=_bp?'■ both':'▶ both';
-      btnBoth.style.color=_bp?'var(--green,#86ffb0)':'var(--accent,#6cf)'; }
+
   }
   // ---- PHONE mode (author 27.07: «версия для телефона — сдвоенный режим») ----------
   // #phone boots the doubled Markov+Markova at once, stacked vertically, all four
@@ -17389,7 +17444,7 @@ startRenderLoop();
     var drow=document.createElement('div'); drow.className='pb-row';
     var pbBoth=document.createElement('button'); pbBoth.className='pb-genre'; pbBoth.textContent='▶ both';
     pbBoth.title='start or rest BOTH engines together';
-    pbBoth.onclick=function(){ try{ if(btnBoth) btnBoth.onclick({stopPropagation:function(){}}); }catch(e){} };
+    pbBoth.onclick=function(){ try{ var on=!(state.running&&!state.paused); _xport(on); send({t:'xport',on:on}); _paint(); }catch(e){} };
     var pbLead=document.createElement('button'); pbLead.className='pb-genre'; pbLead.textContent='♛';
     pbLead.title='who conducts — tap to hand the baton over';
     pbLead.onclick=function(){ try{ if(relEl) relEl.click(); }catch(e){} };
@@ -17459,7 +17514,7 @@ startRenderLoop();
             for(var r2=0;r2<selRatio.options.length;r2++){ var o2=document.createElement('option');
               o2.value=selRatio.options[r2].value; o2.textContent=selRatio.options[r2].textContent; pbRatio.appendChild(o2); } }
           if(pbRatio.value!==selRatio.value) pbRatio.value=selRatio.value; }
-        if(pbBoth && btnBoth) pbBoth.textContent=btnBoth.textContent||'▶ both';
+        if(pbBoth) pbBoth.textContent=(state.running&&!state.paused)?'■ both':'▶ both';
         if(pbLead) pbLead.textContent='♛'+((state.duo.lead||'markov')==='markova'?'Markova':'Markov');
         if(pbPal){ pbPal.style.color=_palActive?'#ff5f5f':''; pbPal.textContent=_palActive?'■ pal':'◆ pal'; }
       }catch(e){}
@@ -17504,8 +17559,38 @@ startRenderLoop();
       n.appendChild(b); document.body.appendChild(n);
     },4500);
   }
+  // ---- (05.08h author: «в двухэкранном режиме все кнопки — общие для двух
+  // экранов, не нужно дублирования») THE SHARED BAR: musical toggles mirror to
+  // the peer (damp, chords, both autos, buffer, video format); pair-wide records
+  // (like, session, audio, video) forward from the frame to the parent, whose
+  // recorders are already duet-aware. Inspectors (ℹ now, ♪ log) stay local.
+  var _uiEcho=false;
+  function _wireSharedBar(){
+    var MIR_CLICK=['td-flush','td-skipchord'];
+    var MIR_CHK=['td-autorec','td-autoskip'];
+    var MIR_SEL=['td-buffer','tb-vid-fmt'];
+    MIR_CLICK.forEach(function(id){ var el=document.getElementById(id); if(!el) return;
+      el.addEventListener('click',function(){ if(_uiEcho) return; if(state.duo.on&&state.duo.peer) send({t:'uimir',eid:id}); }); });
+    MIR_CHK.forEach(function(id){ var el=document.getElementById(id); if(!el) return;
+      el.addEventListener('change',function(){ if(_uiEcho) return; if(state.duo.on&&state.duo.peer) send({t:'uimir',eid:id,chk:!!el.checked}); }); });
+    MIR_SEL.forEach(function(id){ var el=document.getElementById(id); if(!el) return;
+      el.addEventListener('change',function(){ if(_uiEcho) return; if(state.duo.on&&state.duo.peer) send({t:'uimir',eid:id,val:el.value}); }); });
+    if(!IS_LEADER){
+      ['tb-like','tb-rec-sess','tb-rec-aud','tb-rec-vid'].forEach(function(id){ var el=document.getElementById(id); if(!el) return;
+        el.addEventListener('click',function(ev){ if(state.duo.on&&state.duo.peer){ ev.stopPropagation(); ev.preventDefault(); send({t:'uifw',eid:id}); } },true); });
+    } else {
+      var v1=document.getElementById('tb-rec-vid');
+      if(v1) v1.addEventListener('click',function(ev){
+        var frOpen=!!document.getElementById('duo-frame-wrap');
+        if(frOpen && btnRec){ ev.stopPropagation(); ev.preventDefault(); btnRec.onclick({stopPropagation:function(){}}); }
+      },true);
+    }
+  }
   function _boot(){
     _mkPanel();
+    (function _tryWire(){ if(_wireSharedBar._done) return;
+      if(document.getElementById('engine-play')){ _wireSharedBar(); _wireSharedBar._done=true; }
+      else setTimeout(_tryWire,500); })();
     if(!IS_LEADER){ state.duo.on=true; }   // the Markova window exists only to pair
     _paint();
     if(state.duo.on) send({t:'hello'});
