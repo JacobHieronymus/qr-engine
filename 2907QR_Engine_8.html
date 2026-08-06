@@ -58,13 +58,18 @@ body { display: flex; flex-direction: column; }
    with Markova's frame open the parent's bar escapes the half-width squeeze and
    spans BOTH screens; the frame hides its own bar — no duplication, the wire
    (uimir/uifw) carries the single console's will into her engine. */
-body.duo-framed #top-dock { margin-right: -50vw; position: relative; z-index: 60; }
+body.duo-framed #top-dock { position: fixed; top: 0; left: 0; right: 0; margin: 0; z-index: 10001; }
 body.mk-embedded #top-dock { display: none !important; }
-/* (05.08 author: «где кнопка записи видео?») the ONE console stays OVER the pair
-   stage — ⛶ used to bury the bar under the fullscreen canvases, and with the
-   pill's rec retired the stage had no record button at all. Solo fullscreen
-   (no duo-split) keeps the clean picture as before. */
-body.duo-split.duo-framed #top-dock { display: flex; position: fixed; top: 0; left: 0; right: 0; z-index: 10001; margin-right: 0; }
+/* (05.08m author: «сделай изначально одинаковые половины») BOTH halves lay out at
+   the SAME width under the SAME rules. Her frame runs at scale 1 (viewport = the
+   half); when the half is narrower than the 760px fold, the parent's own half is
+   FORCED into the same stacked layout the media rule gives her — twins always. */
+body.duo-narrow { display: block; height: auto; overflow: auto; }
+body.duo-narrow main { flex-direction: column; height: auto; min-height: 100vh; }
+body.duo-narrow #viz { flex: none; height: 42vh; min-height: 240px; position: sticky; top: 0; z-index: 4; border-bottom: 1px solid var(--border); }
+body.duo-narrow #controls { width: 100%; min-width: 0; border-right: none; overflow: visible; padding: 8px 10px 40px; column-gap: 10px; }
+body.duo-narrow #rail-resize { display: none; }
+body.duo-narrow #acc-toolbar { position: static; }
 header {
   padding: 9px 14px;
   border-bottom: 1px solid var(--border);
@@ -881,7 +886,7 @@ details.acc[open] { padding-bottom: 0; }
     </div>
     <div id="comp-list" style="display:flex;flex-direction:column;gap:4px;margin-top:6px"></div>
     <div class="btn-row" style="margin-top:6px">
-      <button id="sess-export-wav" style="display:none" title="render the WHOLE session to a WAV by playing it through the live engine and recording the master — captures the per-note QR/NQR trajectory, the groove (archetypes, fills, drops) and the per-layer reverb exactly as heard. Runs in real time. (Hidden 05.08 — the render path peaks at ~3.5× the take in RAM; author: «пока можно убрать».)">⬇ render WAV</button>
+      <button id="sess-export-wav" style="display:none" title="render the WHOLE session to a WAV by playing it through the live engine and recording the master — captures the per-note QR/NQR trajectory, the groove (archetypes, fills, drops) and the per-layer reverb exactly as heard. Runs in real time. (Hidden 05.08 — the render path peaks at ~3.5× the take in RAM; set aside on the author's word, 04.08.)">⬇ render WAV</button>
       <button id="sess-export" title="save the session structure as a .json file (re-importable here)">⬇ export json</button>
       <button id="sess-import-btn">⬆ import</button>
       <button id="sess-import-url" title="import by LINK — paste a URL of a session, scenes or knowledge JSON (e.g. one hosted on the qr-engine site); the importer detects the kind itself. Works on the phone, where local file pickers are awkward.">🔗 url</button>
@@ -929,6 +934,7 @@ details.acc[open] { padding-bottom: 0; }
         style="flex:0;width:64px;font:11px ui-monospace,monospace;text-align:center">
       <span style="font:10px ui-monospace,monospace;color:var(--muted)">s</span>
       <button id="form-go" title="composed form of exactly this length: a tension arc over Goncharova types, rational tempo relations, staged frequency strategy, a master dynamic curve and a closing resolution">◆ play form</button>
+      <label class="chk-row" style="display:inline-flex;align-items:center;gap:4px;margin-left:6px" title="film the form: ◆ also starts the video take (the pair stage when Markova's frame is open), and the form's final point stops and saves it — one press, one film."><input type="checkbox" id="form-film"> ⏺ film</label>
     </div>
     <div id="ap-scene" style="font-size:10px;color:var(--muted);margin:3px 0 2px;line-height:1.45">—</div>
     <div id="ap-pins" style="display:none;font-size:10px;margin:2px 0 4px;line-height:1.4"></div>
@@ -6413,6 +6419,14 @@ function startAudio(){
   setTimeout(()=>{
     if(!ctx) return;
     if(document.getElementById('qr-tap')) return;
+    if(document.body.classList.contains('mk-embedded')){
+      let _rk=0; const _rkIv=setInterval(()=>{
+        _clockMoving(mv=>{ if(mv || ++_rk>8){ clearInterval(_rkIv); return; }
+          try{ gestureKick('embed'); }catch(e){}
+          try{ forceAudioAlive(()=>{}); }catch(e){} });
+      },1500);
+      return;
+    }
     _clockMoving(moving=>{
     if(moving) return;
     const ov=document.createElement('div');
@@ -7764,6 +7778,9 @@ async function _pulseCamStart(){
   _pulseCamStop();
   let stream;
   try{
+    // (05.08 author: «оставить как осознанное исключение») the pulse camera is the
+    // ONE sanctioned mediaDevices use in this file — PPG tempo, video-only, no mic,
+    // permission-gated, arms tempo only (never starts sound); recording never touches it.
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:320}, height:{ideal:240}}, audio:false});
   }catch(e){ _reportErr('pulseCam', e); _pulsePaint('camera blocked — allow it, or use tap'); return; }
   const video=document.createElement('video');
@@ -9470,7 +9487,9 @@ const groove=(()=>{
     nextT=-1; step=0; fillBar=-1;
     const b=document.getElementById('gv-on');
     if(b){ b.classList.toggle('active',state.groove.on); b.textContent=state.groove.on?'⏹ groove':'▶ groove'; }
-    if(state.groove.on && !state.running && typeof startAudio==='function'){ try{ startAudio(); }catch(e){} }
+    // (05.08 author: «файл опять заиграл сам») the groove ARMS, it never presses
+    // play: the boot autosave used to restore groove.on and START THE TRANSPORT.
+    // Sound comes only from ▶ play / ◆ play form / the autopilot button.
     if(!state.groove.on && state.groove.solo) setSolo(false);   // never leave the engine muted behind
     _applySolo();
     if(ctx&&qrBus&&qrBus.applyFX){ try{ qrBus.applyFX(); }catch(e){} }
@@ -9690,7 +9709,17 @@ function setDirection(rev){
   document.getElementById('btn-rev').classList.toggle('active', rev);
   // Only fire a reversal request when the desired direction differs from current.
   const curRev = (state.pDir<0);
-  if(rev!==curRev){ state.reqReverse=true; state.pDir = rev?-1:1; }
+  if(rev!==curRev){
+    if(state.running && !state.paused && typeof synthState!=='undefined' && synthState){
+      state.reqReverse=true; state.pDir = rev?-1:1;
+    } else {
+      // (05.08 audit) armed-on-stop reversal double-flipped at ▶: resetSynth copied
+      // pDir=-1 with rDir=+1, then the first consumeRequests flipped BOTH — primes
+      // forward, r backward, for the whole session. No live consumer → apply
+      // directly, the same cure the 05.08i restore fix uses.
+      state.pDir = rev?-1:1; state.rDir = rev?-1:1; state.reqReverse=false;
+    }
+  }
 }
 document.getElementById('btn-fwd').onclick=()=>{ setDirection(false); if(typeof _instantApply==='function') _instantApply(); };
 document.getElementById('btn-rev').onclick=()=>{ setDirection(true);  if(typeof _instantApply==='function') _instantApply(); };
@@ -12123,7 +12152,7 @@ const session = (()=>{
     const s=scenes.capture(); lastKey=_structKey(s);
     // open first segment
     composer.pushSegment(s);
-    if(!state.running){ try{startAudio();}catch(e){} }
+    // (05.08) recording ARMS silently too — the take begins sounding at ▶
     recTimer=setInterval(()=>{
       const s=scenes.capture(); const k=_structKey(s);
       if(k!==lastKey){
@@ -12451,7 +12480,8 @@ const composer = (()=>{
     if(i>=items.length){ _finishPlay(); return; }
     if(i<0) i=0;
     const it=items[i], ms=_itemMs(it);
-    if(!(state.running && !state.paused)){ try{startAudio();}catch(e){} }
+    if(!state.running){ try{startAudio();}catch(e){} }
+    else if(state.paused){ try{pauseAudio();}catch(e){} }   // (05.08 audit) startAudio is a no-op while paused — the session used to walk its steps in silence while the wire told the peer to sing
     const go=()=>{ curIdx=i; _stepStart=performance.now(); _stepMs=ms; _applyStep(it,ms); render(); };
     if(typeof scheduleQuantizedSwitch==='function') scheduleQuantizedSwitch(go,0.03); else go();
     _status(`▶ step ${i+1}/${items.length}: ${it.name}`);
@@ -12465,6 +12495,7 @@ const composer = (()=>{
     state._strictSession=!!document.getElementById('sess-strict')?.checked;   // montage tracks its primes (applied scenes can't override — the flag outranks their rules)
     const pb=document.getElementById('sess-play'); if(pb){ pb.classList.add('active'); pb.textContent='■ stop'; }
     if(!state.running){ try{startAudio();}catch(e){} }
+    else if(state.paused){ try{pauseAudio();}catch(e){} }
     _runStep(0);
   }
   // ---- navigation: jump to any scene / next / prev (live during playback or when stopped) ----
@@ -14478,7 +14509,7 @@ const learner = (()=>{
   // plan(T): scene count grows sublinearly with T; each scene gets a tension
   // value along an arc (intro → build → climax → resolution), a share of the
   // total time (resolution breathes longest), and a master-dynamic value.
-  let formTimer=null, formOn=false;
+  let formTimer=null, _formFilmT=null, formOn=false;
   // ---- Form logic v2: explicit stages with their own rules ----
   // intro (x<0.16): consonant, low-mid register, narrow span, base tempo, small p.
   // build (x<0.55): tension rises monotonically with subito contrast steps,
@@ -14625,6 +14656,12 @@ const learner = (()=>{
   }
   function formStop(msg){
     formOn=false; if(formTimer){clearTimeout(formTimer);formTimer=null;} _killFade();
+    if(_formFilmT){clearTimeout(_formFilmT);_formFilmT=null;}   // (05.08 audit) a cancelled form must not fire a late film start
+    try{ if(window._duoPalStop) window._duoPalStop(); }catch(e){}   // (05.08 audit) ■ stop form takes the crab down with it — no zombie ride (no-op after a natural finish: the ride is sized to end before the rest)
+    // (05.08o) the film ends with the form — the final point stops and saves the take
+    try{ var _ff1=document.getElementById('form-film');
+      if(_ff1 && _ff1.checked){ var _v1=document.getElementById('tb-rec-vid');
+        if(_v1 && (_v1._armed || (_v1._isRec && _v1._isRec()) || _v1._duoTint)) _v1.click(); } }catch(e){}   // (05.08 audit) the button is an ARM toggle and never shows '■' in solo — test the truth, not a glyph
     _formCtl=null; _formBtn(false);
     if(typeof _mkLeadTarget!=='undefined'){ _mkLeadTarget=0; _mkTurn=''; }   // the dialogue ends — foreground eases back to balance
     if(typeof liveDrift!=='undefined'){ liveDrift.suppress(null); liveDrift.stop(); }
@@ -14640,6 +14677,18 @@ const learner = (()=>{
     const plan=state.primeArch?_formPlanPrime(T,baseBpm):_formPlan(T,baseBpm);
     formOn=true; _formBtn(true);
     if(!state.running){ try{startAudio();}catch(e){} }
+    else if(state.paused){ try{pauseAudio();}catch(e){} }
+    // (05.08p) pal + play form: THE CRAB IS THE SCORE. The form keeps only its
+    // frame — fade-in, fade-out, the closing silence, film start/stop — and the
+    // crab gets T minus the reserved rest, so his last seam lands EXACTLY on the
+    // freeze and the first frames equal the final frames with the screens swapped
+    // (author: «начальные кадры должны совпасть с финальными, только поменяться
+    // экранами»). Two schedulers never fight over the scene again.
+    var _palRide=false;
+    try{ _palRide=!!(state.duo && state.duo.on && state.duo.peer && state.duo.mode==='pal' && window._palFormRide); }catch(e){}
+    // (05.08o author: «режим где видео и плей стартуют по нажатию play form»)
+    try{ var _ff0=document.getElementById('form-film');
+      if(_ff0 && _ff0.checked){ _formFilmT=setTimeout(function(){ _formFilmT=null; try{ var _v0=document.getElementById('tb-rec-vid'); if(_v0 && !(_v0._armed || (_v0._isRec && _v0._isRec()) || _v0._duoTint)) _v0.click(); }catch(e){} }, _palRide?750:350); } }catch(e){}
     if(typeof liveDrift!=='undefined') liveDrift.start();
     // FORM FRAME: rise out of silence, sink back into silence at the exact end.
     _formPrevMaster=state.vol.master;
@@ -14653,9 +14702,10 @@ const learner = (()=>{
     const rest=Math.max(2500,Math.min(6000,T*50));
     _fadeOutTimer=setTimeout(()=>{
       _masterFade(0.0001,fadeOut,()=>{
-        try{ pauseAudio(); }catch(e){}
+        try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}   // (05.08 audit) pauseAudio TOGGLES — unguarded it un-paused a user-stopped engine
         try{ if(window._duoRest) window._duoRest(); }catch(e){}   // Markova rests WITH him — one ending for two
-        setTimeout(()=>{
+        _fadeOutTimer=setTimeout(()=>{   // (05.08 audit) tracked — a stale rest timer used to kill the NEXT form
+          if(!formOn) return;
           const pm=_formPrevMaster; formStop(`form complete · ${plan.length} scene(s) / ${T}s · the silence belongs to the piece`);
           if(pm!=null) _setMaster(pm);
         }, rest);
@@ -14697,14 +14747,23 @@ const learner = (()=>{
       i++;
       formTimer=setTimeout(step, c.dur*1000);
     };
-    step();
+    if(_palRide) _palRide=!!window._palFormRide(T);
+    if(!_palRide){ try{ if(window._duoPalStop) window._duoPalStop(); }catch(e){} }   // (05.08 audit) a plain form takes the scene — any live crab stands down family-wide
+    if(_palRide){
+      _masterFade(_formPrevMaster!=null?_formPrevMaster:0.8, fadeIn);   // the crab carries the scenes; the form still rises out of silence
+      _status('◆ pal form · the crab is the score · '+T+'s');
+    } else step();
   }
   function toggleAuto(){
     autoOn=!autoOn; const b=document.getElementById('ai-auto');
     if(autoOn){
       if(formOn) formStop();
+      try{ if(window._duoPalStop) window._duoPalStop(); }catch(e){}   // two schedulers must not fight over the scene — in either direction
       if(b){ b.classList.add('active'); b.textContent='■ stop autopilot'; }
-      if(!state.running){ try{startAudio();}catch(e){} }
+      // (05.08 author: «музыка не должна стартовать в момент выбора жанра — только
+      // от play или play form») the autopilot ARMS the scene chain; the transport
+      // stays where the performer left it. With the shared pair transport an
+      // accidental start here used to raise BOTH engines mid-silence.
       if(typeof liveDrift!=='undefined') liveDrift.start();
       if(typeof _apReassertPins==='function') _apReassertPins();   // persisted pins stay off-limits across restarts
       const tick=()=>{ if(!autoOn)return;
@@ -14764,7 +14823,10 @@ const learner = (()=>{
     const hold=document.getElementById('ai-hold'), holdN=document.getElementById('ai-hold-num'); if(hold&&holdN){ hold.addEventListener('input',()=>holdN.value=hold.value); holdN.addEventListener('change',()=>hold.value=holdN.value); }
     document.getElementById('ai-next')?.addEventListener('click',()=>applyNext(false));
     document.getElementById('ai-add-session')?.addEventListener('click',()=>{ const s=generate(current()); composer.pushSegment(s); composer.setLastDuration(_sceneHoldFor(s)); scenes.restore(s,{sim:true}); _pushRecent(_sig(s)); _status(`generated and appended to Session · ${_sceneHoldFor(s).toFixed(1)}s`); });
-    document.getElementById('ai-auto')?.addEventListener('click',toggleAuto);
+    document.getElementById('ai-auto')?.addEventListener('click',()=>{ toggleAuto();
+      // (05.08 author): the autopilot BUTTON is one of the three legitimate starters
+      // (play / play form / autopilot). Genres and mode picks only ARM.
+      try{ if(isAutoOn() && (!state.running || state.paused)){ if(!state.running) startAudio(); else if(state.paused) pauseAudio(); } }catch(e){} });
     document.getElementById('ai-love')?.addEventListener('click',()=>{ try{ loveThis(); }catch(e){} });
     try{ window._qrLove=loveThis; }catch(e){}   // (05.08 author: «объединить сердца») the top-bar ❤ teaches through this port
     document.getElementById('form-go')?.addEventListener('click',()=>formStart(parseFloat(document.getElementById('form-dur')?.value||'30')));
@@ -14860,6 +14922,8 @@ const learner = (()=>{
     return n;
   }
   return {bind,learnSessionObject,generate,applyNext,toggleAuto,reset,isAutoOn:()=>autoOn,setLiveLearn,loveThis,saveNow,exportKnowledge,importKnowledge,
+          isFormOn:()=>formOn, formStop:(m)=>{ if(formOn) formStop(m); },   // (05.08 audit) pal must be able to take the scene from a running form
+          reassertFade:()=>{ if(_fadeRunner) _setMaster(_fadeRunner.cur); },   // (05.08 audit) _fadeRunner is closure-local — the duo block reasserts fades through this door
           mkMemory:()=>({moments:_mkModel?(_mkModel.moments||0):0, dur:_mkModel?(_mkModel.dur||0):0, divergence:+_mkDivergence().toFixed(2), features:_mkModel?_mkModel.features:null}),
           clMemory:()=>({moments:_clModel?(_clModel.moments||0):0, dur:_clModel?(_clModel.dur||0):0, features:_clModel?_clModel.features:null, lastTouch:_clLastTouch}),   // [29.07] Claude's memory, read-only
           earState:()=>({tHat:_ear.tHat, samples:_ear._acN, reflBias:_reflBias, earCal:_earCal, lastIntended:_lastIntended, lastReflection:_lastReflection}),
@@ -15549,7 +15613,7 @@ startRenderLoop();
     // ready, so it never silently misses a start — and the instant the transport
     // stops it stops + saves. A take == exactly the play.
     setInterval(()=>{
-      const running=(typeof state!=='undefined' && !!state.running);
+      const running=(typeof state!=='undefined' && !!state.running && !state.paused);   // (05.08 audit) running NEVER returns to false — ■ stop is a pause; without !paused the stop branch was dead and takes rolled through silence
       [aud,vid].forEach(b=>{
         if(b._armed && running && !b._isRec()) b._startRec();
         else if(b._isRec() && !running) b._stopRec();
@@ -16374,7 +16438,7 @@ startRenderLoop();
   // whose total length is the free form-dur field; he plays it start-to-end, she plays
   // the SAME plan end-to-start with every scene direction flipped and entered from its
   // end. At any moment t her material equals his at T-t; they meet in the middle.
-  var _palTimer=null,_palActive=false,btnPal=null,selDuoFmt=null,btnBoth=null,_prePalMode='parts';
+  var _palTimer=null,_palActive=false,_palRev=false,btnPal=null,selDuoFmt=null,btnBoth=null,_prePalMode='parts';
   // (05.08i author: «он играет от А до Я, она от Я до А — её последняя сцена это
   // развёрнутая его первая») THE TRUE CRAB needs exact segment mirroring: a step of
   // dur seconds plays only PART of its scene, so entering «from the end» made her
@@ -16387,25 +16451,66 @@ startRenderLoop();
       var bpm=Math.max(5,(st.bpm||state.bpm||60));
       var B=Math.max(0, Math.round(durSec*bpm/60));
       var m=st.secMask||{pre:true,main:true,post:true};
-      var pre=m.pre?(p-1):0, mainL=m.main?(p-1)*(p-1):0, post=m.post?(p-1):0;
-      var total=pre+mainL+post; if(total<1) return null;
+      var preL=m.pre?(p-1):0, mainL=m.main?(p-1)*(p-1):0, postL=m.post?(p-1):0;
+      var total=preL+mainL+postL; if(total<1) return null;
       B=B%total;
-      if(B<pre) return {sec:'prelude', rV:B+1, aV:1};
-      if(B<pre+mainL){ var q=B-pre; return {sec:'main', rV:Math.floor(q/(p-1))+1, aV:(q%(p-1))+1}; }
-      return {sec:'postlude', rV:(B-pre-mainL)+1, aV:1};
+      if(st.dir<0){
+        // (05.08 audit) a dir<0 step enters at the last enabled section and walks
+        // BACKWARD — mirror B into the forward index that walk actually reaches,
+        // else the reversed twin lands in the wrong material for the whole step
+        var Llast=m.post?postL:(m.main?mainL:preL);
+        B=(((total-Llast-B)%total)+total)%total;
+      }
+      // (05.08o author: «этот файл не палиндромный даже когда играет / сделай
+      // хорошо») the reach-point now walks the ENGINE'S OWN ordered lists — exact
+      // under fib/arch/×g reorders. The old natural-order arithmetic sent the
+      // reversed twin into the WRONG material whenever the improviser reordered
+      // (which it loves to do) — the audible mirror died right there.
+      var keep={r:state.reorderR, pp:state.reorderPP, a:state.reorderA};
+      if(st.reorderR!=null) state.reorderR=st.reorderR|0;
+      if(st.reorderPP!=null) state.reorderPP=st.reorderPP|0;
+      if(st.reorderA!=null) state.reorderA=st.reorderA|0;
+      var out=null;
+      try{
+        if(B<preL){
+          var pl=(typeof _sectionRList==='function')?_sectionRList('prelude',p,1):null;
+          out={sec:'prelude', rV:(pl&&pl[B])?pl[B]:(B+1), aV:1};
+        } else if(B<preL+mainL){
+          var q=B-preL, ri=Math.floor(q/(p-1)), ai=q%(p-1);
+          var ml=(typeof getMainRValues==='function')?getMainRValues(p,1):null;
+          if(ml && ml.length && ri>=ml.length) ri=ml.length-1;
+          var rV=(ml&&ml[ri])?ml[ri]:(ri+1);
+          var aV=ai+1;
+          try{
+            if(typeof getMainAValues==='function' && typeof isQR==='function'){
+              var rq=isQR(rV,p), fwd=(p%4===1)?rq:!rq;
+              var al=getMainAValues(p,rV,fwd);
+              if(al && al[ai]!=null && al[ai]>0) aV=al[ai];
+            }
+          }catch(e){}
+          out={sec:'main', rV:rV, aV:aV};
+        } else {
+          var b2=B-preL-mainL;
+          var sl=(typeof _sectionRList==='function')?_sectionRList('postlude',p,1):null;
+          out={sec:'postlude', rV:(sl&&sl[b2])?sl[b2]:(b2+1), aV:1};
+        }
+      } finally {
+        state.reorderR=keep.r; state.reorderPP=keep.pp; state.reorderA=keep.a;
+      }
+      return out;
     }catch(e){ return null; }
   }
   var _needMirrorJump=true;   // retro: force ONE position mirror on the next scene (armed on entering retro)
-  function _palStopLocal(){ if(_palTimer){ clearTimeout(_palTimer); _palTimer=null; } _palActive=false; _paint(); }
+  function _palStopLocal(){ if(_palTimer){ clearTimeout(_palTimer); _palTimer=null; } _palActive=false; _palRev=false; _paint(); }
   function _palRun(seq, t0, isRev){
-    _palActive=true; var i=0;
+    _palActive=true; _palRev=!!isRev; var i=0;
     // (05.08 audit) ABSOLUTE schedule against a SHARED start: both windows cut every
     // seam on the same wall instant. Chained relative timers accumulated drift and
     // each window waited its own gates — the t ↔ T−t identity eroded at every seam.
     var _base=(t0 && Math.abs(t0-Date.now())<60000)?t0:Date.now();
     function step(){
       if(!_palActive || i>=seq.length){
-        var _fin=_palActive; _palActive=false;
+        var _fin=_palActive; _palActive=false; _palRev=false;
         if(_fin && state.duo.mode==='pal'){ state.duo.mode=_prePalMode||'parts'; send({t:'mode',mode:state.duo.mode}); }   // the plan ended on its own — the family returns to the previous mode
         _mkFreeSync(); _paint(); return; }
       if(!state.running || state.paused){ _base+=300; _palTimer=setTimeout(step,300); return; }   // (05.08g) the crab WAITS with the transport — the whole schedule slides, wall time eats nothing; the pair pauses together (shared transport), so both windows slide alike
@@ -16415,6 +16520,7 @@ startRenderLoop();
         if(st.duo) delete st.duo;   // a captured step may carry the pair bundle — pal is its own machinery, and a mid-plan bundle would re-distribute across the wire (the 03.08 feedback loop)
         if(st.solo) delete st.solo;   // (05.08) steps captured under the parts mask carry a HALF-ensemble solo — pal is full-ensemble, the mask machinery owns solo
         scenes.restore(st,{});
+        try{ if(typeof learner!=='undefined' && learner.reassertFade) learner.reassertFade(); }catch(e){}   // a fade in flight owns the master (the form's frame; _fadeRunner is learner-closure-local, hence the door)
         var mk=st.secMask||{};
         var first=mk.pre?'prelude':(mk.main?'main':'postlude');
         var last =mk.post?'postlude':(mk.main?'main':'prelude');
@@ -16434,15 +16540,51 @@ startRenderLoop();
     var _wait=_base-Date.now();
     if(_wait>30) _palTimer=setTimeout(step,_wait); else step();
   }
+  function _palReady(){
+    try{
+      if(typeof composer!=='undefined' && composer.count && composer.count()>1) return true;   // (05.08p) a 1-step session builds no crab — ready mirrors what _palStart can actually use
+      var fd=parseFloat((document.getElementById('form-dur')||{}).value);
+      return isFinite(fd) && fd>=10;
+    }catch(e){ return false; }
+  }
+  function _palAskDur(){
+    // (05.08 author: «при включении pal пусть запросит длительность») — the crab
+    // needs a finite score; the answer lands in form-dur, the one source of truth.
+    if(document.body.classList.contains('mk-embedded')){
+      // Chrome mutes prompt() in a cross-origin (file:// opaque) frame — the other
+      // window asks on our behalf and mails the number back as {t:'pal-dur'}
+      try{ send({t:'pal-ask'}); }catch(e){}
+      return null;
+    }
+    var v=null;
+    try{ v=window.prompt('pal \u00b7 duration of the crab in seconds (10\u2013600):','60'); }catch(e){ return null; }
+    if(v==null || String(v).trim()==='') return null;
+    var T=parseFloat(String(v).replace(',','.'));
+    if(!isFinite(T)) return null;
+    T=Math.max(10, Math.min(600, T));
+    try{ var el=document.getElementById('form-dur'); if(el) el.value=T; }catch(e){}
+    return T;
+  }
   function _palStart(){
     if(_palActive){ _palStopLocal(); send({t:'pal-stop'}); return; }
+    if(!_palReady()){
+      if(_palAskDur()==null){
+        try{ if(typeof _fl==='function') _fl('pal','no duration given — the crab stays home (form-dur or a Session would feed it)'); }catch(e){}
+        state.duo.mode=_prePalMode||'parts'; send({t:'mode',mode:state.duo.mode}); _paint();
+        return;
+      }
+    }
     try{ if(typeof learner!=='undefined' && learner.isAutoOn && learner.isAutoOn()) learner.toggleAuto(); }catch(e){}
+    try{ if(typeof learner!=='undefined' && learner.isFormOn && learner.isFormOn()) learner.formStop('form yields to pal'); }catch(e){}   // (05.08 audit) two schedulers must not fight over the scene — in either direction
     var plan=[], i;
     // A LOADED SESSION is the score of choice (author 03.08: «предпросчитанная
     // импровизация ИЛИ загруженная сессия — директом в одном окне, реверсом в
     // другом»): its steps play start-to-end here, end-to-start across the wire.
     try{
-      if(typeof composer!=='undefined' && composer.count && composer.count()>0){
+      if(typeof composer!=='undefined' && composer.count && composer.count()>1){
+        // (05.08 file-run diagnosis: an autosaved ONE-step session hijacked pal —
+        // a one-step crab is no crab) a session leads only with ≥2 steps;
+        // otherwise the improviser composes the plan.
         if(composer.isPlaying && composer.isPlaying()) composer.stop();
         var _its=(composer.snapshot().items||[]);
         for(i=0;i<_its.length;i++){ var _it=_its[i];
@@ -16453,7 +16595,16 @@ startRenderLoop();
       }
     }catch(e){ plan.length=0; }
     if(!plan.length){
-      var T=Math.max(30, parseFloat((document.getElementById('form-dur')||{}).value)||180);
+      // (05.08 author: «pal доступен только при выборе сессии или конечной формы —
+      // не применять с неопределённым правилом») no default 180s, no 30s floor:
+      // without a finite form duration there is nothing to mirror, so the crab refuses.
+      var T=parseFloat((document.getElementById('form-dur')||{}).value);
+      if(!isFinite(T) || T<10) T=_palAskDur();
+      if(T==null || !isFinite(T) || T<10){
+        try{ if(typeof _fl==='function') _fl('pal','no duration given — the crab stays home'); }catch(e){}
+        state.duo.mode=_prePalMode||'parts'; send({t:'mode',mode:state.duo.mode}); _paint();
+        return;
+      }
       var k=Math.max(3, Math.min(13, Math.round(T/20)));
       var durs=[], sum=0;
       for(i=0;i<k;i++){ var w=0.7+Math.random()*0.6; durs.push(w); sum+=w; }
@@ -16465,14 +16616,67 @@ startRenderLoop();
     if(!plan.length) return;
     // (05.08g author: «палиндром не работает») choosing pal with a silent transport
     // used to run the plan into the wall — the timers ate it inaudibly. The crab is
-    // a performance: choosing it STARTS the pair.
-    try{ if(!(state.running&&!state.paused)){ _xpApplying=true; try{ _xport(true); }finally{ _xpApplying=false; } send({t:'xport', on:true}); } }catch(e){}
+    // (05.08 author: «звук стартует только от play / play form / autopilot») pal
+    // selection ARMS the crab silently — the plan's pause-freeze waits for the
+    // transport, and both windows enter together when ▶ finally sounds.
     plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur); });   // (05.08i) each step's reach — the reversed twin enters THERE
     var _t0=Date.now()+700;   // the shared downbeat: both windows enter the crab together
     send({t:'pal', plan:plan, t0:_t0});
     _palRun(plan.slice(), _t0, false);   // (05.08i fix: the sender used to skip its own t0 — a constant 700ms skew in every crab)
     _paint();
   }
+  // (05.08p) the form hands the crab its frame: total plan duration = T − rest,
+  // so the walk COMPLETES at the exact instant the form freezes the pair —
+  // his final state is the plan's reach point, hers is the plan's first note.
+  function _palFormRide(T){
+    try{
+      var rest=Math.max(2500,Math.min(6000,T*50));
+      var D=Math.max(4, T-rest/1000);
+      if(_palActive) _palStopLocal();
+      if(state.duo.mode!=='pal'){ _prePalMode=state.duo.mode; state.duo.mode='pal'; send({t:'mode',mode:'pal'}); }
+      var plan=[], i;
+      try{
+        if(typeof composer!=='undefined' && composer.count && composer.count()>1){
+          if(composer.isPlaying && composer.isPlaying()) composer.stop();
+          var _its=(composer.snapshot().items||[]), msArr=[], msSum=0;
+          for(i=0;i<_its.length;i++){ var _ms=(composer.itemMs)?composer.itemMs(_its[i]):((_its[i].durMode==='sec')?_its[i].durValue*1000:10000); msArr.push(_ms); msSum+=_ms; }
+          for(i=0;i<_its.length;i++){ var _cp=JSON.parse(JSON.stringify(_its[i].state)); if(_cp.duo) delete _cp.duo;
+            plan.push({state:_cp, dur:Math.max(1,(msArr[i]/Math.max(1,msSum))*D)}); }   // the session rescaled INTO the form's frame
+        }
+      }catch(e){ plan.length=0; }
+      if(!plan.length){
+        var k=Math.max(2, Math.min(13, Math.round(D/8)));
+        var durs=[], sum=0;
+        for(i=0;i<k;i++){ var w=0.7+Math.random()*0.6; durs.push(w); sum+=w; }
+        for(i=0;i<k;i++) durs[i]=durs[i]*D/sum;
+        var cur=null; try{ cur=scenes.capture(); }catch(e){}
+        for(i=0;i<k;i++){ try{ var sc=learner.generate(cur); plan.push({state:sc, dur:durs[i]}); cur=sc; }catch(e){ break; } }
+      }
+      if(!plan.length){
+        if(state.duo.mode==='pal'){ state.duo.mode=_prePalMode||'parts'; send({t:'mode',mode:state.duo.mode}); }   // (05.08 audit) a failed ride must not strand the family in pal
+        return false;
+      }
+      plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur); });
+      var _t0=Date.now()+700;
+      send({t:'pal', plan:plan, t0:_t0});
+      _palRun(plan.slice(), _t0, false);
+      _paint();
+      return true;
+    }catch(e){
+      try{ if(state.duo.mode==='pal'){ state.duo.mode=_prePalMode||'parts'; send({t:'mode',mode:state.duo.mode}); } }catch(_){}
+      return false;
+    }
+  }
+  try{ window._palFormRide=_palFormRide; }catch(e){}
+  // (05.08 author: «закрой») the reverse guard: starting the free autopilot takes
+  // the crab DOWN family-wide first — the same courtesy pal pays the autopilot.
+  function _duoPalStop(){
+    if(!_palActive) return;
+    _palStopLocal(); send({t:'pal-stop'});
+    if(state.duo.mode==='pal'){ state.duo.mode=_prePalMode||'parts'; send({t:'mode',mode:state.duo.mode}); }
+    _paint();
+  }
+  try{ window._duoPalStop=_duoPalStop; }catch(e){}
   // ---- point-symmetric retro: deliberate r-jumps mirror over the wire ---------------
   // (author 29.07: «можно начинать с любой доли r, а маркова отвечает с p−r доли»)
   // The engine's DELIBERATE r-jump sites (typed r, step buttons, the improviser's
@@ -16501,7 +16705,7 @@ startRenderLoop();
                 if(fA.ctx&&fA.ctx.state!=='running') fA.ctx.resume(); }
         else { if(fA.running&&!fA.paused) fw.pauseAudio(); }
       } else if(on && fw && (_xport._n=(_xport._n|0)+1)<=6){
-        setTimeout(function(){ _xport(true); }, 800);   // her frame is still booting — the button waits for her
+        setTimeout(function(){ if(state.running && !state.paused) _xport(true); }, 800);   // her frame is still booting — retry only while the transport is still LIVE (a stale retry used to un-pause a stopped pair)
       }
     }catch(e){}
   }
@@ -16754,7 +16958,7 @@ startRenderLoop();
         _lastPeerSynced=m.id;
         broadcastScene(true); _sendPins(); send({t:'mode',mode:state.duo.mode});
       } }
-    else if(m.t==='mode'){ if(m.mode){ state.duo.mode=m.mode;
+    else if(m.t==='mode'){ if(m.mode){ if(m.mode==='pal' && state.duo.mode!=='pal') _prePalMode=state.duo.mode; state.duo.mode=m.mode;   // (05.08 audit) both windows must hold the SAME pre-pal mode, or the crab's natural end crosses them
       if(m.mode!=='pal' && _palActive) _palStopLocal();   // one family: a mode change ends the palindrome everywhere
       if(!_isLead()){ _needMirrorJump=(m.mode==='retro'); if(!_palActive) _mkFreeSync(); }
       if(_isLead() && m.mode!=='free' && m.mode!=='pal') broadcastScene(true);   // adopt the follower's choice and re-mirror with it at once
@@ -16782,9 +16986,16 @@ startRenderLoop();
       _palStopLocal();
       if(state.duo.mode!=='pal'){ _prePalMode=state.duo.mode; state.duo.mode='pal'; }   // the receiving window joins the pal state of the family
       try{ if(typeof learner!=='undefined' && learner.isAutoOn && learner.isAutoOn()) learner.toggleAuto(); }catch(e){}   // (05.08 audit) the free-mode autopilot stands down — two schedulers must not fight over the scene
+      try{ if(typeof learner!=='undefined' && learner.isFormOn && learner.isFormOn()) learner.formStop('form yields to pal'); }catch(e){}
       _palRun(_rev, m.t0, true);
     } }
     else if(m.t==='pal-stop'){ _palStopLocal(); if(state.duo.mode==='pal'){ state.duo.mode=_prePalMode||'parts'; } }
+    else if(m.t==='pal-ask'){ if(!document.body.classList.contains('mk-embedded')){ var _dT=_palAskDur(); if(_dT!=null) send({t:'pal-dur', dur:_dT}); } }
+    else if(m.t==='pal-dur'){ if(document.body.classList.contains('mk-embedded') && isFinite(m.dur) && !_palActive){
+      try{ var _fe=document.getElementById('form-dur'); if(_fe) _fe.value=m.dur; }catch(e){}
+      if(state.duo.mode!=='pal'){ _prePalMode=state.duo.mode; state.duo.mode='pal'; send({t:'mode',mode:'pal'}); }
+      _palStart();   // she asked, the console answered — she builds and leads the crab herself
+    } }
     else if(m.t==='pos'){ if(!_isLead() && state.duo.mode==='retro' && !_palActive && state.running && !state.paused && typeof synthState!=='undefined' && synthState){
       try{
         var _sp=synthState;
@@ -16881,6 +17092,59 @@ startRenderLoop();
       else _ue.click();
       _uiEcho=false; } }catch(e){ _uiEcho=false; } }
     else if(m.t==='uifw'){ if(IS_LEADER){ try{ var _uf=document.getElementById(m.eid); if(_uf) _uf.click(); }catch(e){} } }
+    else if(m.t==='vfeed'){ if(!IS_LEADER){
+      try{
+        if(m.on){
+          try{ if(window.__vfSend){ var _o=window.__vfSend; window.__vfSend=null; masterGain.disconnect(_o.sp); _o.sp.disconnect(); _o.zg.disconnect(); } }catch(e){}
+          var _vfp=document.getElementById('plot');
+          if(!_vfp || typeof ctx==='undefined' || !ctx || !window.parent || window.parent===window){ send({t:'vfeedno'}); }
+          else{
+            // (05.08p) her half renders ITSELF at the exact slot size via the
+            // engine's own recomposer — full-bleed, equal to his by construction —
+            // then flies over as ImageBitmap; PCM chunks carry her sound. All
+            // plain postMessage, clocked by her audio (background-proof).
+            var _sw=(m.w|0)||960, _sh=(m.h|0)||1080;
+            var _hc=document.createElement('canvas'); _hc.width=_sw; _hc.height=_sh;
+            var _hg=_hc.getContext('2d');
+            var _st3={main:{key:'',cv:null},pp:{key:'',cv:null},dual:{key:'',cv:null}};
+            var _renderHer=function(){
+              var vs={mode:state.vizMode,p:state.vizP,r:state.vizR,beat:state.vizBeat,a:state.vizA,b:state.vizB,rings:state.vizRings,scatter:state.vizScatter};
+              var sm=_mainStatic, sp0=_ppStatic, sd0=_dualPPStatic;
+              _mainStatic=_st3.main; _ppStatic=_st3.pp; _dualPPStatic=_st3.dual;
+              try{ drawFrameOnContext(_hg,_sw,_sh,vs); }
+              catch(e){}
+              finally{ _st3.main=_mainStatic; _st3.pp=_ppStatic; _st3.dual=_dualPPStatic;
+                _mainStatic=sm; _ppStatic=sp0; _dualPPStatic=sd0; }
+            };
+            var _sp=ctx.createScriptProcessor(2048,2,2);
+            var _zg=ctx.createGain(); _zg.gain.value=0;
+            masterGain.connect(_sp); _sp.connect(_zg); _zg.connect(ctx.destination);
+            var _busyB=false;
+            _sp.onaudioprocess=function(ev){
+              try{
+                var ib=ev.inputBuffer;
+                var l=new Float32Array(ib.getChannelData(0));
+                var r=new Float32Array(ib.numberOfChannels>1?ib.getChannelData(1):ib.getChannelData(0));
+                window.parent.postMessage({qrvfA:{l:l.buffer, r:r.buffer, sr:ctx.sampleRate}}, '*', [l.buffer, r.buffer]);
+              }catch(e){}
+              if(!_busyB){
+                _busyB=true;
+                try{ _renderHer(); createImageBitmap(_hc).then(function(bmp){ _busyB=false;
+                    try{ window.parent.postMessage({qrvfB:bmp, w:_sw, h:_sh}, '*', [bmp]); }
+                    catch(e){ try{ if(bmp.close) bmp.close(); }catch(_){}} },
+                  function(){ _busyB=false; }); }
+                catch(e){ _busyB=false; }
+              }
+            };
+            window.__vfSend={sp:_sp, zg:_zg};
+          }
+        } else {
+          try{ if(window.__vfSend){ var _o2=window.__vfSend; window.__vfSend=null; masterGain.disconnect(_o2.sp); _o2.sp.disconnect(); _o2.zg.disconnect(); } }catch(e){}
+        }
+      }catch(e){ try{ send({t:'vfeedno'}); }catch(e2){} }
+    } }
+    else if(m.t==='vfeedno'){ if(IS_LEADER && window.__vfWait){ var _w4=window.__vfWait; window.__vfWait=null; _w4(false); } }
+    else if(m.t==='vreset'){ if(!IS_LEADER){ try{ if(typeof _resetView==='function') _resetView(); }catch(e){} } }
     else if(m.t==='bye'){ if(m.id===state.duo.peerId){ state.duo.peer=false; state.duo.peerId=null; _dropRoleMask(); } }
     _applyRoleMask();
     _paint();
@@ -16973,6 +17237,8 @@ startRenderLoop();
       var _mkWrap=null;
       function _frClose(){ if(_mkWrap){ _mkWrap.remove(); _mkWrap=null; }
         document.body.classList.remove('duo-framed');
+        document.body.classList.remove('duo-narrow');
+        document.body.style.paddingTop='';
         // give Markov his full width back and let every canvas re-measure
         document.body.style.marginRight='';
         try{ window.dispatchEvent(new Event('resize')); }catch(e){}
@@ -16988,24 +17254,18 @@ startRenderLoop();
         _mkWrap.style.cssText='position:fixed;top:0;right:0;width:50vw;height:100vh;z-index:58;background:#000;border-left:2px solid var(--accent,#6cf);box-shadow:-8px 0 26px rgba(0,0,0,.55)';
         var fr=document.createElement('iframe');
         _mkFrameEl=fr;   // postMessage target for the Safari-safe transport
-        fr.allow='autoplay';   // (02.08) inherit the user's activation — else HER AudioContext stays suspended when the duet is staged programmatically, and her half is a bare grid
+        fr.allow='autoplay *';   // (05.08p) on file:// the frame is an OPAQUE origin — a bare 'autoplay' allowlist ('src') never matches it, so delegation silently died and her context stayed locked; '*' hands the parent's activation to the frame on every origin
         fr.src=location.href.split('#')[0]+(IS_PHONE?'#markova-phone':'#markova')+(PAIR?('-pair='+PAIR):'');
         // Frame scale. Default 1 (author 26.07: «сравнять по размеру шрифта») — Markova
         // renders at NATURAL size in her half, exactly like Markov's squeezed half: same
         // fonts, mirrored half-width layouts. ⊖ shrinks toward a desktop-layout miniature
         // (internal viewport = wrap/scale), ⊕ back toward 1:1.
-        // (05.08 author: «сделай два одинаковых окошка») ADAPTIVE: when the half is
-        // wide enough (≥770px — past the 760px stacking breakpoint) her scale is 1
-        // and the halves are IDENTICAL; on narrower windows the least shrink that
-        // still crosses the breakpoint (half/770) — same arrangement, closest size.
-        // ⊖/⊕ override and are remembered; auto re-computes on window resize.
+        // (05.08m author: «сделай изначально одинаковые половины и всё») scale is
+        // ALWAYS 1: her viewport = exactly the half — the same width his half lays
+        // out in; body.duo-narrow keeps both halves in the SAME layout regime below
+        // the 760px fold. Identical by construction. ⊖/⊕ remain a manual hand.
         var _mkManual=false, _mkScale=1;
-        function _mkAutoScale(){
-          var hw=Math.max(200, window.innerWidth/2);
-          return (hw>=770)?1:+(hw/770).toFixed(3);
-        }
         if(!IS_PHONE){
-          _mkScale=_mkAutoScale();
           try{ var _ms0=parseFloat(localStorage.getItem('qr_mk_scale')||''); if(_ms0>=0.35&&_ms0<=1){ _mkScale=_ms0; _mkManual=true; } }catch(e){}
         }
         function _frScale(){ var pct=(100/_mkScale).toFixed(2)+'%';
@@ -17013,26 +17273,28 @@ startRenderLoop();
           fr.style.transform='scale('+_mkScale+')'; fr.style.transformOrigin='0 0'; }
         fr.style.cssText='border:0;display:block';
         _frScale();
-        window.addEventListener('resize',function(){ if(!IS_PHONE && !_mkManual){ var ns=_mkAutoScale(); if(ns!==_mkScale){ _mkScale=ns; _frScale(); } } });
-        try{ fr.allow='autoplay; camera; microphone'; }catch(e){}
+        window.addEventListener('resize',function(){ try{ document.body.classList.toggle('duo-narrow', document.body.classList.contains('duo-framed') && (window.innerWidth/2)<760); }catch(e){} });
+        try{ fr.allow='autoplay *'; }catch(e){}   // (05.08 author: «камера и микрофон ни при чём») autoplay only, '*' so the opaque file:// origin is inside the allowlist; screen recording never touches devices
         var xb=document.createElement('button'); xb.textContent='✕';
         xb.title='close Markova’s frame';
-        xb.style.cssText='position:absolute;top:6px;right:8px;z-index:2;font:12px "SF Mono",monospace';
+        xb.style.cssText='position:absolute;top:56px;right:8px;z-index:2;font:12px "SF Mono",monospace';   // (05.08: «кнопки накладываются») below HER zoom row
         xb.onclick=_frClose;
         var zo=document.createElement('button'); zo.textContent='⊖';
         zo.title='smaller inside (shows more of her engine)';
-        zo.style.cssText='position:absolute;top:6px;right:76px;z-index:2;font:12px "SF Mono",monospace';
+        zo.style.cssText='position:absolute;top:56px;right:76px;z-index:2;font:12px "SF Mono",monospace';
         zo.onclick=function(){ _mkManual=true; _mkScale=Math.max(0.35,+(_mkScale-0.05).toFixed(2)); _frScale(); try{ localStorage.setItem('qr_mk_scale',String(_mkScale)); }catch(e){} };
         var zi=document.createElement('button'); zi.textContent='⊕';
         zi.title='larger inside (bigger text, less fits)';
-        zi.style.cssText='position:absolute;top:6px;right:42px;z-index:2;font:12px "SF Mono",monospace';
+        zi.style.cssText='position:absolute;top:56px;right:42px;z-index:2;font:12px "SF Mono",monospace';
         zi.onclick=function(){ _mkManual=true; _mkScale=Math.min(1,+(_mkScale+0.05).toFixed(2)); _frScale(); try{ localStorage.setItem('qr_mk_scale',String(_mkScale)); }catch(e){} };
         _mkWrap.appendChild(fr); _mkWrap.appendChild(zo); _mkWrap.appendChild(zi); _mkWrap.appendChild(xb);
         document.body.appendChild(_mkWrap);
         // (05.08) the ONE console: the parent's top bar spans both screens; the
         // frame band starts right below it.
         document.body.classList.add('duo-framed');
-        var _wrapTop=function(){ try{ if(!_mkWrap) return; var _td=document.getElementById('top-dock'); var h=(_td&&_td.offsetHeight)||0; _mkWrap.style.top=h+'px'; _mkWrap.style.height='calc(100vh - '+h+'px)'; }catch(e){} };
+        var _wrapTop=function(){ try{ if(!_mkWrap) return; var _td=document.getElementById('top-dock'); var h=(_td&&_td.offsetHeight)||0; _mkWrap.style.top=h+'px'; _mkWrap.style.height='calc(100vh - '+h+'px)'; document.body.style.paddingTop=h+'px';
+          document.body.classList.toggle('duo-narrow', (window.innerWidth/2)<760);   // (05.08m) both halves share the layout regime
+        }catch(e){} };
         _wrapTop(); setTimeout(_wrapTop,150);
         window.addEventListener('resize',_wrapTop);
         // squeeze Markov's own page into the LEFT half (author 26.07: «экран Маркова не
@@ -17087,6 +17349,16 @@ startRenderLoop();
       }
       btnRec.onclick=async function(ev){ ev.stopPropagation();
         if(_dRec){ try{ _dRec.stop(); }catch(e){} return; }
+        if(btnRec._busy) return;   // (05.08j) setup in flight — a second click must not double-enter
+        btnRec._busy=true;
+        // (05.08 author: «записать видео со сцены, но НЕ открывать её на моём экране —
+        // иначе я не могу нажать play form») the take renders the STAGE OFFSCREEN:
+        // the composite draws both live canvases into its own hidden canvas, so the
+        // working layout — and every button on it — stays in the performer's hands.
+        // (05.08 author: «выровнять масштаб») both views reset to FIT for the take —
+        // the stage used to do this; twin frames need twin zoom.
+        try{ if(typeof _resetView==='function') _resetView(); }catch(e){}
+        try{ send({t:'vreset'}); }catch(e){}
         // FULL-QUALITY STAGE TAKE (author 29.07), BEST-EFFORT (30.07 fix: it used to
         // demand both audio contexts and fell silent when Markova's engine had not
         // started audio yet): the video composite needs only the two canvases; the
@@ -17095,38 +17367,55 @@ startRenderLoop();
         // back to the tab-capture picker; every refusal now REPORTS itself.
         var _comp=null;
         try{
-          var lp=document.getElementById('plot');
-          var fd0=null; try{ fd0=(_mkFrameEl&&_mkFrameEl.contentDocument)?_mkFrameEl.contentDocument:null; }catch(e){ fd0=null; }
-          var fp=fd0?fd0.getElementById('plot'):null;
-          var fw=_mkFrameEl?_mkFrameEl.contentWindow:null;
-          if(lp && fp && (lp.width<2||lp.height<2||fp.width<2||fp.height<2)){
-            _recFlash('a canvas has no size yet ('+lp.width+'x'+lp.height+' / '+fp.width+'x'+fp.height+') — resize or open the ⛶ stage, then record'); fp=null; }
-          var _hA=(fw&&fw._qrAudio)?fw._qrAudio:null;   // her audio, via the published getters (fw.ctx is NEVER visible — lexical binding)
-          if(lp && fp && lp.captureStream){
-            var _fmtMapTB={screen:'side',insta:'insta',square:'square'};
-            var _tbF=(document.getElementById('tb-vid-fmt')||{}).value;
-            if(selDuoFmt && _fmtMapTB[_tbF]) selDuoFmt.value=_fmtMapTB[_tbF];   // (05.08h) the top-bar select rules the pair take
-            var _fmt=(selDuoFmt&&selDuoFmt.value)||'side';
-            var W1=Math.max(2,lp.width), W2=Math.max(2,fp.width), H=Math.max(lp.height,fp.height,2);
-            var cv=document.createElement('canvas');
-            if(_fmt==='insta'){ cv.width=1080; cv.height=1920; }
-            else if(_fmt==='square'){ cv.width=1080; cv.height=1080; }
-            else { cv.width=W1+W2; cv.height=H; }
+          // (05.08p author: «две равные половины, весь экран, без чёрных полей»)
+          // BOTH halves are rendered OFFSCREEN at the exact slot size by the
+          // engine's own recomposer (drawFrameOnContext — the Reels way: re-composed,
+          // never cropped). Markov renders his slot here; Markova renders hers
+          // INSIDE her engine and feeds it over the bridge. Full bleed, equal
+          // halves, independent of any on-screen canvas or window size.
+          var _fmtMapTB={screen:'side',insta:'insta',square:'square'};
+          var _tbF=(document.getElementById('tb-vid-fmt')||{}).value;
+          if(selDuoFmt && _fmtMapTB[_tbF]) selDuoFmt.value=_fmtMapTB[_tbF];
+          var _fmt=(selDuoFmt&&selDuoFmt.value)||'side';
+          var SW,SH,CW,CH,HX,HY,FX,FY;
+          if(_fmt==='insta'){ CW=1080; CH=1920; SW=1080; SH=960; HX=0;HY=0; FX=0;FY=960; }
+          else if(_fmt==='square'){ CW=1080; CH=1080; SW=1080; SH=540; HX=0;HY=0; FX=0;FY=540; }
+          else { CW=1920; CH=1080; SW=960; SH=1080; HX=0;HY=0; FX=960;FY=0; }
+          _recFlash('raising the frame’s AV bridge…');
+          _vfRecv={cv:document.createElement('canvas'), ring:{q:[], started:false}, got:false};
+          _vfRecv.cv.width=SW; _vfRecv.cv.height=SH; _vfRecv.g=_vfRecv.cv.getContext('2d');
+          var _ok=await new Promise(function(resv){
+            window.__vfWait=resv;
+            send({t:'vfeed', on:true, w:SW, h:SH});
+            setTimeout(function(){ if(window.__vfWait){ window.__vfWait=null; resv(false); } }, 5000);
+          });
+          if(!_ok){
+            _recFlash('the frame did not answer the AV bridge — no take (screen capture is forbidden by design)');
+            _vfRecv=null;
+          }
+          if(_vfRecv){
+            var cv=document.createElement('canvas'); cv.width=CW; cv.height=CH;
             var g=cv.getContext('2d');
-            try{ window.__lastComp={w:cv.width, h:cv.height, fmt:_fmt}; }catch(e){}   // take geometry, for verification
-            // COVER-fit a source into a slot (fill it, crop the overflow, centred)
-            var _cover=function(src,dx,dy,dw,dh){
-              var sw=src.width, sh=src.height; if(sw<2||sh<2) return;
-              var k=Math.max(dw/sw, dh/sh), cw=dw/k, ch=dh/k;
-              g.drawImage(src,(sw-cw)/2,(sh-ch)/2,cw,ch,dx,dy,dw,dh);
+            try{ window.__lastComp={w:CW, h:CH, fmt:_fmt}; }catch(e){}
+            var hisCv=document.createElement('canvas'); hisCv.width=SW; hisCv.height=SH;
+            var hisCtx=hisCv.getContext('2d');
+            var _slotStat={main:{key:'',cv:null},pp:{key:'',cv:null},dual:{key:'',cv:null}};
+            var _renderHis=function(){
+              var vs={mode:state.vizMode,p:state.vizP,r:state.vizR,beat:state.vizBeat,a:state.vizA,b:state.vizB,rings:state.vizRings,scatter:state.vizScatter};
+              var sm=_mainStatic, sp0=_ppStatic, sd0=_dualPPStatic;
+              _mainStatic=_slotStat.main; _ppStatic=_slotStat.pp; _dualPPStatic=_slotStat.dual;
+              try{ drawFrameOnContext(hisCtx,SW,SH,vs); }
+              catch(e){}
+              finally{ _slotStat.main=_mainStatic; _slotStat.pp=_ppStatic; _slotStat.dual=_dualPPStatic;
+                _mainStatic=sm; _ppStatic=sp0; _dualPPStatic=sd0; }
             };
             var _draw=function(){
-              g.fillStyle='#000'; g.fillRect(0,0,cv.width,cv.height);
-              if(_fmt==='insta'){ _cover(lp,0,0,1080,960); _cover(fp,0,960,1080,960); }        // Markov ABOVE, Markova BELOW
-              else if(_fmt==='square'){ _cover(lp,0,0,1080,540); _cover(fp,0,540,1080,540); }
-              else { g.drawImage(lp,0,0); g.drawImage(fp,W1,0); }
+              g.fillStyle='#000'; g.fillRect(0,0,CW,CH);
+              _renderHis();
+              g.drawImage(hisCv,HX,HY);
+              try{ g.drawImage(_vfRecv.cv,FX,FY); }catch(e){}
             };
-            _draw();   // taint probe: throws HERE on an opaque frame → picker path
+            _draw();
             // captureStream on a canvas that is NOT in the document delivers no
             // frames in Chrome — the 01.08 black-take bug: the compositor never
             // renders a detached canvas, so the encoder saw nothing. Capture at
@@ -17142,9 +17431,7 @@ startRenderLoop();
             }
             var run={on:true};
             // audio: mix every master bus that exists into ONE context's destination
-            var _clean=[], mixCtx=null;
-            if(typeof ctx!=='undefined' && ctx) mixCtx=ctx;
-            else if(_hA && _hA.ctx) mixCtx=_hA.ctx;
+            var _clean=[], mixCtx=(typeof ctx!=='undefined'&&ctx)?ctx:null;
             var audioN=0;
             if(mixCtx){
               try{
@@ -17152,17 +17439,23 @@ startRenderLoop();
                 if(typeof masterGain!=='undefined' && masterGain && mixCtx===ctx){
                   masterGain.connect(mixDest); _clean.push(function(){ masterGain.disconnect(mixDest); }); audioN++;
                 }
-                if(_hA && _hA.ctx && _hA.master){
-                  var _hC=_hA.ctx, _hM=_hA.master;
-                  if(_hC===mixCtx){ _hM.connect(mixDest); _clean.push(function(){ _hM.disconnect(mixDest); }); audioN++; }
-                  else{
-                    var fdest=_hC.createMediaStreamDestination();
-                    _hM.connect(fdest);
-                    var herSrc=mixCtx.createMediaStreamSource(fdest.stream);
-                    herSrc.connect(mixDest);
-                    _clean.push(function(){ _hM.disconnect(fdest); }); _clean.push(function(){ herSrc.disconnect(); });
+                if(_vfRecv){
+                  try{
+                    var vsp=mixCtx.createScriptProcessor(2048,1,2);
+                    var vg0=mixCtx.createGain(); vg0.gain.value=0; vg0.connect(vsp);   // silent input keeps the node pulling
+                    vsp.onaudioprocess=function(ev2){
+                      var ob=ev2.outputBuffer, L=ob.getChannelData(0), R=ob.getChannelData(1);
+                      var rg=_vfRecv&&_vfRecv.ring;
+                      if(rg && !rg.started){ if(rg.q.length<3){ L.fill(0); R.fill(0); return; } rg.started=true; }
+                      var ch=(rg&&rg.q.shift())||null;
+                      if(ch){ L.set(ch.l.subarray(0,L.length)); R.set(ch.r.subarray(0,R.length)); }
+                      else { L.fill(0); R.fill(0); }
+                    };
+                    vsp.connect(mixDest);
+                    var vzg=mixCtx.createGain(); vzg.gain.value=0; vsp.connect(vzg); vzg.connect(mixCtx.destination);
+                    _clean.push(function(){ try{ vsp.onaudioprocess=null; vsp.disconnect(); vzg.disconnect(); vg0.disconnect(); }catch(e){} });
                     audioN++;
-                  }
+                  }catch(e){}
                 }
                 if(audioN) mixDest.stream.getAudioTracks().forEach(function(t){ cstream.addTrack(t); });
               }catch(e){ _recFlash('audio mix failed ('+String(e&&e.message||e).slice(0,40)+') — video-only take'); }
@@ -17210,15 +17503,21 @@ startRenderLoop();
                 requestAnimationFrame(paint); })();
             }
             _comp={stream:cstream, cleanup:function(){ run.on=false; _clean.forEach(function(fn){ try{ fn(); }catch(e){} });
-              try{ if(cv.parentNode) cv.parentNode.removeChild(cv); }catch(e){} }};
-          } else if(!fp){ _recFlash('her frame is not readable here (file://) — falling back to the tab-capture picker'); }
-        }catch(e){ _comp=null; _recFlash('composite unavailable ('+String(e&&e.message||e).slice(0,40)+') — falling back to the picker'); }
+              try{ if(cv.parentNode) cv.parentNode.removeChild(cv); }catch(e){}
+              try{ send({t:'vfeed', on:false}); }catch(e){}
+              try{ _vfRecv=null; }catch(e){} }};
+          }
+        }catch(e){ _comp=null; _recFlash('composite unavailable ('+String(e&&e.message||e).slice(0,40)+') — the take is cancelled'); }
         try{
           var stream, _cleanup=null;
           if(_comp){ stream=_comp.stream; _cleanup=_comp.cleanup; }
           else {
-            try{ if(document.fullscreenElement){ await (document.exitFullscreen&&document.exitFullscreen()); } }catch(e){}
-            stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:60}, audio:true});
+            // (05.08j author): NEVER the real screen, NEVER a window-picker — the
+            // take is the STAGE composite or nothing.
+            try{ send({t:'vfeed', on:false}); }catch(e){}   // (05.08 audit) else the frame streams PCM+bitmaps at a dead receiver forever
+            _vfRecv=null;
+            _dRec=null; _dChunks=null; _paint(); btnRec._busy=false;
+            return;
           }
           // STANDARD CODEC FIRST (author 02.08: «поставь режим записи в стандартный
           // видеокодек»): H.264 mp4 opens everywhere — QuickTime, Reels, editors.
@@ -17248,6 +17547,7 @@ startRenderLoop();
         }catch(e){ try{ if(_comp&&_comp.cleanup)_comp.cleanup(); }catch(e2){}
           _recFlash('recording did not start: '+String(e&&e.message||e).slice(0,60));
           _dRec=null; _dChunks=null; _paint(); }
+        finally{ btnRec._busy=false; }
       };
       // (05.08h author: «убери rec из окошка дуэта — video пишется обычной кнопкой»)
       // btnRec stays as the MACHINE (its title carries status), but it is not shown:
@@ -17303,7 +17603,10 @@ startRenderLoop();
         // → free → pal → parts. Entering pal STARTS the crab plan; leaving it stops it.
         var _cyc=['parts','retro','free','pal'];
         var _was=state.duo.mode;
-        state.duo.mode=_cyc[(_cyc.indexOf(state.duo.mode)+1)%_cyc.length];
+        var _nx=_cyc[(_cyc.indexOf(state.duo.mode)+1)%_cyc.length];
+        // (05.08 author: «при включении pal пусть запросит длительность») the cycle
+        // enters pal; _palStart asks when there is nothing to build from
+        state.duo.mode=_nx;
         if(_was==='pal' && _palActive){ _palStopLocal(); send({t:'pal-stop'}); }
         send({t:'mode',mode:state.duo.mode});
         if(state.duo.mode==='pal'){ _prePalMode=_was; if(!_palActive) _palStart(); }
@@ -17334,7 +17637,7 @@ startRenderLoop();
     document.body.appendChild(panel);
   }
   function _paint(){
-    try{ window._duoGuard={strict:((state.duo.on&&state.duo.peer&&state.duo.mode==='retro')||_palActive), pal:_palActive, retroAns:(state.duo.on&&state.duo.peer&&state.duo.mode==='retro'&&!_isLead())}; }catch(e){}   // (05.08) retro on EITHER side and pal are strict forms: the guard and the gates stand down for note-for-note symmetry; retroAns = this window ANSWERS the canon (the groove walks backward there)
+    try{ window._duoGuard={strict:((state.duo.on&&state.duo.peer&&state.duo.mode==='retro')||_palActive), pal:_palActive, retroAns:((state.duo.on&&state.duo.peer&&state.duo.mode==='retro'&&!_isLead())||_palRev)}; }catch(e){}   // (05.08) retro on EITHER side and pal are strict forms: the guard and the gates stand down for note-for-note symmetry; retroAns = this window ANSWERS the canon (the groove walks backward there)
     if(!panel) return;
     if(relEl){ var _ldR=(state.duo.lead||'markov');
       var _ldN=(_ldR==='markova')?'Markova':'Markov', _foN=(_ldR==='markova')?'Markov':'Markova';
@@ -17418,7 +17721,9 @@ startRenderLoop();
     mb.onclick=function(){
       var _cyc=['parts','retro','free','pal'];
       var _was=state.duo.mode;
-      state.duo.mode=_cyc[(_cyc.indexOf(state.duo.mode)+1)%_cyc.length];
+      var _nx=_cyc[(_cyc.indexOf(state.duo.mode)+1)%_cyc.length];
+      /* pal stays in the cycle — _palStart asks for a duration when needed */
+      state.duo.mode=_nx;
       if(_was==='pal' && _palActive){ _palStopLocal(); send({t:'pal-stop'}); }
       send({t:'mode',mode:state.duo.mode});
       if(state.duo.mode==='pal'){ _prePalMode=_was; if(!_palActive) _palStart(); }
@@ -17570,6 +17875,27 @@ startRenderLoop();
   // (like, session, audio, video) forward from the frame to the parent, whose
   // recorders are already duet-aware. Inspectors (ℹ now, ♪ log) stay local.
   var _uiEcho=false;
+  // (05.08k) the file:// AV bridge, deterministic: the frame posts ImageBitmap
+  // frames + PCM audio chunks over plain postMessage (no RTC, no ICE, works in
+  // file:// always; driven by the frame's audio clock, background-proof).
+  var _vfRecv=null;
+  window.addEventListener('message',function(ev){
+    var d0=ev&&ev.data; if(!d0 || !_vfRecv) return;
+    if(d0.qrvfB){
+      try{
+        if(d0.w&&_vfRecv.cv.width!==d0.w){ _vfRecv.cv.width=d0.w; _vfRecv.cv.height=d0.h||_vfRecv.cv.height; }
+        _vfRecv.g.drawImage(d0.qrvfB,0,0);
+        try{ if(d0.qrvfB.close) d0.qrvfB.close(); }catch(e){}
+        _vfRecv.got=true;
+        if(window.__vfWait){ var _w=window.__vfWait; window.__vfWait=null; _w(true); }
+      }catch(e){}
+    } else if(d0.qrvfA){
+      try{
+        _vfRecv.ring.q.push({l:new Float32Array(d0.qrvfA.l), r:new Float32Array(d0.qrvfA.r)});
+        if(_vfRecv.ring.q.length>48) _vfRecv.ring.q.shift();
+      }catch(e){}
+    }
+  });
   function _wireSharedBar(){
     var MIR_CLICK=['td-flush','td-skipchord'];
     var MIR_CHK=['td-autorec','td-autoskip'];
