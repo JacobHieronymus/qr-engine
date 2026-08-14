@@ -116,7 +116,7 @@ let ctx = null, master = null;
 function audioInit() {
   if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
-  master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination);
+  master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
 }
 function modpow(b, e, m) { let r = 1; b %= m; while (e > 0) { if (e & 1) r = r * b % m; b = b * b % m; e >>= 1; } return r; }
 function chi(r, p) { if (r % p === 0) return 0; return modpow(r % p, (p - 1) / 2, p) === 1 ? 1 : -1; }
@@ -193,7 +193,7 @@ function blockBreath() {
     el.style.transitionDuration = (inhale ? 3.6 : 5.6) + 's';
     el.classList.toggle('in', inhale);
     const t = ctx.currentTime + 0.03;
-    qrTone(t, inhale ? QRs[c % QRs.length] : 1, 0.10, inhale ? 2.0 : 2.8);
+    qrTone(t, inhale ? QRs[c % QRs.length] : 1, 0.16, inhale ? 2.0 : 2.8);
     tm = setTimeout(tick, inhale ? 4000 : 6000);
   };
   tick();
@@ -215,7 +215,7 @@ function blockPulse() {
     if (!running) return;
     while (beatN < COUNT_IN + MEASURED && t0 + beatN * IV < ctx.currentTime + 0.3) {
       const bt = t0 + beatN * IV;
-      qrTone(bt, r, beatN < COUNT_IN ? 0.10 : 0.17);
+      qrTone(bt, r, beatN < COUNT_IN ? 0.18 : 0.30);
       if (beatN >= COUNT_IN) beats.push(bt);
       r = (r % (state.p - 1)) + 1; beatN++;
     }
@@ -292,8 +292,8 @@ function blockNumbers() {
   }
   function grade(ok) {
     sum += ok ? span : span - 1;
-    if (ok) { best = Math.max(best, span); streakOk++; if (streakOk >= 2) { span++; streakOk = 0; } qrTone(ctx.currentTime, 1, 0.12); }
-    else { span = Math.max(2, span - 1); streakOk = 0; qrTone(ctx.currentTime, 2, 0.10); }
+    if (ok) { best = Math.max(best, span); streakOk++; if (streakOk >= 2) { span++; streakOk = 0; } qrTone(ctx.currentTime, 1, 0.2); }
+    else { span = Math.max(2, span - 1); streakOk = 0; qrTone(ctx.currentTime, 2, 0.16); }
     trialStart();
   }
   trialStart();
@@ -313,7 +313,7 @@ function blockImagery() {
     if (round >= ROUNDS) { session.imagery = ROUNDS; next(); return; }
     round++;
     a = POOL[rnd(POOL.length)]; do { b = POOL[rnd(POOL.length)]; } while (b === a);
-    qrTone(ctx.currentTime, 4, 0.10);
+    qrTone(ctx.currentTime, 4, 0.16);
     area.innerHTML = `<div class="meta">${round} / ${ROUNDS}</div><div class="pair">
       <div><div class="he" style="font-size:30px">${a.he}</div><div class="translit">${a.tr}</div><div class="gloss">${a.en}</div></div>
       <div><div class="he" style="font-size:30px">${b.he}</div><div class="translit">${b.tr}</div><div class="gloss">${b.en}</div></div></div>`;
