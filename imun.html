@@ -136,9 +136,22 @@ function qrTone(t, r, vol, dur) {
   o.connect(g); g.connect(master);
   o.start(t); o.stop(t + d + 0.05);
 }
-function playClip(key) {
-  const b64 = AUDIO[key]; if (!b64) return null;
-  const a = new Audio('data:audio/mp4;base64,' + b64); a.play().catch(() => {}); return a;
+/* clips go through WebAudio buffers, NOT <audio>: Safari blocks HTMLAudio.play()
+   outside a direct tap, but a running AudioContext plays buffers freely */
+const bufCache = {};
+function b64buf(b64) { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
+function getBuf(key, cb) {
+  if (bufCache[key]) { cb(bufCache[key]); return; }
+  const b64 = AUDIO[key]; if (!b64 || !ctx) { cb(null); return; }
+  ctx.decodeAudioData(b64buf(b64), buf => { bufCache[key] = buf; cb(buf); }, () => cb(null));
+}
+function playClip(key, onend) {
+  getBuf(key, buf => {
+    if (!buf) { if (onend) setTimeout(onend, 700); return; }
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(master);
+    if (onend) src.onended = onend;
+    src.start();
+  });
 }
 
 /* ============ flow ============ */
@@ -255,7 +268,7 @@ function blockPulse() {
 
 /* ---- block 3: numbers backward (adaptive span, silence under encoding) ---- */
 function blockNumbers() {
-  const TRIALS = 8; let trial = 0, span = 3, streakOk = 0, best = 0, sum = 0;
+  const TRIALS = 8; let trial = 0, span = 3, streakOk = 0, best = 0, sum = 0, asked = false, wd = null;
   stage.innerHTML = `<div class="center">${dots(2)}
     <div class="meta">מִסְפָּרִים · misparím — hear the chain, say it BACKWARD aloud, then check</div>
     <div id="numarea" class="center" style="flex:0;gap:14px"></div></div>`;
@@ -267,16 +280,17 @@ function blockNumbers() {
     seq = []; while (seq.length < span) { const d = rnd(10); if (seq[seq.length - 1] !== d) seq.push(d); }
     area.innerHTML = `<div class="meta">trial ${trial}/${TRIALS} · span ${span}</div><div class="bignum" id="np">🔊</div>`;
     controls.innerHTML = '';
-    let i = 0;
+    let i = 0; asked = false;
+    clearTimeout(wd); wd = setTimeout(askRecall, span * 1500 + 4000); // never hang on a blocked clip
     const playNext = () => {
+      if (asked) return;
       if (i >= seq.length) { askRecall(); return; }
-      const a = playClip('d' + seq[i]); i++;
-      if (a) { a.onended = () => setTimeout(playNext, 260); a.onerror = () => setTimeout(playNext, 700); }
-      else setTimeout(playNext, 700);
+      playClip('d' + seq[i], () => setTimeout(playNext, 260)); i++;
     };
     setTimeout(playNext, 500);
   }
   function askRecall() {
+    if (asked) return; asked = true; clearTimeout(wd);
     area.innerHTML = `<div class="meta">trial ${trial}/${TRIALS} · span ${span}</div>
       <div class="gloss">say it backward — aloud</div>`;
     controls.innerHTML = '';
@@ -297,7 +311,7 @@ function blockNumbers() {
     trialStart();
   }
   trialStart();
-  cleanup = () => {};
+  cleanup = () => clearTimeout(wd);
 }
 
 /* ---- block 4: imagery — two words, one bridge, spoken aloud ---- */
