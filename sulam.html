@@ -79,7 +79,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <div id="top">
-  <h1>סֻלָּם</h1><span class="sub">sulám · ladder chant · étude 2 · v0.4 · engine room</span>
+  <h1>סֻלָּם</h1><span class="sub">sulám · ladder chant · étude 2 · v0.6 · the clarinet breathes</span>
 </div>
 <div id="tabs">
   <div class="tab on" data-v="verbs"><span class="heb">פְּעָלִים</span><span class="lat">pe'alím · verbs</span></div>
@@ -173,10 +173,15 @@ function _makeGuideIR() { // approved guide room (LCG seeded by the prime)
   }
   return buf;
 }
+let voiceSend = null;
 function audioInit() {
   if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
-  master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination); // voice bus, dry
+  /* voice bus: AirPods verdict 14.08 — a shade softer on top, and a small send
+     into the engine room so the voice lives in the same air as the ladder */
+  master = ctx.createGain(); master.gain.value = 0.9;
+  const vShelf = ctx.createBiquadFilter(); vShelf.type = 'highshelf'; vShelf.frequency.value = 6000; vShelf.gain.value = -2.5;
+  master.connect(vShelf); vShelf.connect(ctx.destination);
   /* guide room (approved): /3, dip 3536 −9 dB, shelf +2.5, LCG 2 s */
   const shelf = ctx.createBiquadFilter(); shelf.type = 'lowshelf'; shelf.frequency.value = 200; shelf.gain.value = 2.5;
   const dip = ctx.createBiquadFilter(); dip.type = 'peaking'; dip.frequency.value = 3536; dip.Q.value = 1.4; dip.gain.value = -9;
@@ -209,6 +214,8 @@ function audioInit() {
   const eMaster = ctx.createGain(); eMaster.gain.value = 0.72;
   sum.connect(headroom); headroom.connect(tame); tame.connect(comp); comp.connect(eMaster); eMaster.connect(ctx.destination);
   engineIn = eIn;
+  voiceSend = ctx.createGain(); voiceSend.gain.value = 0.13; // dosed: the voice touches the room, never drowns
+  master.connect(voiceSend); voiceSend.connect(conv);
 }
 function musicBus() { return state.mix === 'guide' ? guideIn : engineIn; }
 function modpow(b, e, m) { let r = 1; b %= m; while (e > 0) { if (e & 1) r = r * b % m; b = b * b % m; e >>= 1; } return r; }
@@ -233,7 +240,7 @@ function _mkWaves() {
 }
 const _FORMANTS = {
   str:  [[300, 4, 1.0], [460, 3, 1.6], [2600, 5, 2.2]],
-  wood: [[1500, 5, 1.3], [2400, 3, 2.0], [3600, -4, 1.4]],
+  wood: [[1500, 3, 1.3], [2400, 2, 2.0], [3600, -5, 1.4]], // softened 14.08 (AirPods: harsh clarinet)
 };
 function _body(inst) {
   const spec = _FORMANTS[inst]; let head = null, tail = null, boost = 0;
@@ -263,27 +270,42 @@ function qrVoice(t, r, vol, dur) {
   const k2 = ((Math.round(f) % p) + p) % p || 1;
   osc.detune.value = (chi(k2, p) === 1 ? 1 : -1) * 2.5 * 0.5; // engine's deterministic χ micro-detune
   const d = dur || 0.5, long = d > 1.2;
+  const vv = inst === 'wood' ? vol * 0.72 : vol; // clarinet plays piano (author 14.08)
   const a = long ? Math.min(0.45, Math.max(0.03, d * 0.08)) : 0.012;
   const rl = long ? Math.min(0.7, Math.max(0.12, d * 0.14)) : 0.018;
   const env = ctx.createGain();
   env.gain.setValueAtTime(0, t);
-  env.gain.linearRampToValueAtTime(vol, t + a);
-  env.gain.setValueAtTime(vol, t + Math.max(a + 0.001, d - rl));
+  env.gain.linearRampToValueAtTime(vv, t + a);
+  env.gain.setValueAtTime(vv, t + Math.max(a + 0.001, d - rl));
   env.gain.exponentialRampToValueAtTime(1e-4, t + d);
   env.gain.setValueAtTime(0, t + d + 0.01);
+  if (inst === 'wood') { // and it breathes: slow amplitude waver, an air column alive
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 4.6;
+    const lg = ctx.createGain(); lg.gain.value = vv * 0.10;
+    lfo.connect(lg); lg.connect(env.gain);
+    lfo.start(t + a); lfo.stop(t + d);
+  }
   const body = _body(inst);
-  osc.connect(body.head); body.out.connect(env); env.connect(musicBus());
+  if (inst === 'wood') { // gentle top cut for the clarinet — AirPods verdict
+    const soft = ctx.createBiquadFilter(); soft.type = 'lowpass';
+    soft.frequency.value = Math.min(5200, f * 6); soft.Q.value = 0.5;
+    osc.connect(soft); soft.connect(body.head);
+  } else {
+    osc.connect(body.head);
+  }
+  body.out.connect(env); env.connect(musicBus());
   osc.start(t); osc.stop(t + d + 0.1);
-  // χ friction/breath under the tone (engine's 'cont' excitation, dosed)
-  const depth = 0.5;
+  // χ friction/breath under the tone (engine's 'cont' excitation);
+  // the clarinet breathes deeper and airier, the strings stay discreet (author 14.08)
+  const depth = inst === 'wood' ? 0.6 : 0.35;
   const src = ctx.createBufferSource(); src.buffer = _excite(); src.loop = true;
   const bp = ctx.createBiquadFilter(); bp.type = 'bandpass';
-  bp.frequency.value = Math.min(7000, Math.max(1200, f * 4)); bp.Q.value = 0.8;
+  bp.frequency.value = Math.min(7000, Math.max(1200, f * 4)); bp.Q.value = inst === 'wood' ? 0.6 : 0.8;
   const ng = ctx.createGain();
   const na = Math.min(0.09, Math.max(0.02, d * 0.15));
   ng.gain.setValueAtTime(0, t);
-  ng.gain.linearRampToValueAtTime(vol * 0.13 * depth, t + na);
-  ng.gain.setValueAtTime(vol * 0.13 * depth, t + Math.max(na + 0.001, d - rl));
+  ng.gain.linearRampToValueAtTime(vv * 0.13 * depth, t + na);
+  ng.gain.setValueAtTime(vv * 0.13 * depth, t + Math.max(na + 0.001, d - rl));
   ng.gain.exponentialRampToValueAtTime(1e-4, t + d);
   src.connect(bp); bp.connect(ng); ng.connect(musicBus());
   src.start(t); src.stop(t + d + 0.1);
