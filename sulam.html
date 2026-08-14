@@ -79,7 +79,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <div id="top">
-  <h1>סֻלָּם</h1><span class="sub">sulám · ladder chant · étude 2 · v0.8 · both voices calm</span>
+  <h1>סֻלָּם</h1><span class="sub">sulám · ladder chant · étude 2 · v0.9 · voices of gender</span>
 </div>
 <div id="tabs">
   <div class="tab on" data-v="verbs"><span class="heb">פְּעָלִים</span><span class="lat">pe'alím · verbs</span></div>
@@ -236,14 +236,26 @@ function _mkWaves() {
   const M = amps.length, r2 = new Float32Array(M), i2 = new Float32Array(M);
   for (let k = 1; k < M; k++) i2[k] = amps[k] * ((k & 1) ? 1 : -1);
   const wood = ctx.createPeriodicWave(r2, i2);
-  _waves = { str, wood }; return _waves;
+  // vibraphone: a calm bell — sparse partials, soft mallet (author 14.08)
+  const vr = new Float32Array(10), vi = new Float32Array(10);
+  vi[1] = 1.0; vi[2] = 0.18; vi[4] = 0.35; vi[9] = 0.08;
+  const vibe = ctx.createPeriodicWave(vr, vi);
+  // flute: the engine's airy frame voice, verbatim amps — floats, nearly pure
+  const fa = [0, 1.0, 0.16, 0.06, 0.025, 0.012];
+  const fr = new Float32Array(6), fi = new Float32Array(6);
+  for (let k = 1; k < 6; k++) fi[k] = fa[k] * ((k & 1) ? 1 : -1);
+  const flute = ctx.createPeriodicWave(fr, fi);
+  _waves = { str, wood, vibe, flute }; return _waves;
 }
 const _FORMANTS = {
-  str:  [[300, 4, 1.0], [460, 3, 1.6], [2600, 3, 1.8]],   // bridge hill lowered 14.08 (AirPods: harsh strings)
+  str:  [[300, 4, 1.0], [460, 3, 1.6], [2600, 3, 1.8]],   // kept for history; strings retired from the chant 14.08
   wood: [[1500, 3, 1.3], [2400, 2, 2.0], [3600, -5, 1.4]], // softened 14.08 (AirPods: harsh clarinet)
+  flute: [[700, 2, 1.0], [2200, 1.5, 1.4]],                // engine's flute body, top peak dropped for calm
 };
 function _body(inst) {
-  const spec = _FORMANTS[inst]; let head = null, tail = null, boost = 0;
+  const spec = _FORMANTS[inst];
+  if (!spec) { const gg = ctx.createGain(); return { head: gg, out: gg }; } // vibe: transparent, like the engine's bowl
+  let head = null, tail = null, boost = 0;
   spec.forEach(fgq => {
     const n = ctx.createBiquadFilter(); n.type = 'peaking';
     n.frequency.value = fgq[0]; n.gain.value = fgq[1]; n.Q.value = fgq[2];
@@ -261,59 +273,71 @@ function _excite() {
   for (let i = 0; i < n; i++) { const k = (i + 1) % p; d[i] = k === 0 ? 0 : (chi(k, p) === 1 ? 1 : -1); }
   _exciteBuf = buf; _exciteP = p; return buf;
 }
-function qrVoice(t, r, vol, dur) {
+/* THE VOICES TEACH GENDER (author's ruling 14.08, option A refined):
+   masculine forms RING — vibraphone; feminine forms BREATHE — clarinet;
+   common forms (I, we) FLOAT — flute, the engine's airy frame voice.
+   One melody per binyan stays invariant; the timbre is audible morphology. */
+const GENDER = ['c', 'm', 'f', 'm', 'f', 'c', 'm', 'm']; // ani ata at hu hi anachnu atem hem
+const G_INST = { m: 'vibe', f: 'wood', c: 'flute' };
+function qrVoice(t, r, vol, dur, pk) {
   if (!ctx) return;
-  const p = state.p, rr = ((r % p) + p) % p || 1, x = chi(rr, p);
-  const inst = x >= 0 ? 'str' : 'wood';
+  const p = state.p, rr = ((r % p) + p) % p || 1;
   const f = F0 * (p + rr) / p;
+  const inst = G_INST[GENDER[pk == null ? 3 : pk]] || 'vibe';
+  const d = dur || 0.5;
   const osc = ctx.createOscillator(); osc.setPeriodicWave(_mkWaves()[inst]); osc.frequency.value = f;
   const k2 = ((Math.round(f) % p) + p) % p || 1;
   osc.detune.value = (chi(k2, p) === 1 ? 1 : -1) * 2.5 * 0.5; // engine's deterministic χ micro-detune
-  const d = dur || 0.5, long = d > 1.2;
-  const vv = inst === 'wood' ? vol * 0.72 : vol; // clarinet plays piano (author 14.08)
-  // wood enters and leaves slower than strings; its breath is ONE slow arc per note,
-  // never a tremolo — the engine itself only ever swells notes longer than 2.6 s
-  const a = inst === 'wood'
-    ? Math.min(0.6, Math.max(0.14, d * 0.16))
-    : (long ? Math.min(0.5, Math.max(0.08, d * 0.12)) : 0.012); // strings' bow lands softer too
-  const rl = inst === 'wood'
-    ? Math.min(0.9, Math.max(0.22, d * 0.18))
-    : (long ? Math.min(0.7, Math.max(0.12, d * 0.14)) : 0.018);
+  const vv = inst === 'wood' ? vol * 0.72 : inst === 'flute' ? vol * 0.85 : vol * 0.9;
   const env = ctx.createGain();
-  env.gain.setValueAtTime(0, t);
-  env.gain.linearRampToValueAtTime(vv, t + a);
-  if (inst === 'wood' && d - a - rl > 0.2) {
-    const mid = t + a + (d - a - rl) * 0.5;
-    env.gain.linearRampToValueAtTime(vv * 1.06, mid);
-    env.gain.linearRampToValueAtTime(vv * 0.92, t + d - rl);
+  if (inst === 'vibe') {
+    // struck and ringing: soft mallet, long even decay, no noise — a calm bell
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(vv, t + 0.010);
+    env.gain.exponentialRampToValueAtTime(Math.max(1e-4, vv * 0.22), t + d);
+    env.gain.exponentialRampToValueAtTime(1e-4, t + d + 0.12);
+    env.gain.setValueAtTime(0, t + d + 0.15);
   } else {
-    env.gain.setValueAtTime(vv, t + Math.max(a + 0.001, d - rl));
+    // wood & flute enter like breath: slow arc, one swell, never a tremolo
+    const a = Math.min(0.6, Math.max(0.14, d * 0.16));
+    const rl = Math.min(0.9, Math.max(0.22, d * 0.18));
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(vv, t + a);
+    if (d - a - rl > 0.2) {
+      const mid = t + a + (d - a - rl) * 0.5;
+      env.gain.linearRampToValueAtTime(vv * 1.06, mid);
+      env.gain.linearRampToValueAtTime(vv * 0.92, t + d - rl);
+    } else {
+      env.gain.setValueAtTime(vv, t + Math.max(a + 0.001, d - rl));
+    }
+    env.gain.exponentialRampToValueAtTime(1e-4, t + d);
+    env.gain.setValueAtTime(0, t + d + 0.01);
   }
-  env.gain.exponentialRampToValueAtTime(1e-4, t + d);
-  env.gain.setValueAtTime(0, t + d + 0.01);
   const body = _body(inst);
-  { // both voices get a top cut — the clarinet firmer, the strings lighter (contrast kept)
+  if (inst === 'wood') { // clarinet keeps its firm top cut
     const soft = ctx.createBiquadFilter(); soft.type = 'lowpass';
-    soft.frequency.value = inst === 'wood' ? Math.min(4200, f * 5) : Math.min(5500, f * 7);
-    soft.Q.value = 0.5;
+    soft.frequency.value = Math.min(4200, f * 5); soft.Q.value = 0.5;
     osc.connect(soft); soft.connect(body.head);
+  } else {
+    osc.connect(body.head);
   }
   body.out.connect(env); env.connect(musicBus());
-  osc.start(t); osc.stop(t + d + 0.1);
-  // χ friction/breath under the tone (engine's 'cont' excitation);
-  // the clarinet breathes deeper and airier, the strings stay discreet (author 14.08)
-  const depth = inst === 'wood' ? 0.45 : 0.28;
+  osc.start(t); osc.stop(t + d + 0.2);
+  if (inst === 'vibe') return; // the bell is clean — no breath under it
+  // χ breath under the blown voices (engine's 'cont' excitation, dosed per voice)
+  const depth = inst === 'wood' ? 0.45 : 0.25;
+  const rl2 = Math.min(0.9, Math.max(0.22, d * 0.18));
   const src = ctx.createBufferSource(); src.buffer = _excite(); src.loop = true;
   const bp = ctx.createBiquadFilter(); bp.type = 'bandpass';
   bp.frequency.value = inst === 'wood'
-    ? Math.min(4500, Math.max(900, f * 3))    // lower, wider — air, not hiss
-    : Math.min(6000, Math.max(1100, f * 3.5)); // bow friction down a shade as well
-  bp.Q.value = inst === 'wood' ? 0.5 : 0.7;
+    ? Math.min(4500, Math.max(900, f * 3))
+    : Math.min(4000, Math.max(800, f * 2.5)); // flute: barely a breath
+  bp.Q.value = 0.5;
   const ng = ctx.createGain();
   const na = Math.min(0.09, Math.max(0.02, d * 0.15));
   ng.gain.setValueAtTime(0, t);
   ng.gain.linearRampToValueAtTime(vv * 0.13 * depth, t + na);
-  ng.gain.setValueAtTime(vv * 0.13 * depth, t + Math.max(na + 0.001, d - rl));
+  ng.gain.setValueAtTime(vv * 0.13 * depth, t + Math.max(na + 0.001, d - rl2));
   ng.gain.exponentialRampToValueAtTime(1e-4, t + d);
   src.connect(bp); bp.connect(ng); ng.connect(musicBus());
   src.start(t); src.stop(t + d + 0.1);
@@ -370,7 +394,7 @@ function renderList() {
   const by = {};
   VERBS.forEach(v => { (by[v.binyan] = by[v.binyan] || []).push(v); });
   let html = '<div class="verblist">';
-  html += `<div class="meta" style="margin:4px 2px">one melody per binyan — forever. Learn the tune once, sing every verb on it.<br>C = chanted ladder · S = spoken rhythm (the experiment's two arms)<br>-tem forms: the voice sings the formal -tém; street Hebrew says -á-tem — both are right, sing with the voice</div>`;
+  html += `<div class="meta" style="margin:4px 2px">one melody per binyan — forever. Learn the tune once, sing every verb on it.<br>the voices teach gender: masculine rings (vibraphone) · feminine breathes (clarinet) · I &amp; we float (flute)<br>C = chanted ladder · S = spoken rhythm (the experiment's two arms)<br>-tem forms: the voice sings the formal -tém; street Hebrew says -á-tem — both are right, sing with the voice</div>`;
   for (const bin of ["pa'al", "pi'el", "hif'il"]) {
     html += `<div class="binhead">${bin} · ladder ${LADDERS[bin].join('·')}</div>`;
     (by[bin] || []).forEach(v => {
@@ -448,7 +472,7 @@ function playPass() {
     const k = run.idx;
     document.querySelectorAll('.rung').forEach((r, i) => r.classList.toggle('now', i === k));
     const t = ctx.currentTime + 0.03;
-    if (cond === 'C') qrVoice(t, LADDERS[v.binyan][k], 0.30, beatMs / 1000 * 0.85);
+    if (cond === 'C') qrVoice(t, LADDERS[v.binyan][k], 0.30, beatMs / 1000 * 0.85, k);
     else clickTone(t, 0.25);
     if (run.holes.includes(k)) {
       // the hole: tune sounds, voice silent — the learner sings; playback waits
@@ -480,7 +504,7 @@ function gradeHole(k, ok) {
       const kk = run.idx;
       document.querySelectorAll('.rung').forEach((r, i) => r.classList.toggle('now', i === kk));
       const t = ctx.currentTime + 0.03;
-      if (COND[v.id] === 'C') qrVoice(t, LADDERS[v.binyan][kk], 0.30, beatMs / 1000 * 0.85);
+      if (COND[v.id] === 'C') qrVoice(t, LADDERS[v.binyan][kk], 0.30, beatMs / 1000 * 0.85, kk);
       else clickTone(t, 0.25);
       if (run.holes.includes(kk) && !run.done[kk]) { run.awaiting = kk; renderRun(); const m = $('#runmsg'); if (m) m.textContent = 'sing it aloud: ' + (PERS_LABEL[v.past[kk].person] || '') + ' — then reveal'; return; }
       playClip(v.id + '_p' + kk, null);
