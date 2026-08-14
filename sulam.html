@@ -79,7 +79,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <div id="top">
-  <h1>סֻלָּם</h1><span class="sub">sulám · ladder chant · étude 2 · v0.9 · voices of gender</span>
+  <h1>סֻלָּם</h1><span class="sub">sulám · ladder chant · étude 2 · v0.10 · number and mirror</span>
 </div>
 <div id="tabs">
   <div class="tab on" data-v="verbs"><span class="heb">פְּעָלִים</span><span class="lat">pe'alím · verbs</span></div>
@@ -105,8 +105,9 @@ const SKEY = 'sulam-state-v1', LKEY = 'sulam-log-v1';
 let state, log = [];
 function load() {
   try { state = JSON.parse(localStorage.getItem(SKEY)) || null; } catch (e) { state = null; }
-  if (!state) state = { day0: now(), p: 61, bpm: 72, mix: 'engine', cells: {}, passes: {} };
+  if (!state) state = { day0: now(), p: 61, bpm: 60, mix: 'engine', cells: {}, passes: {} };
   if (!state.mix) state.mix = 'engine';
+  if (!state._bpmV2) { if (state.bpm === 72) state.bpm = 60; state._bpmV2 = 1; } // slower default (author 14.08)
   try { log = JSON.parse(localStorage.getItem(LKEY)) || []; } catch (e) { log = []; }
 }
 function save() { localStorage.setItem(SKEY, JSON.stringify(state)); localStorage.setItem(LKEY, JSON.stringify(log)); }
@@ -278,13 +279,23 @@ function _excite() {
    common forms (I, we) FLOAT — flute, the engine's airy frame voice.
    One melody per binyan stays invariant; the timbre is audible morphology. */
 const GENDER = ['c', 'm', 'f', 'm', 'f', 'c', 'm', 'm']; // ani ata at hu hi anachnu atem hem
+const PLURAL = [false, false, false, false, false, true, true, true];
 const G_INST = { m: 'vibe', f: 'wood', c: 'flute' };
+const G_PAN = { m: -0.35, f: 0.35, c: 0 }; // the engine's stereo mirror: he left, she right, we in the middle
 function qrVoice(t, r, vol, dur, pk) {
   if (!ctx) return;
   const p = state.p, rr = ((r % p) + p) % p || 1;
-  const f = F0 * (p + rr) / p;
-  const inst = G_INST[GENDER[pk == null ? 3 : pk]] || 'vibe';
-  const d = dur || 0.5;
+  const idx = pk == null ? 3 : pk;
+  const g = GENDER[idx], inst = G_INST[g] || 'vibe';
+  /* number sounds as an interval (author 14.08): plural = the rung together with
+     its mirror p−r — the voice and its reflection, sum p (the retro symmetry);
+     for p ≡ 1 mod 4, χ(p−r)=χ(r): the mirror keeps the gender's ladder */
+  const rungs = PLURAL[idx] ? [rr, ((p - rr) % p) || 1] : [rr];
+  const share = PLURAL[idx] ? 0.62 : 1;
+  rungs.forEach(rOne => _tone(inst, G_PAN[g] || 0, t, F0 * (p + rOne) / p, vol * share, dur || 0.5));
+}
+function _tone(inst, pan, t, f, vol, d) {
+  const p = state.p;
   const osc = ctx.createOscillator(); osc.setPeriodicWave(_mkWaves()[inst]); osc.frequency.value = f;
   const k2 = ((Math.round(f) % p) + p) % p || 1;
   osc.detune.value = (chi(k2, p) === 1 ? 1 : -1) * 2.5 * 0.5; // engine's deterministic χ micro-detune
@@ -305,8 +316,8 @@ function qrVoice(t, r, vol, dur, pk) {
     env.gain.linearRampToValueAtTime(vv, t + a);
     if (d - a - rl > 0.2) {
       const mid = t + a + (d - a - rl) * 0.5;
-      env.gain.linearRampToValueAtTime(vv * 1.06, mid);
-      env.gain.linearRampToValueAtTime(vv * 0.92, t + d - rl);
+      env.gain.linearRampToValueAtTime(vv * 1.09, mid); // breath shown plainly (author 14.08)
+      env.gain.linearRampToValueAtTime(vv * 0.90, t + d - rl);
     } else {
       env.gain.setValueAtTime(vv, t + Math.max(a + 0.001, d - rl));
     }
@@ -321,11 +332,13 @@ function qrVoice(t, r, vol, dur, pk) {
   } else {
     osc.connect(body.head);
   }
-  body.out.connect(env); env.connect(musicBus());
+  let sink = musicBus();
+  try { const pn = ctx.createStereoPanner(); pn.pan.value = pan; pn.connect(sink); sink = pn; } catch (e) {}
+  body.out.connect(env); env.connect(sink);
   osc.start(t); osc.stop(t + d + 0.2);
   if (inst === 'vibe') return; // the bell is clean — no breath under it
-  // χ breath under the blown voices (engine's 'cont' excitation, dosed per voice)
-  const depth = inst === 'wood' ? 0.45 : 0.25;
+  // χ breath under the blown voices (engine's 'cont' excitation; deeper for the clarinet)
+  const depth = inst === 'wood' ? 0.5 : 0.25;
   const rl2 = Math.min(0.9, Math.max(0.22, d * 0.18));
   const src = ctx.createBufferSource(); src.buffer = _excite(); src.loop = true;
   const bp = ctx.createBiquadFilter(); bp.type = 'bandpass';
@@ -339,7 +352,7 @@ function qrVoice(t, r, vol, dur, pk) {
   ng.gain.linearRampToValueAtTime(vv * 0.13 * depth, t + na);
   ng.gain.setValueAtTime(vv * 0.13 * depth, t + Math.max(na + 0.001, d - rl2));
   ng.gain.exponentialRampToValueAtTime(1e-4, t + d);
-  src.connect(bp); bp.connect(ng); ng.connect(musicBus());
+  src.connect(bp); bp.connect(ng); ng.connect(sink);
   src.start(t); src.stop(t + d + 0.1);
 }
 function clickTone(t, vol) { // spoken-condition beat: unpitched tick
@@ -369,10 +382,13 @@ function playClip(key, onend) {
 
 /* ============ THE LADDERS — one fixed contour per binyan, forever (Wallace invariant) ============ */
 /* rungs are r-values of the rational ladder (p+r)/p over p=61: approximated just intervals */
+/* Ladders v2 (author 14.08): masculine persons stand on QR rungs, feminine on NQR,
+   near-just intervals kept — gender lives in the arithmetic of the pitch itself.
+   QR rungs used: 1, 12(m3), 15(M3), 20(P4), 41(M6), 49(m7·9:5); NQR: 8(M2), 31(P5), 37(m6), 51(m7·11:6). */
 const LADDERS = {
-  "pa'al":  [1, 8, 15, 20, 31, 20, 15, 41],   // grounded rise, return, lift
-  "pi'el":  [8, 15, 20, 31, 41, 31, 20, 15],  // brighter arch
-  "hif'il": [1, 20, 31, 41, 51, 41, 31, 20],  // wide arch
+  "pa'al":  [1, 15, 8, 20, 31, 20, 41, 49],   // grounded rise
+  "pi'el":  [12, 15, 37, 41, 31, 20, 49, 41], // brighter, minor-major play
+  "hif'il": [1, 20, 8, 41, 51, 20, 49, 41],   // wide arch, peak on «hi»
 };
 const PERS_LABEL = { ani: 'ani · I', ata: 'ata · you m', at: 'at · you f', hu: 'hu · he', hi: 'hi · she', anachnu: 'anáchnu · we', atem: 'atem · you pl', hem: 'hem · they' };
 
@@ -394,7 +410,7 @@ function renderList() {
   const by = {};
   VERBS.forEach(v => { (by[v.binyan] = by[v.binyan] || []).push(v); });
   let html = '<div class="verblist">';
-  html += `<div class="meta" style="margin:4px 2px">one melody per binyan — forever. Learn the tune once, sing every verb on it.<br>the voices teach gender: masculine rings (vibraphone) · feminine breathes (clarinet) · I &amp; we float (flute)<br>C = chanted ladder · S = spoken rhythm (the experiment's two arms)<br>-tem forms: the voice sings the formal -tém; street Hebrew says -á-tem — both are right, sing with the voice</div>`;
+  html += `<div class="meta" style="margin:4px 2px">one melody per binyan — forever. Learn the tune once, sing every verb on it.<br>the voices teach grammar: masculine rings (vibraphone, left, QR rungs) · feminine breathes (clarinet, right, NQR rungs) · I &amp; we float (flute, centre)<br>plural sounds as a pair — the rung with its mirror 61−r<br>C = chanted ladder · S = spoken rhythm (the experiment's two arms)<br>-tem forms: the voice sings the formal -tém; street Hebrew says -á-tem — both are right, sing with the voice</div>`;
   for (const bin of ["pa'al", "pi'el", "hif'il"]) {
     html += `<div class="binhead">${bin} · ladder ${LADDERS[bin].join('·')}</div>`;
     (by[bin] || []).forEach(v => {
@@ -565,7 +581,7 @@ function renderDash() {
       <div class="pill" style="margin-top:8px">daily dose: two verbs, one from each arm · sing aloud, always</div></div>
   </div>`;
 }
-function cycleBpm() { const s = [60, 72, 84]; state.bpm = s[(s.indexOf(state.bpm) + 1) % s.length]; save(); renderDash(); }
+function cycleBpm() { const s = [48, 60, 72]; state.bpm = s[(s.indexOf(state.bpm) + 1) % s.length] || 60; save(); renderDash(); }
 function cycleMix() { state.mix = state.mix === 'engine' ? 'guide' : 'engine'; save(); renderDash(); }
 function exportJSON() {
   const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), state, log }, null, 1)], { type: 'application/json' });
