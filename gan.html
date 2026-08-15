@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>גן · gan</title>
+<style>
+  :root {
+    --bg: #14120f; --panel: #1e1b16; --ink: #e8e0d0; --dim: #8a8274;
+    --gold: #c9a44c; --green: #7da87b; --red: #b06a5a; --blue: #7a94b0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: "SBL Hebrew", "Frank Ruhl Libre", Georgia, serif;
+    display: flex; flex-direction: column; align-items: stretch;
+    max-width: 640px; margin: 0 auto;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  header { padding: 12px 16px 6px; text-align: center; }
+  header h1 { font-size: 24px; letter-spacing: 1px; }
+  header .sub { font-size: 11.5px; color: var(--dim); font-family: -apple-system, sans-serif; margin-top: 2px; }
+  #clockRow { text-align: center; padding: 6px 0 0; }
+  #clock { font-size: 44px; font-variant-numeric: tabular-nums; letter-spacing: 2px; }
+  #phaseName { font-size: 20px; margin-top: 2px; }
+  #phaseEn { font-size: 12px; color: var(--dim); font-family: -apple-system, sans-serif; }
+  #hrRow { display: flex; justify-content: center; align-items: baseline; gap: 10px; padding: 10px 0 2px; }
+  #hrBig { font-size: 56px; font-variant-numeric: tabular-nums; color: var(--dim); transition: color .5s; }
+  #hrBig.in { color: var(--green); } #hrBig.above { color: var(--red); } #hrBig.below { color: var(--blue); }
+  #hrLbl { font-size: 13px; color: var(--dim); font-family: -apple-system, sans-serif; }
+  #zoneLbl { text-align: center; font-size: 12px; color: var(--dim); font-family: -apple-system, sans-serif; min-height: 16px; }
+  #caption { flex: 1; overflow-y: auto; padding: 10px 18px; text-align: center; }
+  #capHe { font-size: 24px; direction: rtl; line-height: 1.55; }
+  #capEn { font-size: 13px; color: var(--dim); font-family: -apple-system, sans-serif; margin-top: 8px; }
+  #newsBox { font-size: 12px; color: var(--dim); font-family: -apple-system, sans-serif; margin-top: 10px; }
+  #status { min-height: 16px; text-align: center; font-size: 11.5px; color: var(--dim); font-family: -apple-system, sans-serif; padding: 2px 14px; }
+  #status.err { color: var(--red); }
+  #controls { display: flex; gap: 10px; justify-content: center; padding: 10px 12px 8px; }
+  #controls button {
+    background: var(--panel); border: 1.5px solid var(--gold); border-radius: 14px;
+    color: var(--gold); font-size: 17px; padding: 12px 22px; cursor: pointer; font-family: inherit;
+  }
+  #controls button.primary { background: var(--gold); color: var(--bg); }
+  #setup { padding: 8px 18px 14px; }
+  #setup .row { margin-bottom: 10px; }
+  #setup label { display: block; font-size: 11.5px; color: var(--dim); font-family: -apple-system, sans-serif; margin-bottom: 4px; }
+  #setup input {
+    width: 100%; background: var(--panel); border: 1px solid #3a342a; border-radius: 10px;
+    color: var(--ink); font-size: 13px; padding: 10px; font-family: monospace; outline: none;
+  }
+  #intRow { display: flex; gap: 8px; }
+  .intBtn { flex: 1; background: none; border: 1px solid #3a342a; border-radius: 10px; color: var(--dim); font-size: 13px; padding: 8px; cursor: pointer; font-family: -apple-system, sans-serif; }
+  .intBtn.on { border-color: var(--gold); color: var(--gold); }
+  #note { font-size: 10.5px; color: #5a5449; font-family: -apple-system, sans-serif; text-align: center; padding: 4px 20px 10px; line-height: 1.4; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>גַּן סַאקֶר</h1>
+  <div class="sub">gan · guided workout · v0.2 live · pulse-aware</div>
+</header>
+
+<div id="clockRow">
+  <div id="clock">40:00</div>
+  <div id="phaseName">מוּכָנִים</div>
+  <div id="phaseEn">ready — walk 8:00 · run 11:40 · strength 11:40 · stretch · breath</div>
+</div>
+
+<div id="hrRow"><span id="hrBig">--</span><span id="hrLbl">bpm · ⌚ off</span></div>
+<div id="zoneLbl"></div>
+
+<div id="caption">
+  <div id="capHe"></div>
+  <div id="capEn"></div>
+  <div id="newsBox"></div>
+</div>
+
+<div id="status"></div>
+
+<div id="setup">
+  <div class="row">
+    <label>Pulsoid token (Apple Watch → Pulsoid app → token). Stored on this device only; shared with the QR engine.</label>
+    <input id="tokIn" type="password" autocomplete="off" placeholder="pulsoid token — optional">
+  </div>
+  <div class="row">
+    <label>Anthropic API key for the morning news (shared with sichá). Optional — without it the session simply skips the news.</label>
+    <input id="keyIn" type="password" autocomplete="off" placeholder="sk-ant-... — optional">
+  </div>
+  <div class="row">
+    <label>intensity · target heart zones</label>
+    <div id="intRow">
+      <button class="intBtn" data-i="L">קַל · easy</button>
+      <button class="intBtn on" data-i="M">בֵּינוֹנִי · medium</button>
+      <button class="intBtn" data-i="H">חָזָק · strong</button>
+    </div>
+  </div>
+</div>
+
+<div id="controls">
+  <button id="startBtn" class="primary">הַתְחֵל · start</button>
+  <button id="pauseBtn" class="hidden">הַפְסֵק · pause</button>
+  <button id="skipBtn" class="hidden">דַּלֵּג ⏭ phase</button>
+</div>
+<div id="note">Keep the screen ON — iPhone pauses the page when locked. AirPods in, phone in hand or armband.</div>
+
+<script>
+'use strict';
+/* גן v0.2 — live guided workout. Music: the accepted QR voices (sulam v0.10 canon)
+   through the engine's n²-mod-p room. Pulse: Pulsoid WebSocket, as in the QR engine
+   (same wss URL, same localStorage token key 'qrhr.token'). News: Claude + web search,
+   key shared with sichá ('sicha-key-v1'). Hebrew + English only. */
+
+const TOK_KEY = 'qrhr.token', API_KEY = 'sicha-key-v1';
+const TOTAL = 2400;
+
+/* ============ QR sound (ported from imún v0.2 / sulam v0.10) ============ */
+let ctx = null, master = null, musicIn = null, _conv = null, _comp = null, musicZone = null;
+const P = 61, F0 = 196;
+const QRs = [1, 12, 15, 20, 41, 49], NQRs = [8, 31, 37, 51];
+function modpow(b, e, m) { let r = 1; b %= m; while (e > 0) { if (e & 1) r = r * b % m; b = b * b % m; e >>= 1; } return r; }
+function chi(r, p) { if (r % p === 0) return 0; return modpow(r % p, (p - 1) / 2, p) === 1 ? 1 : -1; }
+function qrRT60(p) { const s = Math.sqrt(Math.max(2, p | 0)); const n = Math.min(1, Math.log2(s) / Math.log2(48)); return 0.4 + n * (1.1 - 0.4); }
+function qrCompRelease(p) { const beat = 60 / 72; const n = Math.min(1, Math.sqrt(Math.max(2, p)) / 24); return Math.max(0.08, Math.min(0.5, beat * (0.18 + 0.5 * n))); }
+function buildQRImpulse(ac, p) {
+  p = Math.max(2, p | 0);
+  const SR = ac.sampleRate, rt = qrRT60(p), len = Math.max(1, Math.floor(rt * SR));
+  const ir = ac.createBuffer(2, len, SR);
+  const nCap = Math.min(p - 1, 9e7);
+  const stride = Math.max(1, Math.floor(nCap / 8192));
+  const lat = []; for (let n = 1; n <= nCap; n += stride) { lat.push(((n * n) % p) / p); }
+  const uniq = Array.from(new Set(lat)).sort((a, b) => a - b);
+  const early = Math.max(1, Math.floor(0.18 * SR));
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch);
+    let lp = 0;
+    for (let i = 0; i < len; i++) {
+      const x = i / len;
+      const e = Math.pow(1 - x, x < 0.3 ? 2.2 : 3.1);
+      const a = 0.62 - 0.56 * x;
+      const w = (Math.random() * 2 - 1) * e * 0.28;
+      lp += (w - lp) * Math.max(0.06, a);
+      d[i] = lp;
+    }
+    for (let k = 0; k < uniq.length; k++) {
+      const frac = (ch === 0) ? uniq[k] : (1 - uniq[k]);
+      const pos = Math.floor(frac * early);
+      if (pos > 0 && pos < len) { d[pos] += ((k & 1) ? -1 : 1) * 0.5 * Math.pow(1 - pos / len, 1.5); }
+    }
+  }
+  return ir;
+}
+function audioInit() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+  const eIn = ctx.createGain(); eIn.gain.value = 0.57;
+  const dry = ctx.createGain(); dry.gain.value = 0.82;
+  const sum = ctx.createGain();
+  eIn.connect(dry); dry.connect(sum);
+  const snd = ctx.createGain(); snd.gain.value = 0.24;
+  _conv = ctx.createConvolver(); _conv.normalize = true; _conv.buffer = buildQRImpulse(ctx, P);
+  const wHP = ctx.createBiquadFilter(); wHP.type = 'highpass'; wHP.frequency.value = 150; wHP.Q.value = 0.5;
+  const wLP = ctx.createBiquadFilter(); wLP.type = 'lowpass'; wLP.frequency.value = 5000; wLP.Q.value = 0.4;
+  const wet = ctx.createGain(); wet.gain.value = 1.0;
+  eIn.connect(snd); snd.connect(_conv); _conv.connect(wHP); wHP.connect(wLP); wLP.connect(wet); wet.connect(sum);
+  const headroom = ctx.createGain(); headroom.gain.value = 0.55;
+  const tame = ctx.createGain(); tame.gain.value = 0.9;
+  _comp = ctx.createDynamicsCompressor();
+  _comp.threshold.value = -10; _comp.knee.value = 12; _comp.ratio.value = 10;
+  _comp.attack.value = 0.004; _comp.release.value = qrCompRelease(P);
+  const eMaster = ctx.createGain(); eMaster.gain.value = 0.72;
+  sum.connect(headroom); headroom.connect(tame); tame.connect(_comp); _comp.connect(eMaster); eMaster.connect(ctx.destination);
+  musicZone = ctx.createGain(); musicZone.gain.value = 1.0;
+  musicZone.connect(eIn);
+  musicIn = musicZone;
+}
+let _waves = null;
+function _mkWaves() {
+  if (_waves) return _waves;
+  const amps = [0, 1.0, 0.06, 0.40, 0.03, 0.20, 0.02, 0.09, 0.01, 0.04];
+  const M = amps.length, r2 = new Float32Array(M), i2 = new Float32Array(M);
+  for (let k = 1; k < M; k++) i2[k] = amps[k] * ((k & 1) ? 1 : -1);
+  const wood = ctx.createPeriodicWave(r2, i2);
+  const vr = new Float32Array(10), vi = new Float32Array(10);
+  vi[1] = 1.0; vi[2] = 0.18; vi[4] = 0.35; vi[9] = 0.08;
+  const vibe = ctx.createPeriodicWave(vr, vi);
+  const fa = [0, 1.0, 0.16, 0.06, 0.025, 0.012];
+  const fr = new Float32Array(6), fi = new Float32Array(6);
+  for (let k = 1; k < 6; k++) fi[k] = fa[k] * ((k & 1) ? 1 : -1);
+  const flute = ctx.createPeriodicWave(fr, fi);
+  _waves = { wood, vibe, flute }; return _waves;
+}
+const _FORMANTS = {
+  wood: [[1500, 3, 1.3], [2400, 2, 2.0], [3600, -5, 1.4]],
+  flute: [[700, 2, 1.0], [2200, 1.5, 1.4]],
+};
+function _body(inst) {
+  const spec = _FORMANTS[inst];
+  if (!spec) { const gg = ctx.createGain(); return { head: gg, out: gg }; }
+  let head = null, tail = null, boost = 0;
+  spec.forEach(fgq => {
+    const n = ctx.createBiquadFilter(); n.type = 'peaking';
+    n.frequency.value = fgq[0]; n.gain.value = fgq[1]; n.Q.value = fgq[2];
+    if (fgq[1] > 0) boost += fgq[1];
+    if (tail) tail.connect(n); else head = n; tail = n;
+  });
+  const trim = ctx.createGain(); trim.gain.value = Math.pow(10, -Math.min(6, boost * 0.18) / 20);
+  tail.connect(trim);
+  return { head, out: trim };
+}
+function qrTone(t, r, vol, dur, inst, pan) {
+  if (!ctx) return;
+  const rr = ((r % P) + P) % P || 1;
+  const f = F0 * (P + rr) / P;
+  inst = inst || (chi(rr, P) >= 0 ? 'vibe' : 'wood');
+  const d = dur || 0.5;
+  const osc = ctx.createOscillator(); osc.setPeriodicWave(_mkWaves()[inst]); osc.frequency.value = f;
+  const k2 = ((Math.round(f) % P) + P) % P || 1;
+  osc.detune.value = (chi(k2, P) === 1 ? 1 : -1) * 2.5 * 0.5;
+  const vv = inst === 'wood' ? vol * 0.72 : inst === 'flute' ? vol * 0.85 : vol * 0.9;
+  const env = ctx.createGain();
+  if (inst === 'vibe') {
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(vv, t + 0.010);
+    env.gain.exponentialRampToValueAtTime(Math.max(1e-4, vv * 0.22), t + d);
+    env.gain.exponentialRampToValueAtTime(1e-4, t + d + 0.12);
+  } else {
+    const a = Math.min(0.6, Math.max(0.10, d * 0.16));
+    const rl = Math.min(0.9, Math.max(0.16, d * 0.18));
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(vv, t + a);
+    env.gain.setValueAtTime(vv, t + Math.max(a + 0.001, d - rl));
+    env.gain.exponentialRampToValueAtTime(1e-4, t + d);
+  }
+  env.gain.setValueAtTime(0, t + d + 0.15);
+  const body = _body(inst);
+  if (inst === 'wood') {
+    const soft = ctx.createBiquadFilter(); soft.type = 'lowpass';
+    soft.frequency.value = Math.min(4200, f * 5); soft.Q.value = 0.5;
+    osc.connect(soft); soft.connect(body.head);
+  } else {
+    osc.connect(body.head);
+  }
+  body.out.connect(env);
+  const pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+  if (pn) { pn.pan.value = pan || 0; env.connect(pn); pn.connect(musicIn); }
+  else env.connect(musicIn);
+  osc.start(t); osc.stop(t + d + 0.3);
+}
+
+/* ============ heart: Pulsoid WS, as in the engine's QRHR ============ */
+const HR = { bpm: 0, ema: 0, online: false, lastAt: 0 };
+let hrWs = null, hrWant = false, hrAttempt = 0;
+function hrConnect() {
+  const tok = (document.getElementById('tokIn').value || '').trim() || localStorage.getItem(TOK_KEY) || '';
+  if (!tok) return;
+  localStorage.setItem(TOK_KEY, tok);
+  hrWant = true;
+  const url = 'wss://dev.pulsoid.net/api/v1/data/real_time?access_token=' +
+    encodeURIComponent(tok) + '&response_mode=text_plain_only_heart_rate';
+  try { hrWs = new WebSocket(url); } catch (e) { return; }
+  hrWs.onmessage = ev => {
+    let v = null;
+    const s = String(ev.data).trim();
+    if (s && s[0] !== '{') v = Number(s);
+    else { try { const o = JSON.parse(s); v = o && o.data && o.data.heart_rate; } catch (e) {} }
+    v = Number(v);
+    if (!isFinite(v) || v <= 0 || v > 300) return;
+    HR.bpm = Math.round(v);
+    HR.ema = HR.ema > 0 ? HR.ema + 0.25 * (v - HR.ema) : v;
+    HR.lastAt = Date.now(); HR.online = true; hrAttempt = 0;
+  };
+  hrWs.onclose = () => { HR.online = false; if (hrWant) setTimeout(hrConnect, Math.min(30000, 1000 * Math.pow(2, hrAttempt++))); };
+  hrWs.onerror = () => {};
+}
+setInterval(() => { if (HR.online && Date.now() - HR.lastAt > 30000) HR.online = false; }, 2000);
+
+/* ============ speech ============ */
+let heVoice = null, enVoice = null;
+function pickVoices() {
+  const vs = speechSynthesis.getVoices();
+  heVoice = vs.find(v => /he[-_]IL/i.test(v.lang) && /enhanced|premium|carmit/i.test(v.name))
+        || vs.find(v => /he[-_]IL/i.test(v.lang)) || null;
+  enVoice = vs.find(v => /^en/i.test(v.lang) && /samantha/i.test(v.name))
+        || vs.find(v => /^en[-_](US|GB)/i.test(v.lang)) || null;
+}
+if ('speechSynthesis' in window) { pickVoices(); speechSynthesis.onvoiceschanged = pickVoices; }
+function speak(text, slow) {
+  if (!('speechSynthesis' in window)) return;
+  const isHe = /[֐-׿]/.test(text);
+  const u = new SpeechSynthesisUtterance(text);
+  if (isHe && heVoice) u.voice = heVoice;
+  if (!isHe && enVoice) u.voice = enVoice;
+  u.lang = isHe ? 'he-IL' : 'en-US';
+  u.rate = isHe ? (slow ? 0.78 : 0.9) : 1.0;
+  u.onstart = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain * 0.45, ctx.currentTime, 0.15); };
+  u.onend = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain, ctx.currentTime, 0.3); };
+  speechSynthesis.speak(u);
+}
+
+/* ============ the program ============ */
+// [t, kind, text]  kind: he | hs (slow) | en   — same script as gan.m4a v0.1
+const EV = [];
+function he(t, x) { EV.push([t, 'he', x]); }
+function hs(t, x) { EV.push([t, 'hs', x]); }
+function en(t, x) { EV.push([t, 'en', x]); }
+
+he(2, 'שָׁלוֹם יַעֲקֹב. אֲנַחְנוּ בְּגַן סַאקֶר. מַתְחִילִים בַּהֲלִיכָה.');
+en(9, 'Forty minutes: walk, light run, strength, cool-down. In every pause, answer out loud.');
+he(17, 'הוֹלְכִים. צַעַד אַחַר צַעַד, עִם הַמּוּזִיקָה.');
+const WALK = [
+  ['אֲנִי הוֹלֵךְ בַּפַּארְק.', 'I am walking in the park.'],
+  ['הָאֲוִיר נָעִים הַבֹּקֶר.', 'The air is pleasant this morning.'],
+  ['אֲנִי נוֹשֵׁם עָמֹק.', 'I breathe deeply.'],
+  ['הַגּוּף מִתְעוֹרֵר, צַעַד אַחַר צַעַד.', 'The body wakes up, step by step.'],
+  ['הָרַגְלַיִם חֲזָקוֹת.', 'The legs are strong.'],
+  ['הַגַּב יָשָׁר, הַכְּתֵפַיִם רְפוּיוֹת.', 'The back is straight, the shoulders relaxed.'],
+  ['הַלֵּב שֶׁלִּי מְנַגֵּן עִם הַמּוּזִיקָה.', 'My heart is playing along with the music.'],
+  ['אֲנִי מוּכָן לָרוּץ.', 'I am ready to run.'],
+];
+{ let t = 30; for (const [h, e] of WALK) { hs(t, h); en(t + 7, e); hs(t + 12, h); t += 34; } }
+he(310, 'אֵיךְ אַתָּה מַרְגִּישׁ? עֲנֵה בְּקוֹל.');
+en(317, 'How do you feel? Answer in Hebrew, out loud.');
+he(345, 'מָה אַתָּה רוֹאֶה עַכְשָׁו בַּפַּארְק?');
+en(352, 'What do you see in the park right now?');
+he(430, 'עוֹד חֲצִי דַּקָּה — מַתְחִילִים לָרוּץ לְאַט.');
+en(437, 'Half a minute more, then an easy run.');
+he(480, 'עַכְשָׁו — רָצִים קַל. לֹא מַהֵר. הַנְּשִׁימָה רְגוּעָה.');
+en(488, 'Easy run now. Not fast. Calm breathing.');
+const RUN = [
+  ['אֲנִי רָץ בְּגַן סַאקֶר. לֹא מַהֵר — קַל וְנָעִים.', 'I run in Gan Sacker. Not fast — easy and pleasant.'],
+  ['פַּעַם הָיָה כָּאן שָׂדֶה. הַיּוֹם יֵשׁ דֶּשֶׁא, עֵצִים וּשְׁבִילִים.', 'Once there was a field here. Today there is grass, trees and paths.'],
+  ['אֲנִי רָץ וְחוֹשֵׁב עַל הָאוֹפֶּרָה שֶׁלִּי. מוּזִיקָה, עִבְרִית, יְרוּשָׁלַיִם.', 'I run and think about my opera. Music, Hebrew, Jerusalem.'],
+];
+const COUNT8 = 'אַחַת, שְׁתַּיִם, שָׁלוֹשׁ, אַרְבַּע. חָמֵשׁ, שֵׁשׁ, שֶׁבַע, שְׁמוֹנֶה.';
+{ let t = 520; for (const [h, e] of RUN) { he(t, h); en(t + 9, e); he(t + 60, COUNT8); t += 120; } }
+he(880, 'לְאָן אַתָּה רָץ? עֲנֵה בְּקוֹל.');
+en(887, 'Where are you running to? Out loud.');
+he(940, COUNT8);
+he(1000, 'מָה יוֹתֵר יָפֶה — הַבֹּקֶר אוֹ הַלַּיְלָה?');
+en(1007, 'What is more beautiful, the morning or the night?');
+he(1060, 'נוֹשְׁמִים בַּקֶּצֶב. הַגּוּף חַם.');
+en(1067, 'Breathing in rhythm. The body is warm.');
+he(1140, 'לְאַט לְאַט... עוֹצְרִים לָלֶכֶת. מְחַפְּשִׂים סַפְסָל.');
+en(1148, 'Slow down to a walk. Find a bench.');
+he(1180, 'מָצָאנוּ סַפְסָל. עַכְשָׁו — כּוֹחַ. שְׁנֵי סִבּוּבִים.');
+en(1188, 'Strength now. Two rounds. I count in Hebrew, you move.');
+const NUMS = ['אַחַת', 'שְׁתַּיִם', 'שָׁלוֹשׁ', 'אַרְבַּע', 'חָמֵשׁ', 'שֵׁשׁ', 'שֶׁבַע', 'שְׁמוֹנֶה', 'תֵּשַׁע', 'עֶשֶׂר'];
+const EXS = [
+  ['סְקְווֹט — כְּפִיפוֹת בִּרְכַּיִם. הַגַּב יָשָׁר.', 'Squats. Back straight. Ten, with my count.', 10],
+  ['שְׁכִיבוֹת סְמִיכָה עַל הַסַּפְסָל.', 'Push-ups on the bench. Ten.', 10],
+  ['מַכְרָע — צַעַד גָּדוֹל קָדִימָה, בֶּרֶךְ יוֹרֶדֶת.', 'Lunges: big step forward. Eight, alternating legs.', 8],
+  ['פְּלַאנְק עַל הַסַּפְסָל. הַבֶּטֶן חֲזָקָה.', 'Plank on the bench. Thirty seconds.', 0],
+];
+const RWORDS = [['בֶּרֶךְ', 'knee'], ['כָּתֵף', 'shoulder'], ['גַּב', 'back'], ['בֶּטֶן', 'belly'],
+  ['יָד', 'hand, arm'], ['רֶגֶל', 'leg'], ['לֵב', 'heart'], ['נְשִׁימָה', 'breath']];
+{
+  let t = 1210, wi = 0;
+  for (let rnd = 1; rnd <= 2; rnd++) {
+    for (const [nh, ne, reps] of EXS) {
+      he(t, nh); en(t + 6, ne);
+      if (reps) {
+        for (let i = 0; i < reps; i++) he(t + 14 + i * 3.2, NUMS[i]);
+        he(t + 14 + reps * 3.2 + 1, 'מְצֻיָּן!');
+      } else {
+        he(t + 14, 'עֶשֶׂר שְׁנִיּוֹת.'); he(t + 24, 'עֶשְׂרִים.'); he(t + 34, 'שְׁלוֹשִׁים! מְצֻיָּן!');
+      }
+      const [rw, re] = RWORDS[wi % RWORDS.length]; wi++;
+      he(t + 54, 'מְנוּחָה. נְשֹׁם.');
+      hs(t + 60, rw); en(t + 65, re); hs(t + 68, rw);
+      t += 80;
+    }
+    if (rnd === 1) { he(t, 'סִבּוּב שֵׁנִי. אַתָּה חָזָק.'); en(t + 6, 'Round two. You are strong.'); t += 20; }
+  }
+}
+he(1880, 'מְתִיחוֹת. מוֹתְחִים אֶת הָרַגְלַיִם לְאַט.');
+en(1888, 'Stretch. Legs first, slowly.');
+he(1930, 'הַיָּדַיִם לְמַעְלָה... וּלְמַטָּה.');
+en(1937, 'Arms up... and down.');
+he(1980, 'הַצַּוָּאר יָמִינָה... וּשְׂמֹאלָה.');
+en(1987, 'Neck to the right... and to the left.');
+he(2050, 'הוֹלְכִים לְאַט. נוֹשְׁמִים עִם הַצְּלִילִים.');
+en(2058, 'Slow walk. Breathe with the tones: in on the rising, out on the falling.');
+he(2075, 'שְׁאַף...'); he(2081, 'נְשֹׁף...');
+he(2085, 'שְׁאַף...'); he(2091, 'נְשֹׁף...');
+he(2200, 'הַמִּלִּים שֶׁל הַיּוֹם. תַּחְזֹר בְּקוֹל.');
+en(2207, 'The words of the day. Repeat out loud.');
+const RECAP = [['פַּארְק', 'park'], ['צַעַד', 'step'], ['לָרוּץ', 'to run'], ['סַפְסָל', 'bench'],
+  ['כּוֹחַ', 'strength'], ['בֶּרֶךְ', 'knee'], ['גַּב', 'back'], ['נְשִׁימָה', 'breath']];
+{ let t = 2215; for (const [h, e] of RECAP) { hs(t, h); en(t + 4, e); hs(t + 7, h); t += 13; } }
+he(2350, 'כָּל הַכָּבוֹד, יַעֲקֹב. הָיִיתָ חָזָק הַבֹּקֶר.');
+en(2358, 'Well done. Strong session. See you in the chat, and on the way to the opera.');
+EV.sort((a, b) => a[0] - b[0]);
+
+/* phases: [start, name he, name en, bpm, zone M [lo,hi]] */
+const PHASES = [
+  [0,    'הֲלִיכָה', 'walk · 104', 104, [85, 112]],
+  [480,  'רִיצָה קַלָּה', 'easy run · 148', 148, [115, 145]],
+  [1180, 'כּוֹחַ', 'strength · bench', 60, [95, 135]],
+  [1880, 'מְתִיחוֹת', 'stretch', 0, [80, 125]],
+  [2050, 'נְשִׁימָה', 'breath 4·6 + words', 0, [0, 112]],
+];
+const INT_SHIFT = { L: -10, M: 0, H: 10 };
+
+/* ============ session engine ============ */
+let running = false, paused = false, t0 = 0, pausedAt = 0;
+let intensity = 'M', zoneGain = 1.0, zoneState = 'in', zoneSince = 0, lastCue = 0;
+let beatPos = 0, beatIdx = 0, lastSched = 0, heartNext = 0;
+let news = null, newsSpoken = false;
+
+const $ = id => document.getElementById(id);
+function now() { return running ? (paused ? pausedAt : (Date.now() - t0) / 1000) : 0; }
+function phaseAt(t) { let ph = PHASES[0]; for (const p of PHASES) if (t >= p[0]) ph = p; return ph; }
+function fmt(t) { t = Math.max(0, TOTAL - t); const m = Math.floor(t / 60), s = Math.floor(t % 60); return m + ':' + String(s).padStart(2, '0'); }
+
+function rungAt(i, rungs) { // chi-driven ladder walk, as in the baked session
+  let idx = 0;
+  for (let k = 0; k < (i % 24); k++) idx = (idx + (chi(k + 2, P) >= 0 ? 1 : rungs.length - 1)) % rungs.length;
+  return rungs[idx];
+}
+
+function tick() {
+  if (!running || paused) return;
+  const t = now();
+  if (t >= TOTAL) { finish(); return; }
+  const ph = phaseAt(t);
+  $('clock').textContent = fmt(t);
+  $('phaseName').textContent = ph[1];
+  $('phaseEn').textContent = ph[2];
+
+  // speech events (4th slot = spoken flag, survives sorts and inserts)
+  for (const e of EV) {
+    if (e[0] <= t && e[0] > t - 15 && !e[3]) {
+      e[3] = true;
+      speak(e[2], e[1] === 'hs');
+      if (/[֐-׿]/.test(e[2])) { $('capHe').textContent = e[2]; $('capEn').textContent = ''; }
+      else $('capEn').textContent = e[2];
+    }
+  }
+
+  // music: lookahead beat scheduler
+  const act = ctx.currentTime;
+  const bpm = ph[3];
+  if (bpm > 0) {
+    const step = 60 / bpm;
+    if (lastSched < act) { lastSched = act + 0.1; beatPos = lastSched; }
+    while (beatPos < act + 0.8) {
+      const i = beatIdx++;
+      if (ph[0] === 0) { // walk: QR rungs, accent 4th, mirror dyad 8th
+        const r = rungAt(i, QRs);
+        qrTone(beatPos, r, i % 4 ? 0.10 : 0.15, 0.9, 'vibe', 0.35 * chi(r, P));
+        if (i % 8 === 7) qrTone(beatPos, (P - r) % P || 1, 1.4, 0.07, 'vibe', -0.35 * chi(r, P));
+      } else if (ph[0] === 480) { // run: short blips, side by chi(beat)
+        const r = rungAt(i, QRs.concat(NQRs));
+        qrTone(beatPos, r, i % 2 === 0 ? 0.11 : 0.07, 0.45, 'vibe', 0.4 * (chi(i + 1, P) >= 0 ? 1 : -1));
+        if (i % 16 === 15) qrTone(beatPos, 8, 2.2, 0.05, 'flute', 0);
+      } else { // strength: calm 60
+        qrTone(beatPos, QRs[i % QRs.length], 0.075, 0.8, 'vibe', 0.25 * chi(QRs[i % QRs.length], P));
+      }
+      beatPos += step;
+      lastSched = beatPos;
+    }
+  } else if (ph[0] === 1880) { // stretch: slow flute pairs every 12 s
+    if (act > lastSched) {
+      const k = beatIdx++;
+      const r = QRs[k % QRs.length];
+      qrTone(act + 0.1, r, 0.08, 5.0, 'flute', -0.2);
+      qrTone(act + 6.1, (P - r) % P || 1, 0.06, 5.0, 'flute', 0.2);
+      lastSched = act + 12;
+    }
+  } else if (ph[0] === 2050) { // breath: 4 in (rising QR) / 6 out (falling NQR)
+    if (act > lastSched) {
+      qrTone(act + 0.1, 15, 0.10, 3.6, 'flute', -0.15);
+      qrTone(act + 4.1, 8, 0.08, 5.4, 'flute', 0.15);
+      lastSched = act + 10;
+    }
+  }
+
+  // heart layer: soft wood pulse at his live heart rate
+  if (HR.online && HR.ema > 30) {
+    const beat = 60 / HR.ema;
+    if (heartNext < act) heartNext = act + 0.05;
+    while (heartNext < act + 0.8) {
+      qrTone(heartNext, 1, 0.045, 0.22, 'wood', 0);
+      heartNext += beat;
+    }
+  }
+
+  // zones + dosed coaching
+  const band = ph[4].map(x => x > 0 ? x + INT_SHIFT[intensity] : x);
+  const hrEl = $('hrBig');
+  if (HR.online) {
+    hrEl.textContent = HR.bpm;
+    $('hrLbl').textContent = 'bpm · ⌚ live';
+    const z = HR.ema < band[0] ? 'below' : HR.ema > band[1] ? 'above' : 'in';
+    hrEl.className = z;
+    $('zoneLbl').textContent = 'zone ' + band[0] + '–' + band[1] +
+      (z === 'in' ? ' · בַּקֶּצֶב' : z === 'above' ? ' · high' : ' · low');
+    if (z !== zoneState) { zoneState = z; zoneSince = t; }
+    const inState = t - zoneSince;
+    if (z === 'above') {
+      musicZone.gain.setTargetAtTime((zoneGain = 0.7), act, 0.5);
+      if (inState > 25 && t - lastCue > 60 && ph[3] > 0) {
+        lastCue = t; speak('לְאַט יוֹתֵר. נְשֹׁם עָמֹק.');
+      }
+    } else {
+      musicZone.gain.setTargetAtTime((zoneGain = 1.0), act, 0.5);
+      if (z === 'below' && inState > 30 && t - lastCue > 60 && (ph[0] === 0 || ph[0] === 480)) {
+        lastCue = t; speak('אֶפְשָׁר קְצָת יוֹתֵר מַהֵר.');
+      }
+    }
+  } else {
+    hrEl.textContent = '--'; hrEl.className = '';
+    $('hrLbl').textContent = 'bpm · ⌚ off';
+    $('zoneLbl').textContent = '';
+  }
+
+  // news: play when ready, in a quiet window
+  if (news && !newsSpoken) {
+    const quiet = (t > 285 && t < 460) || (t > 700 && t < 860) || (t > 1885 && t < 2030) || (t > 2100 && t < 2185);
+    if (quiet) {
+      newsSpoken = true;
+      let nt = t + 2;
+      const add = (tt, kind, text) => { EV.push([tt, kind, text]); };
+      add(nt, 'he', 'וְעַכְשָׁו — חֲדָשׁוֹת הַבֹּקֶר.');
+      add(nt + 4, 'en', 'The morning news, in Hebrew and English.');
+      nt += 8;
+      for (const item of news) {
+        add(nt, 'hs', item.he);
+        add(nt + 8, 'en', item.en);
+        nt += 17;
+      }
+      add(nt, 'he', 'זֶה הַכֹּל. חוֹזְרִים לַתְּנוּעָה.');
+      EV.sort((a, b) => a[0] - b[0]);
+      $('newsBox').textContent = news.map(n => '· ' + n.en).join('  ');
+    }
+  }
+}
+
+/* ============ news via Claude + web search ============ */
+async function fetchNews() {
+  const key = (document.getElementById('keyIn').value || '').trim() || localStorage.getItem(API_KEY) || '';
+  if (!key) return;
+  localStorage.setItem(API_KEY, key);
+  $('status').textContent = 'fetching the morning news…';
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-5',
+        max_tokens: 3000,
+        output_config: { effort: 'low' },
+        tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 4 }],
+        messages: [{
+          role: 'user',
+          content: 'Search for today\'s top news: 2 world items and 2 Israel items. Then output EXACTLY 8 lines, nothing else: for each of the 4 items, first ONE short simple Hebrew sentence (lower-intermediate level, FULL niqqud on every word, no names transliterated awkwardly - keep names simple), then ONE short English sentence with the same meaning. No headlines, no numbering, no links, no extra text - just the 8 alternating lines.'
+        }]
+      })
+    });
+    if (!res.ok) throw new Error('news: API ' + res.status);
+    const data = await res.json();
+    if (data.stop_reason === 'refusal') throw new Error('news declined');
+    const txt = data.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+    const lines = txt.split('\n').map(s => s.trim()).filter(s => s.length > 3);
+    const items = [];
+    let cur = null;
+    for (const ln of lines) {
+      if (/[֐-׿]/.test(ln)) { cur = { he: ln, en: '' }; items.push(cur); }
+      else if (cur && !cur.en) cur.en = ln;
+    }
+    news = items.filter(i => i.he && i.en).slice(0, 4);
+    $('status').textContent = news.length ? 'news ready · ' + news.length + ' items' : 'news: nothing parsed';
+  } catch (e) {
+    $('status').textContent = String(e.message || e);
+  }
+}
+
+/* ============ controls ============ */
+let wakeLock = null;
+async function keepAwake() {
+  try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (running && document.visibilityState === 'visible') keepAwake(); });
+
+document.querySelectorAll('.intBtn').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.intBtn').forEach(x => x.classList.remove('on'));
+    b.classList.add('on'); intensity = b.dataset.i;
+  };
+});
+
+$('startBtn').onclick = () => {
+  audioInit();
+  ctx.resume();
+  if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(' '); speechSynthesis.speak(u); }
+  hrConnect();
+  fetchNews();
+  running = true; paused = false; t0 = Date.now();
+  EV.forEach(e => { e[3] = false; });
+  beatIdx = 0; lastSched = 0; heartNext = 0;
+  $('setup').classList.add('hidden');
+  $('startBtn').classList.add('hidden');
+  $('pauseBtn').classList.remove('hidden');
+  $('skipBtn').classList.remove('hidden');
+  keepAwake();
+};
+$('pauseBtn').onclick = () => {
+  if (!paused) {
+    paused = true; pausedAt = (Date.now() - t0) / 1000;
+    ctx.suspend(); speechSynthesis.cancel();
+    $('pauseBtn').textContent = 'הַמְשֵׁךְ · resume';
+  } else {
+    paused = false; t0 = Date.now() - pausedAt * 1000;
+    ctx.resume(); lastSched = 0; heartNext = 0;
+    $('pauseBtn').textContent = 'הַפְסֵק · pause';
+  }
+};
+$('skipBtn').onclick = () => {
+  const t = now();
+  const nxt = PHASES.find(p => p[0] > t);
+  if (!nxt) { finish(); return; }
+  speechSynthesis.cancel();
+  t0 = Date.now() - nxt[0] * 1000;
+  EV.forEach(e => { if (e[0] < nxt[0]) e[3] = true; });
+  lastSched = 0; heartNext = 0; beatIdx = 0;
+};
+function finish() {
+  running = false;
+  qrTone(ctx.currentTime + 0.1, 12, 0.12, 8.0, 'flute', -0.2);
+  qrTone(ctx.currentTime + 0.1, 49, 0.12, 8.0, 'flute', 0.2);
+  $('clock').textContent = '0:00';
+  $('phaseName').textContent = 'סוֹף';
+  $('phaseEn').textContent = 'done · kol hakavod';
+  $('pauseBtn').classList.add('hidden');
+  $('skipBtn').classList.add('hidden');
+}
+
+/* prefill */
+(function () {
+  const tk = localStorage.getItem(TOK_KEY); if (tk) $('tokIn').value = tk;
+  const ak = localStorage.getItem(API_KEY); if (ak) $('keyIn').value = ak;
+})();
+setInterval(tick, 250);
+</script>
+</body>
+</html>
