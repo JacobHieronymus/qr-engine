@@ -78,7 +78,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <div id="top">
-  <h1>קוֹל קוֹרֵא</h1><span class="sub">zov · étude 1 · v0.4 · 480</span>
+  <h1>קוֹל קוֹרֵא</h1><span class="sub">zov · étude 1 · v0.4.1 · 480</span>
   <span id="streak"></span>
 </div>
 <div id="tabs">
@@ -148,9 +148,10 @@ function save() { clearTimeout(saveT); saveT = setTimeout(() => { localStorage.s
 /* étude-1 condition: within each (set,pos) run, alternate G(uess-first)/P(resent-first) */
 const COND = {};
 (() => {
-  const buckets = {};
-  CORPUS.forEach(it => { const k = it.set + '|' + it.pos; (buckets[k] = buckets[k] || []).push(it.id); });
-  Object.values(buckets).forEach(ids => ids.forEach((id, i) => COND[id] = (i % 2 === 0) ? 'G' : 'P'));
+  // v0.4.1: condition by id-number parity — deterministic, stable across devices,
+  // and independent of intro order. The old per-bucket index alternation collapsed
+  // to all-G when the picker took one item per set (day-0 data, 15.08: 36/36 G).
+  CORPUS.forEach(it => { COND[it.id] = (parseInt(it.id.slice(1), 10) % 2 === 0) ? 'G' : 'P'; });
 })();
 const ITEMS = {}; CORPUS.forEach(it => ITEMS[it.id] = it);
 
