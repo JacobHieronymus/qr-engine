@@ -76,7 +76,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <div id="top">
-  <h1>אִמּוּן</h1><span class="sub">imún · mind gym · v0.1</span>
+  <h1>אִמּוּן</h1><span class="sub">imún · mind gym · v0.2 · the accepted voices</span>
   <span id="streak"></span>
 </div>
 <div id="tabs">
@@ -112,29 +112,150 @@ function load() {
 function save() { localStorage.setItem(SKEY, JSON.stringify(state)); }
 
 /* ============ QR sound: rational ladder over prime p, timbre by Legendre chi ============ */
-let ctx = null, master = null;
-function audioInit() {
-  if (ctx) return;
-  ctx = new (window.AudioContext || window.webkitAudioContext)();
-  master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
-}
+let ctx = null, master = null, musicIn = null, _conv = null, _comp = null;
 function modpow(b, e, m) { let r = 1; b %= m; while (e > 0) { if (e & 1) r = r * b % m; b = b * b % m; e >>= 1; } return r; }
 function chi(r, p) { if (r % p === 0) return 0; return modpow(r % p, (p - 1) / 2, p) === 1 ? 1 : -1; }
 const F0 = 196; // G3
-// one tone of the ladder: frequency (p+r)/p above F0, chi decides character
-function qrTone(t, r, vol, dur) {
+/* ==== the accepted sulam sound (v0.10 canon, 14.08): calm voices + the engine's
+   n²-mod-p room. Digits stay bone-dry (measurement material); music gets the room. */
+function qrRT60(p) {
+  const s = Math.sqrt(Math.max(2, p | 0));
+  const n = Math.min(1, Math.log2(s) / Math.log2(48));
+  return 0.4 + n * (1.1 - 0.4);
+}
+function qrCompRelease(p) {
+  const beat = 60 / 72;
+  const n = Math.min(1, Math.sqrt(Math.max(2, p)) / 24);
+  return Math.max(0.08, Math.min(0.5, beat * (0.18 + 0.5 * n)));
+}
+function buildQRImpulse(ac, p) { // engine verbatim: Schroeder n²-mod-p diffusor
+  p = Math.max(2, p | 0);
+  const SR = ac.sampleRate, rt = qrRT60(p), len = Math.max(1, Math.floor(rt * SR));
+  const ir = ac.createBuffer(2, len, SR);
+  const nCap = Math.min(p - 1, 9e7);
+  const stride = Math.max(1, Math.floor(nCap / 8192));
+  const lat = []; for (let n = 1; n <= nCap; n += stride) { lat.push(((n * n) % p) / p); }
+  const uniq = Array.from(new Set(lat)).sort((a, b) => a - b);
+  const early = Math.max(1, Math.floor(0.18 * SR));
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch);
+    let lp = 0;
+    for (let i = 0; i < len; i++) {
+      const x = i / len;
+      const e = Math.pow(1 - x, x < 0.3 ? 2.2 : 3.1);
+      const a = 0.62 - 0.56 * x;
+      const w = (Math.random() * 2 - 1) * e * 0.28;
+      lp += (w - lp) * Math.max(0.06, a);
+      d[i] = lp;
+    }
+    for (let k = 0; k < uniq.length; k++) {
+      const frac = (ch === 0) ? uniq[k] : (1 - uniq[k]);
+      const pos = Math.floor(frac * early);
+      if (pos > 0 && pos < len) { d[pos] += ((k & 1) ? -1 : 1) * 0.5 * Math.pow(1 - pos / len, 1.5); }
+    }
+  }
+  return ir;
+}
+function audioInit() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination); // digits: dry
+  const eIn = ctx.createGain(); eIn.gain.value = 0.57;
+  const dry = ctx.createGain(); dry.gain.value = 0.82;
+  const sum = ctx.createGain();
+  eIn.connect(dry); dry.connect(sum);
+  const snd = ctx.createGain(); snd.gain.value = 0.24;
+  _conv = ctx.createConvolver(); _conv.normalize = true; _conv.buffer = buildQRImpulse(ctx, state.p);
+  const wHP = ctx.createBiquadFilter(); wHP.type = 'highpass'; wHP.frequency.value = 150; wHP.Q.value = 0.5;
+  const wLP = ctx.createBiquadFilter(); wLP.type = 'lowpass'; wLP.frequency.value = 5000; wLP.Q.value = 0.4;
+  const wet = ctx.createGain(); wet.gain.value = 1.0;
+  eIn.connect(snd); snd.connect(_conv); _conv.connect(wHP); wHP.connect(wLP); wLP.connect(wet); wet.connect(sum);
+  const headroom = ctx.createGain(); headroom.gain.value = 0.55;
+  const tame = ctx.createGain(); tame.gain.value = 0.9;
+  _comp = ctx.createDynamicsCompressor();
+  _comp.threshold.value = -10; _comp.knee.value = 12; _comp.ratio.value = 10;
+  _comp.attack.value = 0.004; _comp.release.value = qrCompRelease(state.p);
+  const eMaster = ctx.createGain(); eMaster.gain.value = 0.72;
+  sum.connect(headroom); headroom.connect(tame); tame.connect(_comp); _comp.connect(eMaster); eMaster.connect(ctx.destination);
+  musicIn = eIn;
+}
+function roomSetP(p) { // prime change rebuilds the room, as the engine does
   if (!ctx) return;
-  const p = state.p, x = chi(r, p);
-  const f = F0 * (p + (((r % p) + p) % p)) / p;
-  const o = ctx.createOscillator(), g = ctx.createGain();
-  o.type = x >= 0 ? 'sine' : 'triangle';
-  o.frequency.value = x >= 0 ? f : f / 2;
-  const d = dur || (x >= 0 ? 0.30 : 0.14);
-  g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(vol * (x >= 0 ? 1 : 0.7), t + 0.012);
-  g.gain.exponentialRampToValueAtTime(0.0008, t + d);
-  o.connect(g); g.connect(master);
-  o.start(t); o.stop(t + d + 0.05);
+  try { _conv.buffer = buildQRImpulse(ctx, p); } catch (e) {}
+  try { _comp.release.value = qrCompRelease(p); } catch (e) {}
+}
+let _waves = null;
+function _mkWaves() {
+  if (_waves) return _waves;
+  const amps = [0, 1.0, 0.06, 0.40, 0.03, 0.20, 0.02, 0.09, 0.01, 0.04];
+  const M = amps.length, r2 = new Float32Array(M), i2 = new Float32Array(M);
+  for (let k = 1; k < M; k++) i2[k] = amps[k] * ((k & 1) ? 1 : -1);
+  const wood = ctx.createPeriodicWave(r2, i2);
+  const vr = new Float32Array(10), vi = new Float32Array(10);
+  vi[1] = 1.0; vi[2] = 0.18; vi[4] = 0.35; vi[9] = 0.08;
+  const vibe = ctx.createPeriodicWave(vr, vi);
+  const fa = [0, 1.0, 0.16, 0.06, 0.025, 0.012];
+  const fr = new Float32Array(6), fi = new Float32Array(6);
+  for (let k = 1; k < 6; k++) fi[k] = fa[k] * ((k & 1) ? 1 : -1);
+  const flute = ctx.createPeriodicWave(fr, fi);
+  _waves = { wood, vibe, flute }; return _waves;
+}
+const _FORMANTS = {
+  wood: [[1500, 3, 1.3], [2400, 2, 2.0], [3600, -5, 1.4]],
+  flute: [[700, 2, 1.0], [2200, 1.5, 1.4]],
+};
+function _body(inst) {
+  const spec = _FORMANTS[inst];
+  if (!spec) { const gg = ctx.createGain(); return { head: gg, out: gg }; }
+  let head = null, tail = null, boost = 0;
+  spec.forEach(fgq => {
+    const n = ctx.createBiquadFilter(); n.type = 'peaking';
+    n.frequency.value = fgq[0]; n.gain.value = fgq[1]; n.Q.value = fgq[2];
+    if (fgq[1] > 0) boost += fgq[1];
+    if (tail) tail.connect(n); else head = n; tail = n;
+  });
+  const trim = ctx.createGain(); trim.gain.value = Math.pow(10, -Math.min(6, boost * 0.18) / 20);
+  tail.connect(trim);
+  return { head, out: trim };
+}
+// one calm tone: inst ∈ vibe|wood|flute, panned, through the engine room
+function qrTone(t, r, vol, dur, inst, pan) {
+  if (!ctx) return;
+  const p = state.p, rr = ((r % p) + p) % p || 1;
+  const f = F0 * (p + rr) / p;
+  inst = inst || (chi(rr, p) >= 0 ? 'vibe' : 'wood');
+  const d = dur || 0.5;
+  const osc = ctx.createOscillator(); osc.setPeriodicWave(_mkWaves()[inst]); osc.frequency.value = f;
+  const k2 = ((Math.round(f) % p) + p) % p || 1;
+  osc.detune.value = (chi(k2, p) === 1 ? 1 : -1) * 2.5 * 0.5;
+  const vv = inst === 'wood' ? vol * 0.72 : inst === 'flute' ? vol * 0.85 : vol * 0.9;
+  const env = ctx.createGain();
+  if (inst === 'vibe') {
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(vv, t + 0.010);
+    env.gain.exponentialRampToValueAtTime(Math.max(1e-4, vv * 0.22), t + d);
+    env.gain.exponentialRampToValueAtTime(1e-4, t + d + 0.12);
+  } else {
+    const a = Math.min(0.6, Math.max(0.10, d * 0.16));
+    const rl = Math.min(0.9, Math.max(0.16, d * 0.18));
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(vv, t + a);
+    env.gain.setValueAtTime(vv, t + Math.max(a + 0.001, d - rl));
+    env.gain.exponentialRampToValueAtTime(1e-4, t + d);
+  }
+  env.gain.setValueAtTime(0, t + d + 0.15);
+  const body = _body(inst);
+  if (inst === 'wood') {
+    const soft = ctx.createBiquadFilter(); soft.type = 'lowpass';
+    soft.frequency.value = Math.min(4200, f * 5); soft.Q.value = 0.5;
+    osc.connect(soft); soft.connect(body.head);
+  } else {
+    osc.connect(body.head);
+  }
+  let sink = musicIn;
+  try { const pn = ctx.createStereoPanner(); pn.pan.value = pan || 0; pn.connect(sink); sink = pn; } catch (e) {}
+  body.out.connect(env); env.connect(sink);
+  osc.start(t); osc.stop(t + d + 0.2);
 }
 /* clips go through WebAudio buffers, NOT <audio>: Safari blocks HTMLAudio.play()
    outside a direct tap, but a running AudioContext plays buffers freely */
@@ -206,7 +327,7 @@ function blockBreath() {
     el.style.transitionDuration = (inhale ? 3.6 : 5.6) + 's';
     el.classList.toggle('in', inhale);
     const t = ctx.currentTime + 0.03;
-    qrTone(t, inhale ? QRs[c % QRs.length] : 1, 0.16, inhale ? 2.0 : 2.8);
+    qrTone(t, inhale ? QRs[c % QRs.length] : 1, 0.16, inhale ? 2.0 : 2.8, 'flute', 0); // breath floats
     tm = setTimeout(tick, inhale ? 4000 : 6000);
   };
   tick();
@@ -228,7 +349,8 @@ function blockPulse() {
     if (!running) return;
     while (beatN < COUNT_IN + MEASURED && t0 + beatN * IV < ctx.currentTime + 0.3) {
       const bt = t0 + beatN * IV;
-      qrTone(bt, r, beatN < COUNT_IN ? 0.18 : 0.30);
+      // beat = struck bell (crisp onset for the tap measure); χ shows as the stereo mirror
+      qrTone(bt, r, beatN < COUNT_IN ? 0.18 : 0.30, 0.35, 'vibe', chi(((r % state.p) + state.p) % state.p || 1, state.p) >= 0 ? -0.3 : 0.3);
       if (beatN >= COUNT_IN) beats.push(bt);
       r = (r % (state.p - 1)) + 1; beatN++;
     }
@@ -306,8 +428,8 @@ function blockNumbers() {
   }
   function grade(ok) {
     sum += ok ? span : span - 1;
-    if (ok) { best = Math.max(best, span); streakOk++; if (streakOk >= 2) { span++; streakOk = 0; } qrTone(ctx.currentTime, 1, 0.2); }
-    else { span = Math.max(2, span - 1); streakOk = 0; qrTone(ctx.currentTime, 2, 0.16); }
+    if (ok) { best = Math.max(best, span); streakOk++; if (streakOk >= 2) { span++; streakOk = 0; } qrTone(ctx.currentTime, 1, 0.2, 0.6, 'vibe', 0); }
+    else { span = Math.max(2, span - 1); streakOk = 0; qrTone(ctx.currentTime, 2, 0.16, 0.8, 'wood', 0); }
     trialStart();
   }
   trialStart();
@@ -327,7 +449,7 @@ function blockImagery() {
     if (round >= ROUNDS) { session.imagery = ROUNDS; next(); return; }
     round++;
     a = POOL[rnd(POOL.length)]; do { b = POOL[rnd(POOL.length)]; } while (b === a);
-    qrTone(ctx.currentTime, 4, 0.16);
+    qrTone(ctx.currentTime, 4, 0.16, 1.4, 'flute', 0);
     area.innerHTML = `<div class="meta">${round} / ${ROUNDS}</div><div class="pair">
       <div><div class="he" style="font-size:30px">${a.he}</div><div class="translit">${a.tr}</div><div class="gloss">${a.en}</div></div>
       <div><div class="he" style="font-size:30px">${b.he}</div><div class="translit">${b.tr}</div><div class="gloss">${b.en}</div></div></div>`;
@@ -386,7 +508,7 @@ function renderDash() {
       <div class="pill" style="margin-top:8px">honest note: trained gains are in the material itself — these gauges track your grip, they don't promise transfer</div></div>
   </div>`;
 }
-function cycleP() { const ps = [61, 109, 137]; state.p = ps[(ps.indexOf(state.p) + 1) % ps.length]; save(); renderDash(); }
+function cycleP() { const ps = [61, 109, 137]; state.p = ps[(ps.indexOf(state.p) + 1) % ps.length]; save(); roomSetP(state.p); renderDash(); }
 function exportJSON() {
   const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), state }, null, 1)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
