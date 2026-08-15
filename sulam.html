@@ -79,7 +79,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <div id="top">
-  <h1>סֻלָּם</h1><span class="sub">sulám · ladder chant · étude 2 · v0.10 · number and mirror</span>
+  <h1>סֻלָּם</h1><span class="sub">sulám · ladder chant · étude 2 · v0.11 · number and mirror</span>
 </div>
 <div id="tabs">
   <div class="tab on" data-v="verbs"><span class="heb">פְּעָלִים</span><span class="lat">pe'alím · verbs</span></div>
@@ -574,6 +574,7 @@ function renderDash() {
       <div class="kv"><span>tempo</span><b><button style="padding:2px 10px" onclick="cycleBpm()">${state.bpm} bpm</button></b></div>
       <div class="kv"><span>room (A/B by ear)</span><b><button style="padding:2px 10px" onclick="cycleMix()">${state.mix === 'engine' ? 'engine · n²-mod-p' : 'guide · approved 14.08'}</button></b></div>
       <div class="footrow">
+        <button onclick="shareJSON()">➦ share</button>
         <button onclick="exportJSON()">⇩ log</button>
         <button onclick="document.getElementById('imp').click()">⇪ import</button>
       </div>
@@ -594,11 +595,18 @@ function importJSON(inp) {
     if (d.state && d.state.cells) { state = d.state; log = d.log || []; save(); render(); toast('restored'); }
     else toast('not a sulam log'); }).catch(() => toast('unreadable file'));
 }
+function shareJSON() {
+  const f = new File([JSON.stringify({ exported: new Date().toISOString(), state, log }, null, 1)],
+    'sulam-' + dayKey(now()) + '.json', { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [f] })) {
+    navigator.share({ files: [f], title: 'sulam log' }).catch(() => {});
+  } else exportJSON();
+}
 
 /* ============ boot ============ */
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => { view = t.dataset.v; run = null; render(); });
 load(); render();
-window.cycleBpm = cycleBpm; window.cycleMix = cycleMix; window.exportJSON = exportJSON; window.importJSON = importJSON;
+window.cycleBpm = cycleBpm; window.cycleMix = cycleMix; window.exportJSON = exportJSON; window.importJSON = importJSON; window.shareJSON = shareJSON;
 </script>
 </body>
 </html>

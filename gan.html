@@ -59,7 +59,7 @@
 <body>
 <header>
   <h1>גַּן סַאקֶר</h1>
-  <div class="sub">gan · guided workout · v0.2 live · pulse-aware</div>
+  <div class="sub">gan · guided workout · v0.3 live · pulse-aware · logs</div>
 </header>
 
 <div id="clockRow">
@@ -102,6 +102,7 @@
   <button id="startBtn" class="primary">הַתְחֵל · start</button>
   <button id="pauseBtn" class="hidden">הַפְסֵק · pause</button>
   <button id="skipBtn" class="hidden">דַּלֵּג ⏭ phase</button>
+  <button id="shareBtn" class="hidden">➦ share</button>
 </div>
 <div id="note">Keep the screen ON — iPhone pauses the page when locked. AirPods in, phone in hand or armband.</div>
 
@@ -409,6 +410,7 @@ let running = false, paused = false, t0 = 0, pausedAt = 0;
 let intensity = 'M', zoneGain = 1.0, zoneState = 'in', zoneSince = 0, lastCue = 0;
 let beatPos = 0, beatIdx = 0, lastSched = 0, heartNext = 0;
 let news = null, newsSpoken = false;
+let rec = null, lastHrSample = 0; // session log: hr series, cues, phases
 
 const $ = id => document.getElementById(id);
 function now() { return running ? (paused ? pausedAt : (Date.now() - t0) / 1000) : 0; }
@@ -478,6 +480,12 @@ function tick() {
     }
   }
 
+  // session log: HR sample every 5 s, phase watermark
+  if (rec) {
+    rec.phase = Math.max(rec.phase, PHASES.indexOf(ph));
+    if (HR.online && t - lastHrSample >= 5) { lastHrSample = t; rec.hr.push([Math.round(t), Math.round(HR.ema)]); }
+  }
+
   // heart layer: soft wood pulse at his live heart rate
   if (HR.online && HR.ema > 30) {
     const beat = 60 / HR.ema;
@@ -504,11 +512,13 @@ function tick() {
       musicZone.gain.setTargetAtTime((zoneGain = 0.7), act, 0.5);
       if (inState > 25 && t - lastCue > 60 && ph[3] > 0) {
         lastCue = t; speak('לְאַט יוֹתֵר. נְשֹׁם עָמֹק.');
+        if (rec) rec.cues.push([Math.round(t), 'slow']);
       }
     } else {
       musicZone.gain.setTargetAtTime((zoneGain = 1.0), act, 0.5);
       if (z === 'below' && inState > 30 && t - lastCue > 60 && (ph[0] === 0 || ph[0] === 480)) {
         lastCue = t; speak('אֶפְשָׁר קְצָת יוֹתֵר מַהֵר.');
+        if (rec) rec.cues.push([Math.round(t), 'faster']);
       }
     }
   } else {
@@ -606,6 +616,8 @@ $('startBtn').onclick = () => {
   running = true; paused = false; t0 = Date.now();
   EV.forEach(e => { e[3] = false; });
   beatIdx = 0; lastSched = 0; heartNext = 0;
+  rec = { date: new Date().toISOString(), intensity, hr: [], cues: [], phase: 0, done: false };
+  lastHrSample = 0;
   $('setup').classList.add('hidden');
   $('startBtn').classList.add('hidden');
   $('pauseBtn').classList.remove('hidden');
@@ -641,7 +653,34 @@ function finish() {
   $('phaseEn').textContent = 'done · kol hakavod';
   $('pauseBtn').classList.add('hidden');
   $('skipBtn').classList.add('hidden');
+  saveRec(true);
+  $('shareBtn').classList.remove('hidden');
 }
+function saveRec(done) {
+  if (!rec) return;
+  rec.done = !!done;
+  if (rec.hr.length) {
+    const vals = rec.hr.map(s => s[1]);
+    rec.hrMean = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+    rec.hrMin = Math.min(...vals); rec.hrMax = Math.max(...vals);
+  }
+  try {
+    const lg = JSON.parse(localStorage.getItem('gan-log-v1') || '[]');
+    lg.push(rec); localStorage.setItem('gan-log-v1', JSON.stringify(lg.slice(-60)));
+  } catch (e) {}
+  rec = null;
+}
+function shareLog() {
+  const f = new File([localStorage.getItem('gan-log-v1') || '[]'],
+    'gan-log-' + new Date().toISOString().slice(0, 10) + '.json', { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [f] })) {
+    navigator.share({ files: [f], title: 'gan log' }).catch(() => {});
+  } else {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; a.click();
+  }
+}
+
+$('shareBtn').onclick = shareLog;
 
 /* prefill */
 (function () {

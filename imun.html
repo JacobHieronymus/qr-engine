@@ -76,7 +76,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <div id="top">
-  <h1>אִמּוּן</h1><span class="sub">imún · mind gym · v0.2 · the accepted voices</span>
+  <h1>אִמּוּן</h1><span class="sub">imún · mind gym · v0.3 · the accepted voices</span>
   <span id="streak"></span>
 </div>
 <div id="tabs">
@@ -501,6 +501,7 @@ function renderDash() {
     <div class="card"><h3>settings · export</h3>
       <div class="kv"><span>prime of the pulse</span><b><button style="padding:2px 10px" onclick="cycleP()">${state.p}</button></b></div>
       <div class="footrow">
+        <button onclick="shareJSON()">➦ share</button>
         <button onclick="exportJSON()">⇩ log</button>
         <button onclick="document.getElementById('imp').click()">⇪ import</button>
       </div>
@@ -520,11 +521,18 @@ function importJSON(inp) {
     if (d.state && d.state.sessions) { state = d.state; save(); render(); toast('restored'); }
     else toast('not an imun log'); }).catch(() => toast('unreadable file'));
 }
+function shareJSON() {
+  const f = new File([JSON.stringify({ exported: new Date().toISOString(), state }, null, 1)],
+    'imun-' + dayKey(now()) + '.json', { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [f] })) {
+    navigator.share({ files: [f], title: 'imun log' }).catch(() => {});
+  } else exportJSON();
+}
 
 /* ============ boot ============ */
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => { view = t.dataset.v; if (view === 'flow') block = -1; render(); });
 load(); render();
-window.cycleP = cycleP; window.exportJSON = exportJSON; window.importJSON = importJSON;
+window.cycleP = cycleP; window.exportJSON = exportJSON; window.importJSON = importJSON; window.shareJSON = shareJSON;
 </script>
 </body>
 </html>
