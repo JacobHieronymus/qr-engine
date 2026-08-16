@@ -78,7 +78,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <div id="top">
-  <h1>קוֹל קוֹרֵא</h1><span class="sub">zov · étude 1 · v0.4.1 · 480</span>
+  <h1>קוֹל קוֹרֵא</h1><span class="sub">zov · étude 1 · v0.4.2 · 480</span>
   <span id="streak"></span>
 </div>
 <div id="tabs">
@@ -145,13 +145,31 @@ function load() {
 let saveT = null;
 function save() { clearTimeout(saveT); saveT = setTimeout(() => { localStorage.setItem(SKEY, JSON.stringify(state)); localStorage.setItem(LKEY, JSON.stringify(log)); }, 300); }
 
-/* étude-1 condition: within each (set,pos) run, alternate G(uess-first)/P(resent-first) */
+/* étude-1 condition: G(uess-first) vs P(resent-first) */
 const COND = {};
+// The twelve words of day 0 (15.08) were all introduced under G and trained that
+// way. Their arm is frozen: moving a word between arms mid-training would be a
+// worse confound than losing them. They carry etude:false in the log and must be
+// dropped from the analysis.
+const FROZEN_G = new Set(['w000', 'w030', 'w090', 'w130', 'w160', 'w200',
+                          'w260', 'w300', 'w320', 'w350', 'w410', 'w450']);
 (() => {
-  // v0.4.1: condition by id-number parity — deterministic, stable across devices,
-  // and independent of intro order. The old per-bucket index alternation collapsed
-  // to all-G when the picker took one item per set (day-0 data, 15.08: 36/36 G).
-  CORPUS.forEach(it => { COND[it.id] = (parseInt(it.id.slice(1), 10) % 2 === 0) ? 'G' : 'P'; });
+  // v0.4.2. Two rules have now failed here, both for the same reason: they were
+  // arithmetic, and the picker is arithmetic too. It walks the sets round-robin
+  // and so takes the FIRST item of each set — w000, w030, w090, … — every one of
+  // which is even. Parity by id therefore put 12 of 12 first-pass words into G,
+  // exactly as the per-bucket alternation had before it. Checked against the real
+  // corpus: id parity gives 12/0 on that first pass, id/10 gives 6/6, an FNV-1a
+  // hash of the id gives 5/7 and, unlike the others, cannot collide with a stride
+  // the picker may adopt later. Whole corpus splits 240/240 under all three.
+  const hash = s => {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h;
+  };
+  CORPUS.forEach(it => {
+    COND[it.id] = FROZEN_G.has(it.id) ? 'G' : ((hash(it.id) & 1) ? 'P' : 'G');
+  });
 })();
 const ITEMS = {}; CORPUS.forEach(it => ITEMS[it.id] = it);
 
@@ -167,7 +185,8 @@ function gradeCard(cid, g, rt) {
   const c = getCard(cid); if (!c) return;
   const t = now();
   const elapsed = c.grad ? (t - c.lastRev) / DAY : 0;
-  log.push({ t, cid, g, rt, st: c.state, ivd: c.grad ? Math.round(elapsed * 10) / 10 : 0, cond: COND[cid.split(':')[0]] });
+  log.push({ t, cid, g, rt, st: c.state, ivd: c.grad ? Math.round(elapsed * 10) / 10 : 0,
+            cond: COND[cid.split(':')[0]], etude: !FROZEN_G.has(cid.split(':')[0]) });
   c.reps++;
   if (c.state === 'learn') {
     if (g === 1) { c.step = 0; c.due = t + 1 * MIN; }
@@ -353,7 +372,7 @@ function revealNew(it, direct) {
   controls.appendChild(btn('הָלְאָה', "hál'a · onward", 'g-good', () => {
     const t = now(); introduceItem(it.id, t);
     const dk = dayKey(t); const d = state.days[dk] = state.days[dk] || { rev: 0, ok: 0, nw: 0, ms: 0 };
-    d.nw++; log.push({ t, cid: it.id + ':intro', g: 0, rt: 0, st: 'intro', cond: COND[it.id] });
+    d.nw++; log.push({ t, cid: it.id + ':intro', g: 0, rt: 0, st: 'intro', cond: COND[it.id], etude: !FROZEN_G.has(it.id) });
     save(); renderNew(); setTabs();
   }));
 }
