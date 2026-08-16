@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b0d0c">
+<title>גן · gan 60 · דֹּפֶק</title>
+<style>
+ :root{--bg:#0b0d0c;--ink:#e9ece7;--dim:#8d968f;--faint:#4d554f;--gold:#e0b063;--cool:#6fa8c4;
+       --hot:#c4707d;--good:#7dc47d;--line:#1e2320;--panel:#141816}
+ *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+ html,body{height:100%}
+ body{background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,system-ui,sans-serif;
+   display:flex;flex-direction:column;overscroll-behavior:none;
+   padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom)}
+ header{display:flex;align-items:baseline;gap:10px;padding:12px 2px 6px}
+ h1{font-size:15px;font-weight:600;letter-spacing:.06em;color:var(--dim)}
+ .sub{font-size:10px;color:var(--faint)}
+ #wrap{flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px;text-align:center}
+ .hr{font-variant-numeric:tabular-nums;font-size:84px;line-height:1;direction:ltr;font-weight:300}
+ .hr small{font-size:15px;color:var(--dim);font-weight:400}
+ .zone{font-size:14px;letter-spacing:.06em}
+ .zone.in{color:var(--good)} .zone.lo{color:var(--cool)} .zone.hi{color:var(--hot)}
+ .bpm{font-size:15px;color:var(--gold);direction:ltr;font-variant-numeric:tabular-nums}
+ .ph{font-size:26px} .phlat{font-size:12px;color:var(--dim);direction:ltr}
+ .clock{font-size:13px;color:var(--faint);direction:ltr;font-variant-numeric:tabular-nums}
+ .cap{min-height:44px;font-size:19px;color:var(--gold)}
+ .capen{min-height:20px;font-size:12px;color:var(--dim);direction:ltr}
+ #bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin:2px 0}
+ #bar i{display:block;height:100%;background:var(--gold);width:0}
+ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);
+   border-radius:12px;padding:14px;cursor:pointer}
+ .primary{background:var(--gold);color:#14110d;font-weight:600;font-size:19px;padding:20px}
+ .row{display:flex;gap:8px;padding-bottom:10px}
+ .row button{flex:1;font-size:13px}
+ input{width:100%;padding:11px;background:#0f1211;color:var(--ink);border:1px solid var(--line);
+   border-radius:10px;font:inherit;direction:ltr}
+ .note{font-size:11.5px;color:var(--faint);line-height:1.5;text-align:start;direction:ltr}
+ .warn{color:var(--hot)}
+</style>
+</head>
+<body>
+<header><h1>גן · דֹּפֶק</h1><span class="sub">gan 60 · tempo follows the pulse</span></header>
+
+<div id="wrap">
+  <div id="setup">
+    <p class="note" style="margin-bottom:10px">
+      Tempo is driven by your heart rate, so this page must stay awake: the phone
+      goes on the arm or in a chest pocket, screen out. iOS suspends both the audio
+      and the pulse socket the moment Safari is backgrounded — that is the price of
+      real-time, and there is no way around it in a browser.<br><br>
+      No zones are asked for. The first minutes of walking measure your own walking
+      pulse, and every later target is set relative to it.
+    </p>
+    <input id="tok" type="password" placeholder="pulsoid token" autocomplete="off">
+    <div style="height:8px"></div>
+    <button class="primary" style="width:100%" onclick="begin()">הַתְחֵל · begin</button>
+  </div>
+
+  <div id="live" style="display:none">
+    <div class="hr"><span id="hrv">--</span><small> bpm</small></div>
+    <div class="zone" id="zone">—</div>
+    <div class="bpm" id="bpm">—</div>
+    <div class="ph" id="phhe">—</div><div class="phlat" id="phen"></div>
+    <div id="bar"><i id="barfill"></i></div>
+    <div class="clock" id="clock">0:00 / 60:00</div>
+    <div class="cap" id="caphe"></div><div class="capen" id="capen"></div>
+  </div>
+</div>
+
+<div class="row" id="ctl" style="display:none">
+  <button onclick="togglePause()" id="pz">❚❚ pause</button>
+  <button onclick="dumpLog()">⇩ log</button>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const F0 = 196, P = 61, QRs = [1,12,15,20,41,49], NQRs = [8,31,37,51];
+const TOK_KEY = 'qrhr.token';
+const chi = (a,p) => { a=((a%p)+p)%p; if(!a) return 0;
+  let r=1,e=(p-1)/2,b=a; while(e){ if(e&1) r=r*b%p; b=b*b%p; e>>=1; } return r===1?1:-1; };
+
+/* ============ the hour ============ */
+// [start, he, en, base bpm, target offset above the measured walking pulse]
+// The offsets are relative because a browser has no business guessing a max
+// heart rate, and an age formula would be a guess dressed as a number.
+const PHASES = [
+  [   0, 'הֲלִיכָה',      'warm-up walk',    104,  0],
+  [ 540, 'מִקְטָע 1',      'interval 1',      150, 28],
+  [ 720, 'הֲלִיכָה',      'recovery',        100, 10],
+  [ 810, 'מִקְטָע 2',      'interval 2',      152, 32],
+  [ 990, 'הֲלִיכָה',      'recovery',        100, 10],
+  [1080, 'מִקְטָע 3',      'interval 3',      154, 34],
+  [1260, 'הֲלִיכָה',      'recovery',        100, 10],
+  [1350, 'מִקְטָע 4',      'interval 4',      152, 34],
+  [1530, 'הֲלִיכָה',      'recovery',        100, 10],
+  [1620, 'שְׁאֵלוֹת',      'questions',       100,  8],
+  [1865, 'כֹּחַ',          'strength',         60, 16],
+  [2760, 'מְתִיחוֹת',      'stretch',           0,  6],
+  [3005, 'הַרְגָּעָה',      'cool-down',         0,  2],
+  [3300, 'סִכּוּם',        'the words',         0,  0],
+];
+const TOTAL = 3600;
+const phaseAt = t => { let p = PHASES[0]; for (const q of PHASES) if (t >= q[0]) p = q; return p; };
+
+const SAY = [
+  [   4,'שָׁלוֹם יַעֲקֹב. מַתְחִילִים בַּהֲלִיכָה.','Nine minutes of walking. The music is measuring your walking pulse — everything later is set from it.'],
+  [ 300,'אֵיךְ אַתָּה מַרְגִּישׁ?','How do you feel? Answer out loud.'],
+  [ 470,'שׁוֹתִים מַיִם.','Water. Then the first interval.'],
+  [ 536,'רָצִים קַל.','Interval one. Easy — you should still be able to speak.'],
+  [ 716,'הוֹלְכִים. נוֹשְׁמִים.','Walk. Ninety seconds.'],
+  [ 806,'מִקְטָע שֵׁנִי.','Interval two. Same pace, do not chase it.'],
+  [ 986,'הוֹלְכִים.','Walk.'],
+  [1076,'מִקְטָע שְׁלִישִׁי.','Interval three. The middle one is the honest one.'],
+  [1256,'הוֹלְכִים.','Walk.'],
+  [1346,'מִקְטָע רְבִיעִי, אַחֲרוֹן.','Interval four, the last. Finish calm, not fast.'],
+  [1526,'הוֹלְכִים.','Walk. Well done.'],
+  [1620,'שְׁאֵלוֹת. עֲנֵה בְּקוֹל.','Four minutes of walking. Answer out loud, even if the sentence breaks.'],
+  [1862,'מָצָאנוּ סַפְסָל. עַכְשָׁו כּוֹחַ.','Strength. Three rounds. Squats, push-ups on the bench, lunges, plank.'],
+  [2756,'מְתִיחוֹת.','Stretch. Never into pain — to the edge of it and stop.'],
+  [3002,'הוֹלְכִים לְאַט. נוֹשְׁמִים.','Cool-down. Breathe with the tones.'],
+  [3300,'הַמִּלִּים שֶׁל הַיּוֹם.','The words of the hour.'],
+  [3480,'כָּל הַכָּבוֹד. שָׁעָה שְׁלֵמָה.','A full hour. Eat something with protein within the half hour.'],
+];
+
+/* ============ audio ============ */
+let ctx = null, master = null, waves = null;
+function mkWaves() {
+  if (waves) return waves;
+  const mk = (re, im) => ctx.createPeriodicWave(Float32Array.from(re), Float32Array.from(im));
+  waves = {
+    vibe: mk([0,0,0,0,0,0], [0,1,0,0.25,0,0.08]),
+    wood: mk([0,0,0,0,0,0], [0,1,0,0.4,0,0.2]),
+    flute:mk([0,0,0,0,0,0], [0,1,0.3,0.1,0,0]),
+  };
+  return waves;
+}
+function qrTone(t, r, vol, dur, inst, pan) {
+  if (!ctx) return;
+  const rr = ((r % P) + P) % P || 1, f = F0 * (P + rr) / P;
+  inst = inst || (chi(rr, P) >= 0 ? 'vibe' : 'wood');
+  const d = dur || 0.5;
+  const o = ctx.createOscillator(); o.setPeriodicWave(mkWaves()[inst]); o.frequency.value = f;
+  const g = ctx.createGain(), vv = inst === 'wood' ? vol * .72 : inst === 'flute' ? vol * .85 : vol * .9;
+  if (inst === 'vibe') {
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vv, t + .01);
+    g.gain.exponentialRampToValueAtTime(Math.max(1e-4, vv * .22), t + d);
+    g.gain.exponentialRampToValueAtTime(1e-4, t + d + .12);
+  } else {
+    const a = Math.min(.6, Math.max(.1, d * .16)), rl = Math.min(.9, Math.max(.16, d * .18));
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vv, t + a);
+    g.gain.setValueAtTime(vv, t + Math.max(a + .001, d - rl));
+    g.gain.exponentialRampToValueAtTime(1e-4, t + d);
+  }
+  const pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+  o.connect(g);
+  if (pn) { pn.pan.value = pan || 0; g.connect(pn); pn.connect(master); } else g.connect(master);
+  o.start(t); o.stop(t + d + .2);
+}
+function rungAt(i, rungs) {
+  let idx = 0;
+  for (let k = 0; k <= i; k++) idx = (idx + (chi(k + 2, P) >= 0 ? 1 : rungs.length - 1)) % rungs.length;
+  return rungs[idx];
+}
+
+/* ============ pulse ============ */
+const HR = { bpm: 0, ema: 0, online: false, lastAt: 0 };
+let ws = null, want = false, attempt = 0;
+function hrConnect() {
+  const tok = ($('tok').value || '').trim() || localStorage.getItem(TOK_KEY) || '';
+  if (!tok) return;
+  localStorage.setItem(TOK_KEY, tok);
+  want = true;
+  const url = 'wss://dev.pulsoid.net/api/v1/data/real_time?access_token=' +
+    encodeURIComponent(tok) + '&response_mode=text_plain_only_heart_rate';
+  try { ws = new WebSocket(url); } catch (e) { return; }
+  ws.onmessage = ev => {
+    const s = String(ev.data).trim();
+    let v = s && s[0] !== '{' ? Number(s) : null;
+    if (v == null) { try { const o = JSON.parse(s); v = o && o.data && o.data.heart_rate; } catch (e) {} }
+    v = Number(v);
+    if (!isFinite(v) || v <= 0 || v > 300) return;
+    HR.bpm = Math.round(v);
+    HR.ema = HR.ema > 0 ? HR.ema + .25 * (v - HR.ema) : v;
+    HR.lastAt = Date.now(); HR.online = true; attempt = 0;
+  };
+  ws.onclose = () => { HR.online = false; if (want) setTimeout(hrConnect, Math.min(30000, 1000 * 2 ** attempt++)); };
+}
+setInterval(() => { if (HR.online && Date.now() - HR.lastAt > 30000) HR.online = false; }, 2000);
+
+/* ============ speech ============ */
+let heV = null, enV = null;
+function pickVoices() {
+  const vs = speechSynthesis.getVoices();
+  heV = vs.find(v => /he[-_]IL/i.test(v.lang)) || null;
+  enV = vs.find(v => /en[-_]GB/i.test(v.lang) && /daniel/i.test(v.name))
+     || vs.find(v => /en[-_]/i.test(v.lang)) || null;
+}
+speechSynthesis.onvoiceschanged = pickVoices; pickVoices();
+function say(text, he) {
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = he ? heV : enV; u.rate = he ? .95 : 1.0; u.volume = 1;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+/* ============ the controller ============ */
+// The music does not merely display the pulse, it argues with it. Each phase has
+// a target taken from the walking pulse measured today; the tempo is pushed away
+// from the base in the direction that corrects the error — slower when the heart
+// is above target, faster when it is loafing — and slewed so the change is
+// musical rather than twitchy.
+const K = 0.7;                 // beats of tempo per beat of heart-rate error
+const SLEW = 2.5;              // max bpm of tempo change per second
+let walkHR = 0, walkSamples = [];
+let bpmNow = 104, zoneState = 'in', lastCue = -99, capCue = -99;
+
+function targetFor(ph) { return walkHR ? walkHR + ph[4] : 0; }
+
+function updateTempo(dt, t) {
+  const ph = phaseAt(t), base = ph[3];
+  if (!base) { bpmNow = 0; return; }
+  const tgt = targetFor(ph);
+  let want = base;
+  if (tgt && HR.online && HR.ema > 0) {
+    const err = HR.ema - tgt;
+    want = base - K * err;
+    want = Math.max(base * .72, Math.min(base * 1.22, want));
+  }
+  const d = want - bpmNow;
+  bpmNow += Math.max(-SLEW * dt, Math.min(SLEW * dt, d));
+  // the one hard rule: far above target for a while and the music stands down
+  if (tgt && HR.online && HR.ema > tgt + 22 && t - capCue > 60) {
+    capCue = t;
+    bpmNow = Math.min(bpmNow, base * .75);
+    say('לְאַט. הוֹלְכִים.', true);
+    setTimeout(() => say('Too high — walk it down.', false), 1400);
+  }
+}
+
+/* ============ session ============ */
+let running = false, paused = false, t0 = 0, pausedAt = 0;
+let beatPos = 0, beatIdx = 0, lastTick = 0, saidIdx = 0, lastSample = 0, wake = null;
+const rec = { started: null, hr: [], tempo: [], phases: [] };
+
+async function keepAwake() {
+  try { wake = await navigator.wakeLock.request('screen'); }
+  catch (e) { /* older iOS: the screen will sleep and the hour will pause with it */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    keepAwake();
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+  }
+});
+
+function begin() {
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain(); master.gain.value = .85; master.connect(ctx.destination);
+  hrConnect(); keepAwake();
+  say('שָׁלוֹם.', true);
+  running = true; t0 = Date.now(); rec.started = new Date().toISOString();
+  beatPos = ctx.currentTime + .3; lastTick = performance.now();
+  $('setup').style.display = 'none'; $('live').style.display = '';
+  $('ctl').style.display = 'flex';
+  requestAnimationFrame(loop);
+}
+function clock() { return paused ? pausedAt : (Date.now() - t0) / 1000; }
+function togglePause() {
+  if (!running) return;
+  if (paused) { t0 = Date.now() - pausedAt * 1000; paused = false; $('pz').textContent = '❚❚ pause'; ctx.resume(); }
+  else { pausedAt = clock(); paused = true; $('pz').textContent = '▶︎ resume'; }
+}
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (!running || paused) { lastTick = now; return; }
+  const dt = Math.min(.5, (now - lastTick) / 1000); lastTick = now;
+  const t = clock();
+  if (t > TOTAL) { running = false; say('סִיַּמְנוּ.', true); return; }
+
+  // the walking pulse of today, taken between minutes 2 and 8
+  if (t > 120 && t < 480 && HR.online && HR.ema > 0) {
+    walkSamples.push(HR.ema);
+    if (walkSamples.length > 20) {
+      const s = walkSamples.slice().sort((a, b) => a - b);
+      walkHR = Math.round(s[Math.floor(s.length / 2)]);
+    }
+  }
+  updateTempo(dt, t);
+
+  // spoken cues
+  while (saidIdx < SAY.length && SAY[saidIdx][0] <= t) {
+    const [, he, en] = SAY[saidIdx++];
+    $('caphe').textContent = he; $('capen').textContent = en;
+    say(he, true); setTimeout(() => say(en, false), 1800);
+  }
+
+  // beats
+  const ph = phaseAt(t), act = ctx.currentTime;
+  if (bpmNow > 4) {
+    if (beatPos < act) beatPos = act + .05;
+    while (beatPos < act + .7) {
+      const i = beatIdx++;
+      const running_ = ph[3] > 130;
+      if (running_) {
+        const r = rungAt(i, QRs.concat(NQRs));
+        qrTone(beatPos, r, i % 2 === 0 ? .11 : .07, .45, 'vibe', .4 * (chi(i + 1, P) >= 0 ? 1 : -1));
+        if (i % 16 === 15) qrTone(beatPos, 8, .05, 2.2, 'flute', 0);
+      } else if (ph[3] >= 90) {
+        const r = rungAt(i, QRs);
+        qrTone(beatPos, r, i % 4 ? .10 : .15, .9, 'vibe', .35 * chi(r, P));
+        if (i % 8 === 7) qrTone(beatPos, (P - r) % P || 1, .07, 1.4, 'vibe', -.35 * chi(r, P));
+      } else {
+        qrTone(beatPos, QRs[i % QRs.length], .075, .8, 'vibe', .25 * chi(QRs[i % QRs.length], P));
+      }
+      beatPos += 60 / bpmNow;
+    }
+  } else if (ph[3] === 0 && act > beatPos) {           // stretch and cool-down: slow pairs
+    const k = beatIdx++, r = QRs[k % QRs.length];
+    qrTone(act + .1, r, .08, 5, 'flute', -.15);
+    qrTone(act + 6.1, (P - r) % P || 1, .06, 5, 'flute', .15);
+    beatPos = act + 12;
+  }
+
+  // display + log
+  const tgt = targetFor(ph);
+  $('hrv').textContent = HR.online ? HR.bpm : '--';
+  $('bpm').textContent = (bpmNow > 4 ? Math.round(bpmNow) + ' bpm music' : 'free') +
+    (walkHR ? ' · walk ' + walkHR : ' · calibrating');
+  const z = !tgt || !HR.online ? '—' : (HR.ema > tgt + 8 ? 'hi' : HR.ema < tgt - 8 ? 'lo' : 'in');
+  $('zone').className = 'zone ' + (z === '—' ? '' : z);
+  $('zone').textContent = z === '—' ? 'no pulse yet'
+    : z === 'in' ? 'בַּתְּחוּם · in the band · target ' + tgt
+    : z === 'hi' ? 'גָּבוֹהַּ · above · target ' + tgt : 'נָמוּךְ · below · target ' + tgt;
+  $('phhe').textContent = ph[1]; $('phen').textContent = ph[2];
+  const m = Math.floor(t / 60), s = Math.floor(t % 60);
+  $('clock').textContent = m + ':' + String(s).padStart(2, '0') + ' / 60:00';
+  $('barfill').style.width = (100 * t / TOTAL).toFixed(1) + '%';
+  if (t - lastSample >= 5) {
+    lastSample = t;
+    if (HR.online) rec.hr.push([Math.round(t), HR.bpm]);
+    rec.tempo.push([Math.round(t), Math.round(bpmNow)]);
+  }
+}
+
+function dumpLog() {
+  rec.walkHR = walkHR;
+  rec.phases = PHASES.map(p => ({ t: p[0], name: p[2], base: p[3], offset: p[4] }));
+  const blob = new Blob([JSON.stringify(rec, null, 1)], { type: 'application/json' });
+  const name = 'gan60-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '') + '.json';
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], name)] })) {
+    navigator.share({ files: [new File([blob], name, { type: 'application/json' })] });
+  } else {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  }
+}
+window.begin = begin; window.togglePause = togglePause; window.dumpLog = dumpLog;
+$('tok').value = localStorage.getItem(TOK_KEY) || '';
+</script>
+</body>
+</html>
