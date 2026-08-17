@@ -77,7 +77,13 @@ html:has(body.duo-framed) { height: auto; min-height: 100vh; overflow-y: auto; }
 body.duo-framed { overflow-y: auto; height: auto; min-height: 100vh; }
 body.duo-framed main { height: auto; min-height: 0; align-items: flex-start; }
 body.duo-framed #controls { overflow: visible; height: auto; max-height: none; }
-body.duo-framed #viz { position: sticky; top: 0; z-index: 4; }
+body.duo-framed #viz, body.mk-embedded #viz { order: -1; position: static; width: 100%; flex: none; height: calc(0.42 * (100vh - var(--dock-h, 0px))); min-height: 240px; border-bottom: 1px solid var(--border); }
+body.duo-framed main, body.mk-embedded main { flex-direction: column; height: auto; min-height: 0; align-items: stretch; }
+body.duo-framed #controls, body.mk-embedded #controls { width: 100%; min-width: 0; border-right: none; padding: 8px 10px 40px; overflow: visible; height: auto; max-height: none; }
+body.duo-framed #rail-resize, body.mk-embedded #rail-resize { display: none; }
+body.duo-framed #viz-ctrls, body.mk-embedded #viz-ctrls { top: 8px; right: 8px; z-index: 6; }   /* each hand stays inside its half */
+body.duo-framed #acc-toolbar, body.mk-embedded #acc-toolbar { position: static; }
+body.mk-embedded { overflow-y: auto; height: auto; min-height: 100vh; }
 body.mk-embedded #top-dock { display: none !important; }
 /* (05.08m author: «сделай изначально одинаковые половины») BOTH halves lay out at
    the SAME width under the SAME rules. Her frame runs at scale 1 (viewport = the
@@ -85,7 +91,7 @@ body.mk-embedded #top-dock { display: none !important; }
    FORCED into the same stacked layout the media rule gives her — twins always. */
 body.duo-narrow { display: block; height: auto; overflow: auto; }
 body.duo-narrow main { flex-direction: column; height: auto; min-height: 100vh; }
-body.duo-narrow #viz { flex: none; order: -1; height: 42vh; min-height: 240px; position: static; border-bottom: 1px solid var(--border); }   /* (07.08) stage first but NOT pinned — scrolling past it gives the controls the whole window */
+body.duo-narrow #viz { flex: none; order: -1; height: calc(0.42 * (100vh - var(--dock-h, 0px))); min-height: 240px; position: static; border-bottom: 1px solid var(--border); }   /* (07.08) stage first but NOT pinned — scrolling past it gives the controls the whole window */
 body.duo-narrow #controls { width: 100%; min-width: 0; border-right: none; overflow: visible; padding: 8px 10px 40px; column-gap: 10px; }
 body.duo-narrow #rail-resize { display: none; }
 body.duo-narrow #acc-toolbar { position: static; }
@@ -123,7 +129,7 @@ body.viz-max #viz { position: fixed; inset: 0; z-index: 9999; width: 100vw; heig
 body.viz-max #controls { display: none; }
 /* DUET STAGE (author 26.07): fullscreen split — Markov's picture keeps the LEFT half,
    Markova's frame holds the right; the duo pill rides above everything for the exit. */
-body.viz-max.duo-split #viz { width: 50vw; }
+body.viz-max.duo-split #viz { width: 50vw; top: var(--dock-h, 0px); height: calc(100vh - var(--dock-h, 0px)); }
 body.duo-split #duo-panel { z-index: 10000; }
 body.duo-split #duo-frame-wrap { z-index: 9999; }
 /* PHONE mode (author 27.07): open with #phone — the doubled Markov+Markova boots at once,
@@ -3184,6 +3190,11 @@ function _nearestPnAnchorR(p, r){
 // Worst-case wait is one sweep: the edge slots always qualify, so requests can't hang.
 function _transPointOK(s){
   if(state._strictSession) return true;   // a montage with strict timing owns the clock — no anchor holds while it plays
+  // (16.08) THE ANNOUNCED LANDING: the leader tells the pair the exact instant its
+  // own anchor opens; the answering half spends this single token there and lands on
+  // the same beat. One token, one beat — not the old 2.5 s blanket that let her drift
+  // in on whatever beat the message happened to arrive.
+  if(state._landTok){ state._landTok=false; return true; }
   if(state._mirrorUntil && Date.now()<state._mirrorUntil) return true;   // duet mirror: the baton passed these gates already — the answering half enters in step, not a ladder later
   if(state.duo && state.duo.on && state.duo.peer && state.duo.mode==='retro') return true;   // (05.08 author: «ретро — реверс нота в ноту») the strict crab owns its transitions: anchor holds stand down on BOTH sides — symmetry in time outranks the ladder
   if(window._duoGuard && window._duoGuard.pal) return true;   // palindrome playback likewise: the plan's clock is the law on both sides
@@ -3932,11 +3943,47 @@ let ctx=null, masterGain=null, voiceBus=null, qrBus=null, _emitLayer=null;
 // the same notes through the same synths, time-mirrored. Absolute by construction.
 let _palTape={on:false,t0:0,ev:[]};
 function _tapeNote(k,args,durX){ if(!_palTape.on) return;
-  try{ _palTape.ev.push({k:k, a:Array.prototype.slice.call(args), d:(durX!=null?durX:(args[1]||0)), l:_emitLayer, e:_emitDir});
-    if(_palTape.ev.length>24000) _palTape.on=false; }catch(e){} }
+  // (16.08 audit) EVERY arithmetic drum derives its Legendre class from the groove's
+  // module-global `step`; phase B runs parked, so that counter is frozen and every
+  // replayed hit would come out the same colour. The tape carries the step itself —
+  // the cymbal already took its k as an argument and was the only honest lane.
+  try{ _palTape.ev.push({k:k, a:Array.prototype.slice.call(args), d:(durX!=null?durX:(args[1]||0)), l:_emitLayer, e:_emitDir,
+      s:((window._gvStep&&window._gvStep.get)?window._gvStep.get():null)});
+    if(_palTape.ev.length>150000){ _palTape.on=false; _palTape.full=true;
+      try{ if(window._fl) window._fl('palindrome','the tape is FULL ('+_palTape.ev.length+' notes) — phase B will not reach back past this point'); }catch(e){} } }catch(e){} }
 let _breathGain=null;   // THE BREATH: a gain stage the whole texture passes through — period √p beats, inhale ⁴√p beats, depth 1/√p (all from the prime, no borrowed numbers)
 let _outMeter=null, _wdNodeCount=0;   // output tap + voice-node counter for the silent-graph watchdog
 let _autoSkipChords=false; try{ _autoSkipChords=(localStorage.getItem('qr_auto_skip_chords')==='1'); }catch(e){}
+// ---- FIRST MEETING (author 14.08: «для другого человека он себя не раскрывает») ----
+// The instrument introduces itself, DOSED: a few quiet lines in the pre-sound silence,
+// one echo at the first ♥ ever — then never again. Only a visitor whose origin carries
+// no trace of playing sees it; boot-written prefs (buffer/latency) are not traces.
+window._qrMeetVirgin=false;
+try{
+  if(!localStorage.getItem('qr_met')){
+    // Only KNOWN traces of playing count. The engine writes several keys by itself
+    // on a first load (buffer prefs, background colors, seed models) — those must
+    // not mark a visitor as met; an unknown future key errs toward showing the
+    // quiet lines, which is harmless.
+    const _tr=['qr_likes','qr_vol_markov','qr_vol_markova',
+               'qr_live_learn','qr_far','qr_gv_scale','qr-import-url','qr_auto_recover','qr_auto_skip_chords'];
+    window._qrMeetVirgin=!_tr.some(k=>localStorage.getItem(k)!=null);
+  }
+}catch(e){}
+// The mathematician's door: opened with #goncharova in the URL, the engine is a link
+// target for arXiv:2403.16326 (Kiritchenko–Tsfasman–Vlăduț–Zakharevich, FFA 101 (2025)
+// — Goncharova's last theorem, proved): her panel unfolded, the citation held in the
+// pre-sound silence, her closed-form count on screen.
+window._qrDoorMath=/goncharova/.test((location.hash||'').toLowerCase());
+// The visitor's chosen path (author 14.08: «предлагал бы пользователю выбор — начать
+// с марковских импровизаций или изучить устройство и ручное управление»):
+// 'improv' = the Markovs play for you; 'manual' = the hand learns the controls first.
+window._lorePath=null;
+try{ const _l=JSON.parse(localStorage.getItem('qr_lore')||'null'); if(_l&&_l.path) window._lorePath=_l.path; }catch(e){}
+window._loreChoose=function(p){
+  window._lorePath=p;
+  try{ const _l=JSON.parse(localStorage.getItem('qr_lore')||'{}')||{}; _l.path=p; localStorage.setItem('qr_lore',JSON.stringify(_l)); }catch(e){}
+};
 let _chordRunStart=null;              // audio time the current uninterrupted chord run began (null = not in a run)
 const AUTO_SKIP_SEC=9;                // auto-skip a chord pile-up that blocks the melody longer than this (audio seconds)
 let _emitDir=1;   // structural gesture direction of the current note: +1 = QR (ascending), -1 = NQR (descending)
@@ -4027,13 +4074,151 @@ function _drawIdlePlates(cc,W,H){
     cc.font=`${Math.round(u*0.019)}px ${fam}`;
     cc.fillStyle=ink+'0.24)';
     cc.fillText('one law, two voices — the roles change hands', W/2, H*0.46+u*0.05);
+    if(!emb) _plateIntro(cc,W,H,u,ink,fam,H*0.46+u*0.05+u*0.012);
   } else {
     cc.font=`${Math.round(u*0.02)}px ${fam}`;
     cc.fillStyle=ink+'0.28)';
     cc.fillText('The Markovs · quadratic residues · in memory of Lydia Goncharova', W/2, H*0.46);
+    _plateIntro(cc,W,H,u,ink,fam,H*0.46+u*0.012);
   }
   cc.restore();
 }
+function _plateIntro(cc,W,H,u,ink,fam,y0){
+  // FIRST-MEETING / DOOR lines share the plates' fate: gone forever at the first note.
+  let lines=null;
+  if(window._qrDoorMath) lines=[
+    "Goncharova's theorem: quadruples of squares whose six differences are all squares",
+    'proved in Kiritchenko · Tsfasman · Vlăduț · Zakharevich — FFA 101 (2025) · arXiv:2403.16326',
+    'press ▶ — each configuration sounds as a chord, one glue voice per agreeing difference'
+  ];
+  else if(window._qrMeetVirgin){
+    // PERSONAL ADDRESS (author 16.08: «я не видел красоты личного обращения») —
+    // the plate is not a museum label about an instrument; it is the family
+    // speaking to the guest, first person, ≤8 words a line.
+    if(window._lorePath==='manual'){
+      lines=[
+        'p is our world — type another prime',
+        '61 · 107 · 12347 — then press ▶'
+      ];
+      _meetGlowEl('p-num',true);
+    } else lines=[
+      'we play the squares hidden inside a prime',
+      'touch the field — we will play for you',
+      '✎ manual — or take our controls yourself'
+    ];
+  }
+  if(!lines) return;
+  // fit the field: wrap a too-wide line at the space nearest its middle (two
+  // passes), then shrink any stubborn fragment — narrow halves stay readable.
+  const fs=Math.max(14,Math.round(u*0.032));
+  const maxW=W*0.94;
+  cc.font=`${fs}px ${fam}`;
+  const out=[];
+  lines.forEach(t=>{
+    let parts=[t];
+    for(let pass=0; pass<2; pass++){
+      for(let i=0;i<parts.length;i++){
+        if(cc.measureText(parts[i]).width<=maxW || parts[i].indexOf(' ')<0) continue;
+        const s=parts[i], mid=s.length/2;
+        let cut=-1, best=1e9;
+        for(let j=s.indexOf(' '); j>=0; j=s.indexOf(' ',j+1)){ const dd=Math.abs(j-mid); if(dd<best){ best=dd; cut=j; } }
+        if(cut>0){ parts.splice(i,1,s.slice(0,cut),s.slice(cut+1)); i++; }
+      }
+    }
+    parts.forEach(x=>out.push(x));
+  });
+  cc.fillStyle=ink+'0.52)';
+  const zones=[];
+  out.forEach((t,i)=>{
+    cc.font=`${fs}px ${fam}`;
+    const w=cc.measureText(t).width;
+    if(w>maxW) cc.font=`${Math.max(10,Math.floor(fs*maxW/w))}px ${fam}`;
+    const y=y0+u*0.055*(i+1);
+    if(t.charAt(0)==='✎') zones.push({y1:y-u*0.03, y2:y+u*0.03});
+    cc.fillText(t, W/2, y);
+  });
+  window._meetZones=zones.length?zones:null;
+}
+function _drawMeetEcho(cc,W,H){
+  // The single answer to a visitor's first ♥ ever — six seconds on the field, then gone.
+  const e=window._meetEcho; if(!e) return;
+  const t=(performance.now()-e.t0)/1000;
+  if(t>6){ window._meetEcho=null; return; }
+  const a=t<0.5? t/0.5 : (t>5? 6-t : 1);
+  cc.save();
+  const u=Math.min(W,H);
+  cc.textAlign='center'; cc.textBaseline='middle';
+  cc.font=`${Math.max(14,Math.round(u*0.028))}px 'IBM Plex Mono','SF Mono',monospace`;
+  cc.fillStyle=(_bgIsLight?'rgba(11,7,5,':'rgba(246,237,228,')+(0.65*Math.max(0,Math.min(1,a))).toFixed(3)+')';
+  cc.fillText(e.text, W/2, H*0.12);
+  cc.restore();
+}
+let _meetGlowId=null;
+function _meetGlowEl(id,on){
+  // one soft glow at a time — points the eye at the current lesson's organ
+  try{
+    if(on && _meetGlowId && _meetGlowId!==id) _meetGlowEl(_meetGlowId,false);
+    const b=document.getElementById(id); if(!b) return;
+    const has=((b.style.boxShadow||'')!=='');
+    if(on===has){ if(on) _meetGlowId=id; return; }
+    b.style.transition='box-shadow 0.9s ease';
+    b.style.boxShadow=on?'0 0 14px 3px rgba(255,130,150,0.75)':'';
+    if(on) _meetGlowId=id; else if(_meetGlowId===id) _meetGlowId=null;
+  }catch(e){}
+}
+function _meetGlow(on){ _meetGlowEl('tb-like',on); }
+function _drawMeetHint(cc,W,H){
+  // Second half of the visitor's single lesson. LESSON OF 14.08 (author watched the
+  // field, missed an 8-second flash entirely): a one-shot hint fails while attention
+  // lives in the music — the lesson must STAND, breathing quietly, until the first ♥
+  // answers it. Then it dies forever with qr_met. Still dosed: one line, one origin,
+  // one lifetime.
+  if(document.body.classList.contains('mk-embedded')) return;
+  if(!window._qrMeetVirgin){ _meetGlow(false); return; }
+  if(!window._hadSound) return;
+  if(window._meetT0==null) window._meetT0=performance.now();
+  const t=(performance.now()-window._meetT0)/1000;
+  if(t<25){ _meetGlow(false); return; }
+  const ramp=Math.min(1,(t-25)/1.5);
+  const a=ramp*(0.44+0.14*Math.sin((t-25)/2.2));   // slow breath, never gone
+  _meetGlow(true);
+  cc.save();
+  const u=Math.min(W,H);
+  cc.textAlign='center'; cc.textBaseline='middle';
+  cc.font=`${Math.max(14,Math.round(u*0.028))}px 'IBM Plex Mono','SF Mono',monospace`;
+  cc.fillStyle=(_bgIsLight?'rgba(11,7,5,':'rgba(246,237,228,')+Math.max(0,Math.min(1,a)).toFixed(3)+')';
+  cc.fillText('♥ if a moment touches you — we keep it', W/2, H*0.16);
+  cc.restore();
+}
+// FIRST MEETING: the field itself is the door — a clean tap on a never-yet-sounded
+// engine starts the transport (a visitor looks at the picture, not at the toolbar).
+// Drags and holds still belong to pan/zoom; gone after the first sound or once met.
+(function(){
+  const cv=document.getElementById('plot'); if(!cv) return;
+  let dn=null;
+  cv.addEventListener('pointerdown',e=>{ dn={x:e.clientX,y:e.clientY,t:performance.now()}; },true);
+  cv.addEventListener('pointerup',e=>{
+    if(!dn) return;
+    const dx=Math.abs(e.clientX-dn.x), dy=Math.abs(e.clientY-dn.y), dt=performance.now()-dn.t;
+    dn=null;
+    if(dx>6||dy>6||dt>600) return;
+    if(!window._qrMeetVirgin || window._hadSound) return;
+    try{
+      const rect=cv.getBoundingClientRect(), y=e.clientY-rect.top;
+      const z=(window._meetZones||[]).find(q=>y>=q.y1&&y<=q.y2);
+      if(z){
+        // the hand path: no sound yet — autopilot disarmed, the p lesson stands
+        window._loreChoose('manual');
+        try{ if(typeof learner!=='undefined'&&learner.isAutoOn&&learner.isAutoOn()) learner.toggleAuto(); }catch(e3){}
+        try{ const tp=document.getElementById('pb-transport'); if(tp) tp.open=true; }catch(e3){}
+        try{ document.getElementById('p-num')?.addEventListener('change',()=>_meetGlowEl('p-num',false),{once:true}); }catch(e3){}
+        return;
+      }
+    }catch(e4){}
+    window._loreChoose('improv');
+    try{ if(!state.running) startAudio(); }catch(e2){}
+  },true);
+})();
 const LWET={};    // per-layer reverb-send gain on the PER-NOTE send (sp→ns→LWET[k]→LSEND[k]→conv). POST-fader by default (=vget, so reverb scales with volume AND respects solo); in pre-fader mode it carries only the solo gate (nominal send)
 const LVOL={};    // per-layer LIVE volume gains (note → LVOL[layer] → voiceBus); volume changes apply instantly, even to held notes
 const LPAN={};    // per-layer stereo pan (LVOL[layer] → LPAN[layer] → voiceBus); −1..+1, spatial only, never touches pitch
@@ -4060,6 +4245,28 @@ const SCHEDULE_AHEAD_MAX =_IS_COARSE ? 1.2  : 0.9;    // and may grow it further
 let SCHEDULE_AHEAD=SCHEDULE_AHEAD_BASE;
 const LOOKAHEAD_MS=10;
 let synthState=null;
+setInterval(function(){ try{
+  if(!state.reqGoto || !state.running || state.paused) return;
+  var rq=state.reqGoto, s=synthState; if(!s) return;
+  if(rq.p && (rq.p|0)!==(s.p|0)) return;              // p-changes keep their own gate
+  if(rq._handAt==null){ rq._handAt=Date.now(); return; }
+  if(Date.now()-rq._handAt<1500) return;               // the musical seam goes first
+  var sec=(rq.sec==='dual')?'main':(rq.sec||'main');
+  var fi=(s.flow&&s.flow.length)?s.flow.indexOf(sec):-1;
+  if(fi<0) return;
+  state.reqGoto=null;
+  s.flowIdx=fi;
+  if(typeof _enterFlowPhase==='function') _enterFlowPhase(s, s.p|0);
+  if(s.rList && s.rList.length){
+    if(rq.rPos==='last') s.rIdx=s.rList.length-1;
+    else if(typeof rq.rPos==='number'){ var bi=0,bd=Infinity;
+      for(var k=0;k<s.rList.length;k++){ var dd=Math.abs((s.rList[k]|0)-rq.rPos); if(dd<bd){bd=dd;bi=k;} }
+      s.rIdx=bi;
+    } else s.rIdx=0;
+  }
+  s.aFresh=true; s.aIdx=0;
+  try{ if(typeof _fl==='function') _fl('nav','the hand outranks the slot \u2014 '+sec+' now'); }catch(e){}
+}catch(e){} },200);
 
 // Audio output buffer (latencyHint): bigger = more stable under load — fewer
 // glitches / dropouts / stuck-reverb "dirt" — at the cost of more latency. It can
@@ -4772,10 +4979,12 @@ function makePannedSink(lG,rG,noteVol,traj){
   // with the layer breath, this is what keeps a long sound alive, not frozen.
   if(traj && traj.t!=null && (traj.dur||0)>=((lay==='chord')?1.6:2.6)){
     try{
-      const bt0=traj.t, bdu=traj.dur, bT=3.8+Math.random()*2.2, bdep=(lay==='chord')?0.28:0.24, binF=0.38;
+      const _bp=Math.max(3,((typeof _liveP==='function')?_liveP():state.p)|0);
+      const _bk=((((Math.round((traj.f||traj.freq||bt0*97)*1000))%_bp)+_bp)%_bp)||1;   // this note's own residue
+      const bt0=traj.t, bdu=traj.dur, bT=3.8+2.2*(_bk/_bp), bdep=(lay==='chord')?0.28:0.24, binF=0.38;
       const bend=bt0+bdu-0.35;
       sp.gain.setValueAtTime(1,bt0);
-      let bph=Math.random(), btt=bt0, bg2=0;
+      let bph=(isQR(_bk,_bp)? (_bk/_bp) : 1-(_bk/_bp)), btt=bt0, bg2=0;
       while(btt<bend && ++bg2<64){
         const brem=(bph<binF)?((binF-bph)*bT):((1-bph)*bT);
         const btN=Math.min(bend, btt+Math.max(0.12,brem));
@@ -4913,7 +5122,12 @@ function _qrMicroDetune(freq){
 }
 let _medVoices=[];   // meditation polyphony: keep only 3–4 bowl tones overlapping at once
 function schedulePulseSine(t,dur,freq,vol,pL,pR,opts){
-  _tapeNote('pulse',arguments,dur);
+  // (16.08 audit) the tape used to sit ABOVE the duration math and above the
+  // meditate gate: it wrote the ASKED length and recorded notes that never sounded.
+  // Both bent the mirror — and because articulation shortens only the NQR side,
+  // the error split the classes. Snapshot the args here, write the note below,
+  // with the length it truly sings.
+  const _tArgs=_palTape.on?Array.prototype.slice.call(arguments):null;
   if(state.activity==='meditate'){
     const now=(ctx?ctx.currentTime:0);
     for(let i=_medVoices.length-1;i>=0;i--) if(_medVoices[i]<now-0.05) _medVoices.splice(i,1);
@@ -4934,6 +5148,7 @@ function schedulePulseSine(t,dur,freq,vol,pL,pR,opts){
   // untouched (their 1.85x is well inside), but long notes/chords at high morph can
   // no longer smear whole seconds into the next material (part of the tail-mush fix)
   const durEff=Math.min(dur*(1+mo*0.85), dur+2.2*(60/(state.bpm||60)));
+  if(_tArgs) _tapeNote('pulse',_tArgs,durEff);
   const att=Math.min(durEff*0.6, Math.max(0.003,(QRA.attQR||0.012)*0.6) + mo*durEff*0.42);
   if(att>_beatAttNext) _beatAttNext=att;
   const dec=(opts&&opts.decay)||(QRA.decNQR||0.5);
@@ -5135,8 +5350,9 @@ function scheduleGlissSine(t,dur,f0,f1,vol,pL,pR){
 }
 
 function scheduleDiagBell(t,dur,freq,vol,pL,pR){
-  _tapeNote('bell',arguments,dur);
+  const _tArgs=_palTape.on?Array.prototype.slice.call(arguments):null;
   dur=_articDur(dur);   // NQR diagonal → damped (shorter) bell; QR → full ring
+  if(_tArgs) _tapeNote('bell',_tArgs,dur*1.7);   // (16.08) the bell's real end is its ring-out tail, below
   const sink=makePannedSink(pL,pR,vol);
   // brass body at the fundamental (sawtooth-ish), slightly slower attack, sits under
   // the bell partials and gives the strike a metallic-brass core.
@@ -5163,9 +5379,11 @@ function scheduleDiagBell(t,dur,freq,vol,pL,pR){
 function scheduleHat(t,vol,pL,pR,open){
   const dur = open ? 1.1 : 0.05;
   _tapeNote('hat',arguments,dur);      // open hat rings out long; closed is a tight tick (order-of-magnitude contrast)
+  const _hp0=Math.max(3,((typeof _liveP==='function')?_liveP():state.p)|0);
+  const _chi=_qrExciteBuf(_hp0).getChannelData(0), _cn=_chi.length;
   const n=(ctx.sampleRate*dur)|0, buf=ctx.createBuffer(1,n,ctx.sampleRate), d=buf.getChannelData(0);
   let prev=0;
-  for(let i=0;i<n;i++){const x=Math.random()*2-1; const hp=x-prev*0.92; prev=x; d[i]=hp;}
+  for(let i=0;i<n;i++){const x=_chi[i%_cn]; const hp=x-prev*0.92; prev=x; d[i]=hp;}   // (16.08) χ-grain, not dice: the same hat sounds the same in the mirror
   const src=ctx.createBufferSource(); src.buffer=buf;
   const env=ctx.createGain();
   env.gain.setValueAtTime(0,t); env.gain.linearRampToValueAtTime(vol,t+0.001);
@@ -5469,15 +5687,40 @@ function consumeRequests(){
       }catch(e){}
     }
   } else s._appN=0;
+  // (16.08) THE ANSWER'S SIDE OF THE ANNOUNCED LANDING: one beat of notice counted in
+  // beats, then the author's offset. Setting reqP here lands it in THIS same call —
+  // the block below is what does the landing.
+  if(state._landPend){
+    // land on the beat nearest the announced instant — the pair's grids are locked to
+    // within milliseconds, so «the same beat» is a thing both halves can name
+    if(nextBeatTime >= state._landPend.at - 0.5*beatDur()){
+      const _L=state._landPend; state._landPend=null;
+      state.reqP=_L.p; state._landTok=true; _tOK=true;
+    }
+  }
   if(_tOK && state.reqP!==null){
     let p=state.reqP|0; if(p<3)p=3; if(!isPrime(p))p=nextPrime(p);
-    s.p=p; state.p=p; s.phase='pause-before'; s.rIdx=0; s.aIdx=0; s.rList=[];
-    s.contFarIdx=null; s.contFreq=null;
-    if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); cfgTieReset(); }
-    state.reqP=null;
-    // (03.08) DO NOT wipe the queue: each frame carries its own p, and the old
-    // prime's scheduled audio still sounds for up to a lookahead — let its picture
-    // play out in sync; the new field arrives exactly with its first sound.
+    // (16.08) THE BEAT OF NOTICE. consumeRequests runs inside the scheduler, one beat
+    // ahead of sound; a message sent at the landing itself arrives after the partner
+    // has already scheduled that beat — measured, exactly one beat late, every time.
+    // So with a partner the conductor spends ONE beat announcing: «this prime lands on
+    // the next beat». Both halves then put their foot down on the same sounding beat.
+    let _announcing=false;
+    if(!state._landArmed){
+      try{ if(window._duoAnnounceLand && typeof ctx!=='undefined' && ctx)
+        _announcing=!!window._duoAnnounceLand(p, Date.now()+Math.max(0,(nextBeatTime-ctx.currentTime))*1000+beatDur()*1000); }catch(e){}
+      if(_announcing){ state._landArmed=true; state._landTok=true; }   // the token makes the NEXT beat land whatever the walk is doing
+    }
+    if(!_announcing){
+      state._landArmed=false;
+      s.p=p; state.p=p; s.phase='pause-before'; s.rIdx=0; s.aIdx=0; s.rList=[];
+      s.contFarIdx=null; s.contFreq=null;
+      if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); cfgTieReset(); }
+      state.reqP=null;
+      // (03.08) DO NOT wipe the queue: each frame carries its own p, and the old
+      // prime's scheduled audio still sounds for up to a lookahead — let its picture
+      // play out in sync; the new field arrives exactly with its first sound.
+    }
   }
   if(state.reqR!==null){   // WITHIN-screen jump: free to fire — the LANDING snaps to the 1/n² ladder
     s.pendingR=_ladderSnap(s.p|0, Math.max(1,Math.min((s.p|0)-1, state.reqR|0))); state.reqR=null;
@@ -7822,6 +8065,7 @@ function _pulseRatioPick(hr){
 function setPulseBPM(hr, src){
   hr=Number(hr);
   if(!(hr>=30 && hr<=220)) return;                    // physiology only
+  if(window._palPhaseB) return;                       // (16.08) inside the mirror the tempo belongs to the taped form — the heart waits its turn
   _pulseHr = _pulseHr ? (_pulseHr*0.7 + hr*0.3) : hr; // gentle smoothing
   state.pulse.hr=Math.round(_pulseHr);
   if(!state.pulse.on){ state.pulse.on=true; state.pulse.k=_pulseRatioPick(_pulseHr); }
@@ -8098,6 +8342,15 @@ function startRenderLoop(){
       const now=ctx.currentTime;
       _audioWatchdog(now);
       _meterTick();
+      try{ if(_outMeter && state.running && !state.paused){
+          if(!window.__tacetBuf || window.__tacetBuf.length!==_outMeter.fftSize) window.__tacetBuf=new Uint8Array(_outMeter.fftSize);
+          _outMeter.getByteTimeDomainData(window.__tacetBuf);
+          var _ts9=0,_tb9=window.__tacetBuf;
+          for(var _ti9=0;_ti9<_tb9.length;_ti9+=4){ var _tv9=(_tb9[_ti9]-128)/128; _ts9+=_tv9*_tv9; }
+          if(Math.sqrt(_ts9/(_tb9.length/4))<0.004){ if(!window.__tacetSince) window.__tacetSince=now; }
+          else window.__tacetSince=0;
+          window._halfTacet=!!(window.__tacetSince && (now-window.__tacetSince)>1.2);
+        } else { window.__tacetSince=0; window._halfTacet=false; } }catch(e){}
       // Visual events are queued at their AUDIO dispatch time (ctx.currentTime units),
       // but the sound is only heard ctx.outputLatency later (tens of ms wired, 150–300ms
       // over Bluetooth). Hold each visual until the sound actually reaches the speakers,
@@ -8352,7 +8605,7 @@ function _buildPPStatic(mode,p,r,W,H,darkBg,prev){ prev=prev||null;
   };
   _drawGrid(cc,W,H,pad,iW,iH,p,C);
   cc.fillStyle=C.FG; cc.font=`bold ${Math.round(11*_inkScale)}px 'IBM Plex Mono','SF Mono',monospace`;
-  cc.fillText(`p=${p}  [${mode}] · x=time/beat`,pad+4,pad-8);
+  cc.fillText(`p=${p}  [${mode}] · x=time/beat`+(window._halfTacet?'  ·  tacet — this half is silent':''),pad+4,pad-8);
 
   // Scatter in sounded order: x = beat-slot, y = residue-derived pitch. Class = SHAPE
   // (QR ○ / NQR ×) as in voices a/b: the prelude sounds QR pitches (r²) → dots, the
@@ -8419,7 +8672,7 @@ function _buildDualSectionStatic(directSec,contraSec,p,W,H,darkBg,prev){ prev=pr
   const _rv=_ppRevRank();
   const tag=(directSec===contraSec) ? `${directSec} ↔ ${_rv?'−rank':'retro'}`
                                      : `${directSec} ↔ ${contraSec}${_rv?'-rev':''}`;
-  cc.fillText(`p=${p}  [${tag}] · x=time: direct→ / reverse←`,pad+4,pad-8);
+  cc.fillText(`p=${p}  [${tag}] · x=time: direct→ / reverse←`+(window._halfTacet?'  ·  tacet — this half is silent':''),pad+4,pad-8);
 
   const gs=_glyphScale(p), sz=2.7*gs;
   const N=p-1;
@@ -8493,7 +8746,7 @@ function _buildMainStatic(p,r,W,H,darkBg,prev){ prev=prev||null;
 
   _drawGrid(bc,W,H,pad,iW,iH,p,C);
   bc.fillStyle=C.FG; bc.font=`bold ${Math.round(11*_inkScale)}px 'SF Mono',monospace`;
-  bc.fillText(`p=${p}  r=${r}  [main] · x=time/beat`,pad+4,pad-8);
+  bc.fillText(`p=${p}  r=${r}  [main] · x=time/beat`+(window._halfTacet?'  ·  tacet — this half is silent':''),pad+4,pad-8);
 
   const rIsQRm=isQR(r,p);
   const forward=(p%4===1)?rIsQRm:!rIsQRm;
@@ -8645,7 +8898,9 @@ function drawFrameOnContext(cc,W,H,vs){
       const cx=_xBeatSlot(pad,iW,p,slot), cy=yFor(yv);
       if(k===0) _ringFrac=(cx-pad)/iW;
       cc.strokeStyle=(rings[k].track==='pre')?C.RING_A:C.RING_B; cc.lineWidth=2.5;
+      if(window._halfTacet){ cc.save(); cc.globalAlpha=0.3; cc.setLineDash([3,4]); }
       cc.beginPath(); cc.arc(cx,cy,9,0,Math.PI*2); cc.stroke();
+      if(window._halfTacet) cc.restore();
     }
     return;
   }
@@ -8666,7 +8921,9 @@ function drawFrameOnContext(cc,W,H,vs){
       const cx=_xBeatSlot(pad,iW,p,vs.beat||0), cy=yFor(yv);
       _ringFrac=(cx-pad)/iW;
       cc.strokeStyle=C.RINGA_PRE; cc.lineWidth=2;
+      if(window._halfTacet){ cc.save(); cc.globalAlpha=0.3; cc.setLineDash([3,4]); }
       cc.beginPath(); cc.arc(cx,cy,9,0,Math.PI*2); cc.stroke();
+      if(window._halfTacet) cc.restore();
     }
     return;
   }
@@ -8818,6 +9075,8 @@ function drawFrame(){
   drawFrameOnContext(cctx,W,H,vs);
   _drawCaption(cctx,W,H);
   try{ _drawIdlePlates(cctx,W,H); }catch(e){}
+  try{ _drawMeetEcho(cctx,W,H); }catch(e){}
+  try{ _drawMeetHint(cctx,W,H); }catch(e){}
   if(typeof cfg!=='undefined' && cfg.overlay) cfgDrawOverlay(cctx,W,H);
   _followCamera();
 }
@@ -9113,7 +9372,8 @@ const groove=(()=>{
   // kick register; the drop leaps 5:2 for p≡1 (gentle) or 4:1 for p≡3 (steep); the
   // drop tightens with √p; the attack skin is one χ-grain of the prime; NQR hits
   // sag darkly below the floor at the tail.
-  try{ window._grooveVoices={kick:_kick,snare:_snare,tom:_tom,zap:_zap,click:_click,cymbal:_cymbal,bass:_bass,hat:_hat,clap:_clapChi}; }catch(e){}   // (07.08) the tape replays each lane through its OWN voice
+  try{ window._grooveVoices={kick:_kick,snare:_snare,tom:_tom,zap:_zap,click:_click,cymbal:_cymbal,bass:_bass,hat:_hat,clap:_clapChi}; }catch(e){}
+  try{ window._gvStep={get:function(){ return step; }, set:function(n){ step=n|0; }}; }catch(e){}   // (16.08) the palindrome restores the hit's own step before replaying a lane — χ per hit, not one frozen colour   // (07.08) the tape replays each lane through its OWN voice
   function _kick(t,v){
     _gvPush('kick',t,v);
     const sink=gvSink('kick'); if(!sink) return;
@@ -9247,7 +9507,7 @@ const groove=(()=>{
     // fundamental = geometric ¼ of the CURRENT frequency range
     const lo=Math.max(20,state.minFreq||120), hi=Math.max(lo+1,state.maxFreq||1000);
     o.frequency.value = lo*Math.pow(hi/lo,0.25);
-    _gvNote('cymbal',t,v,o.frequency.value,q); _tapeNote('gv_cymbal',arguments,0.6);
+    _gvNote('cymbal',t,v,o.frequency.value,q); _tapeNote('gv_cymbal',arguments,ringLen);   // (16.08) the true ring, not a constant — a cymbal can hold 4 s where the tape claimed 0.6
     // (1) BOING — a fast pitch spring at the strike: up for QR, down for NQR.
     o.detune.setValueAtTime(q*640,t); o.detune.linearRampToValueAtTime(0,t+0.7*W);
     const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=520;
@@ -10787,8 +11047,12 @@ function cfgCanon(set4,p){
 
 // Find representative quadruples for a given type id. Full dedup enumeration for
 // moderate p; random sampling for large p (counts shown via formula where exact).
-// Goncharova closed form for the COMPLETE type (exact count of QR-quadruples
-// with all 6 differences QR — matches direct enumeration).
+// Goncharova closed form for the COMPLETE type: the number of 4-subsets of Z_p
+// whose six pairwise differences are ALL quadratic residues, counted UP TO
+// TRANSLATION (verified against direct enumeration 14.08: p=29→7, 37→15,
+// 41→25, 53→65, 61→100 — exact). The panel's other number counts a different,
+// also honest family — quadruples lying inside the QR set itself, unshifted;
+// the info line labels both so the two counts cannot be mistaken for one.
 function cfgLegendre(a,p){ a%=p; if(a<0)a+=p; if(a===0)return 0; return modPow(a,(p-1)>>1,p)===1?1:-1; }
 function cfgJ(p){ const k=(p-1)>>2; let s=0; for(let i=1;i<=4*k-2;i++) s+=cfgLegendre(i*(i+1)*(i+2),p); return s; }
 function cfgCompleteCount(p){ const k=(p-1)>>2, J=cfgJ(p), d=(J*J-4)/32; return (k*(k-1)*(k-4)+2*k*d)/24; }
@@ -10946,10 +11210,10 @@ function cfgRefresh(){
   cfg.idx=0;
   const total=cfg.quads.length;
   let extra='';
-  if(cfg.typeId==='complete'){ const tc=cfgCompleteCount(p); extra=` · Goncharova total ${tc} — her closed form, exact`; }
+  if(cfg.typeId==='complete'){ const tc=cfgCompleteCount(p); extra=` · Goncharova total ${tc} — every quadruple in Z_p up to shift; her closed form, exact`; }
   const t=CFG_TYPES.find(t=>t.id===cfg.typeId);
   const word = cfg.truncated ? `${total}+ (capped)` : `${total}`;
-  cfgUpdateUI(`${t.name} · ${t.edges} edge(s) · ${word} QR-quadruples${extra}`);
+  cfgUpdateUI(`${t.name} · ${t.edges} edge(s) · ${word} quadruples within the QR set${extra}`);
   cfgSyncOverlay();
   if(cfg._syncDurUI) cfg._syncDurUI();
   if(cfg._updateTypeCounts) cfg._updateTypeCounts();
@@ -10964,6 +11228,27 @@ function cfgSyncOverlay(){
   const p=cfg.p, qt=qrTable(p);
   cfg.overlay={ p, quad:quad0.slice(), info:cfgEdges(quad0,p,qt) };
 }
+
+// The mathematician's door (#goncharova): the engine opens already standing on her
+// configurations — panel unfolded, complete K4 selected, the closed-form count on
+// screen. A start prime ≢ 1 (mod 4) is nudged to the home prime 61 so the objects
+// exist; a running engine is never touched.
+if(window._qrDoorMath){ (function(){
+  function _doorOpen(){
+    try{
+      const acc=document.getElementById('acc-goncharova'); if(acc) acc.open=true;
+      cfg.typeId='complete';
+      const ts=document.getElementById('cfg-type'); if(ts) ts.value='complete';
+      if(!state.running && ((state.p|0)%4!==1 || !isPrime(state.p|0))){
+        state.p=61; state.vizP=61;
+        const pn=document.getElementById('p-num'); if(pn) pn.value=61;
+      }
+      cfgRefresh();
+    }catch(e){}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_doorOpen);
+  else setTimeout(_doorOpen,0);
+})(); }
 
 // Build the chord queue for a melodic note value: every quadruple of the current
 // type that contains that note, capped by the max-per-note control. Returns the
@@ -11484,7 +11769,13 @@ const liveDrift=(()=>{
     if(state.rules&&state.rules.freqLockInScene){
       const _s=(typeof synthState!=='undefined')?synthState:null;
       const _ph=_s?_s.phase:'';
-      const _sk=((typeof _liveP==='function')?_liveP():state.p)+'|'+_ph+'|'+((_ph==='main'&&_s)?(_s.currentR||0):'');
+      // (10.08 author: «стоит запретить менять частотный диапазон внутри кадра»)
+      // the lock tightens from one SCREEN to one FRAME: the drift may move the
+      // range only when p itself changes. Scene applies still bring their own
+      // ranges through restore — the register is a decision of the frame, not
+      // a breath inside it. (Was per-r since 25.07: «при смене r может быть
+      // изменён частотный диапазон» — the author's ear has since ruled stricter.)
+      const _sk=String((typeof _liveP==='function')?_liveP():state.p);
       _fqAllowed=(_sk!==_scrKeyLast);
       if(_fqAllowed) _scrKeyLast=_sk;
     } else _scrKeyLast=null;   // rule off → continuous breathing, key reset for a clean re-arm
@@ -14373,6 +14664,12 @@ const learner = (()=>{
           : _hisTouch ? `♥ Claude remembers this — his tuning was loved`
           : `♥ learned — this exact sound, weight ${Math.round(w)}`);
     _earLine('♥');
+    // FIRST MEETING, closing echo: the very first ♥ of a new visitor is answered once
+    // on the field itself — then the instrument never explains itself again.
+    try{ if(window._qrMeetVirgin && !localStorage.getItem('qr_met')){
+      localStorage.setItem('qr_met','1'); window._qrMeetVirgin=false;
+      window._meetEcho={t0:performance.now(), text:'learned — what you love becomes our voice'};
+    } }catch(e){}
   }
   function generate(base){
     base=base||current(); const risk=_risk(), density=_density(), temp=0.55+risk*1.45;
@@ -14824,6 +15121,7 @@ const learner = (()=>{
     _fadeRunner=run;
   }
   function formStop(msg){
+    try{ window._formArc=null; }catch(e){}
     formOn=false; if(formTimer){clearTimeout(formTimer);formTimer=null;} _killFade();
     if(_formFilmT){clearTimeout(_formFilmT);_formFilmT=null;}   // (05.08 audit) a cancelled form must not fire a late film start
     try{ if(window._duoPalStop) window._duoPalStop(); }catch(e){}   // (05.08 audit) ■ stop form takes the crab down with it — no zombie ride
@@ -14838,12 +15136,14 @@ const learner = (()=>{
     if(typeof liveDrift!=='undefined'){ liveDrift.suppress(null); liveDrift.stop(); }
     if(state.groove && !state.groove.autoMode && groove && groove.applyConfig){ try{ groove.applyConfig({arch:'off'},{auto:true}); }catch(e){} }   // retract a beat the form itself brought in (the manual ▶ groove contract is untouched)
     if(_formPrevMaster!=null){ _setMaster(_formPrevMaster); _formPrevMaster=null; }
+    try{ window._formPrevMaster=null; }catch(e){}
     try{ saveNow(); }catch(e){}   // a played form is experience — keep it
     if(msg)_status(msg);
   }
   function formStart(T){
     if(formOn){ formStop('form stopped'); return; }
     if(autoOn) toggleAuto();                      // forms and free autopilot are exclusive
+    const _wasLive=!!(state.running && !state.paused && window._hadSound);
     const baseBpm=Math.max(24,Math.min(240,state.bpm||60));
     const plan=state.primeArch?_formPlanPrime(T,baseBpm):_formPlan(T,baseBpm);
     formOn=true; _formBtn(true);
@@ -14863,6 +15163,7 @@ const learner = (()=>{
     if(typeof liveDrift!=='undefined') liveDrift.start();
     // FORM FRAME: rise out of silence, sink back into silence at the exact end.
     _formPrevMaster=state.vol.master;
+    try{ window._formPrevMaster=_formPrevMaster; }catch(e){}   // the palindrome snapshots mid-fade: it needs the level the form actually plays at
     _setMaster(0.0001);
     const fadeIn=Math.min(3200,Math.max(900,T*110));
     const fadeOut=Math.min(8000,Math.max(2000,T*190));
@@ -14870,7 +15171,7 @@ const learner = (()=>{
     // точки в расчёт длительности»): reserve a rest window INSIDE T — the fade lands
     // its final point early, both Markovs rest together, and the held silence
     // completes the form at exactly T.
-    const rest=Math.max(2500,Math.min(6000,T*50));
+    const rest=Math.max(4000,Math.min(10000,T*80));   // (09.08 author: «для ясности формы нужны паузы в конце»)
     _fadeOutTimer=setTimeout(()=>{
       _masterFade(0.0001,fadeOut,()=>{
         try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}   // (05.08 audit) pauseAudio TOGGLES — unguarded it un-paused a user-stopped engine
@@ -14921,6 +15222,8 @@ const learner = (()=>{
     if(_palRide) _palRide=!!window._palNoteRide(T);   // (07.08) the palindrome: phase A = THIS form, taped
     try{ if(window._duoPalStop) window._duoPalStop(); }catch(e){}   // any legacy scene-crab stands down — the form itself is the score
     if(_palRide) _status('◆ palindrome form · phase A — the form plays, the tape listens · '+T+'s');
+    try{ if(_palRide && _wasLive && typeof _fl==='function') _fl('palindrome','the mirror begins WITH the form — what sounded before this moment stays outside the palindrome'); }catch(e){}
+    try{ window._formArc={t0:performance.now(), T:T*1000}; }catch(e){}   // the ribbon shows THE FORM, not the scene saw
     step();
   }
   function toggleAuto(){
@@ -15509,7 +15812,7 @@ startRenderLoop();
     if(document.getElementById('engine-play')) return;
     const lbl=document.createElement('span'); lbl.id='td-label'; lbl.textContent='QR ENGINE';
     lbl.title='build 07.08c — the note-for-note palindrome, retro self-heal, honest score';
-    const _bst=document.createElement('span'); _bst.textContent='07.08z';
+    const _bst=document.createElement('span'); _bst.textContent='16.08b';
     _bst.style.cssText='font-size:9px;color:var(--muted,#667);margin-left:4px;letter-spacing:1px';
     _bst.title='build stamp — if this does not match what Claude just shipped, the tab is serving a stale copy (hard reload: Cmd+Shift+R)';
     const play=document.createElement('button'); play.id='engine-play'; play.className='primary';
@@ -16697,6 +17000,8 @@ startRenderLoop();
   // the SAME plan end-to-start with every scene direction flipped and entered from its
   // end. At any moment t her material equals his at T-t; they meet in the middle.
   var _palTimer=null,_palActive=false,_palRev=false,btnPal=null,selDuoFmt=null,btnBoth=null,_prePalMode='parts',_palPos0=null;
+  var offIn=null, offOut=null;   // (16.08) the scene-offset knob lives on the pill in BOTH windows — the wire is symmetric
+  function _offLabel(v){ v=+v||0; return (v===0)?'together':((v>0?'+':'')+(Math.round(v*100)/100)+' beat'+(Math.abs(v)===1?'':'s')); }
   // (05.08i author: «он играет от А до Я, она от Я до А — её последняя сцена это
   // развёрнутая его первая») THE TRUE CRAB needs exact segment mirroring: a step of
   // dur seconds plays only PART of its scene, so entering «from the end» made her
@@ -16945,8 +17250,15 @@ startRenderLoop();
         masterGain.gain.setTargetAtTime(Math.max(0.05,_tacetPrev), ctx.currentTime, 0.2); _tacetPrev=null; }
     }catch(e){}
   }
+  // (16.08 audit) _palActive belongs to the retired scene-crab and is NEVER true for
+  // the note palindrome — so every guard written for pal was dead code, and the role
+  // mask went on re-dealing the voices every 250 ms right through the mirror. ONE
+  // live flag, read everywhere the old one was: phase A on the singing half
+  // (_palRide), phase B on the answering half (_palPhaseB).
+  function _palLive(){ return !!(_palActive || window._palRide || window._palPhaseB); }
   function _palNoteRide(T){
-    _palTape.ev.length=0; _palTape.on=true;
+    window._palRide=true;
+    _palTape.ev.length=0; _palTape.on=true; _palTape.full=false; _palTape.done=false;
     _palTape.t0=(typeof ctx!=='undefined'&&ctx)?ctx.currentTime:0;
     window._palPhaseB=false;
     send({t:'tacet', on:true});   // the answer half is silent through phase A — one voice states the form
@@ -16955,18 +17267,52 @@ startRenderLoop();
   }
   window._palNoteRide=_palNoteRide;
   window._palTapeFinish=function(){
-    if(!_palTape.on) return;
+    // (16.08 audit) the old guard was `if(!_palTape.on) return;` — so a FULL tape
+    // (the cap sets on=false) killed phase B and left the partner muted forever.
+    // A short mirror is a musical result; silence is a crash.
+    if(!_palTape.on && !_palTape.full) return;
+    if(_palTape.done) return; _palTape.done=true;
     _palTape.on=false;
     window._palPhaseB=true;
-    var T=((typeof ctx!=='undefined'&&ctx)?ctx.currentTime:0)-_palTape.t0;
+    // (16.08 audit) T from the WALL let every note still ringing past it collapse onto
+    // the pivot (Math.max(0,…)) and open the mirror with a chord. The form ends where
+    // its last note ends: T = the furthest taped END.
+    var T=0;
+    try{ for(var _q=0;_q<_palTape.ev.length;_q++){ var _e=_palTape.ev[_q];
+      var _end=(_e.a[0]-_palTape.t0)+(_e.d||0); if(_end>T) T=_end; } }catch(e){}
+    if(!(T>0)) T=((typeof ctx!=='undefined'&&ctx)?ctx.currentTime:0)-_palTape.t0;
     var snap=null; try{ snap=scenes.capture(); if(snap&&snap.duo) delete snap.duo; }catch(e){}
+    // (16.08 audit) three live values the scene does not model — without them the
+    // mirror starts at the answering half's own level and colour and freezes there.
+    // And the master: the snapshot is taken while the form's fade still holds it near
+    // zero, so we hand over the level the form actually played at.
+    try{ if(snap){
+      snap._norm=(typeof qrBus!=='undefined'&&qrBus&&qrBus.norm&&qrBus.norm.gain)?qrBus.norm.gain.value:null;
+      snap._wetDose=(typeof _wetDoseLast!=='undefined')?_wetDoseLast:null;
+      if(snap.vol && window._formPrevMaster!=null) snap.vol.master=window._formPrevMaster;
+    } }catch(e){}
     send({t:'tacet', on:false});
-    send({t:'tape', T:T, t0:_palTape.t0, ev:_palTape.ev, snap:snap});
+    // the seam by the WALL clock and by the sound cards, not by a 0.7 s guess
+    send({t:'tape', T:T, t0:_palTape.t0, ev:_palTape.ev, snap:snap,
+          at:Date.now()+700, lat:((typeof ctx!=='undefined'&&ctx)?(ctx.outputLatency||ctx.baseLatency||0):0),
+          full:!!_palTape.full});
+    // NEVER end in silence: if the tape never crossed, both halves come back on their own
+    try{ if(window._palAckT) clearTimeout(window._palAckT); }catch(e){}
+    window._palAckT=setTimeout(function(){
+      try{ window._palAckT=null; window._palPhaseB=false; window._palRide=false;
+        _setTacet(false); send({t:'tacet', on:false});
+        if(!state.running) startAudio(); else if(state.paused) pauseAudio();
+        if(typeof _fl==='function') _fl('palindrome','the tape never reached the other half — both halves are back, the mirror did not run');
+      }catch(e){}
+    }, 5000);
+    try{ window._palB={base:((typeof ctx!=='undefined'&&ctx)?ctx.currentTime:0)+0.7, span:T}; }catch(e){}   // the silent half watches the tape rewind too
     _setTacet(true);   // my half falls silent; the mirror sings on the other
     try{ _xpApplying=true; if(state.running&&!state.paused) pauseAudio(); }catch(e){} finally{ _xpApplying=false; }
-    try{ if(typeof _fl==='function') _fl('crab','phase B — the answer leads the form back, note for note ('+_palTape.ev.length+' notes)'); }catch(e){}
+    try{ if(typeof _fl==='function') _fl('palindrome','phase B — the answer leads the form back, note for note ('+_palTape.ev.length+' notes)'); }catch(e){}
   };
   function _palReplay(m){
+    try{ send({t:'tape-ack'}); }catch(e){}
+    window._palPhaseB=true;   // (16.08) the answering half was never marked — its guards and its ribbon both stayed blind
     try{ if(m.snap) scenes.restore(m.snap,{sim:true}); }catch(e){}
     try{ if(!state.running) startAudio(); else if(state.paused) pauseAudio(); }catch(e){}
     // my own improviser is silent through the mirror: local pause (no echo) —
@@ -16976,18 +17322,37 @@ startRenderLoop();
     var evs=(m.ev||[]).slice(), T=m.T||0, t00=m.t0||0;
     for(var q0=0;q0<evs.length;q0++){ var x0=evs[q0]; x0._m=Math.max(0, T-((x0.a[0]-t00)+(x0.d||0))); }
     evs.sort(function(a1,b1){ return a1._m-b1._m; });
-    var base=ctx.currentTime+0.7, i=0;
+    // (16.08 audit) the pivot was a bare +0.7 s taken AFTER the restore and the sort,
+    // while every message already carried a timestamp nobody read. Now: the mailed
+    // wall instant, plus the difference between the two sound cards (a Bluetooth box
+    // can sit 300 ms behind a wired one).
+    var _wall=(m.at!=null)?Math.max(0.15,(m.at-Date.now())/1000):0.7;
+    var _myLat=(ctx.outputLatency||ctx.baseLatency||0);
+    var _latC=Math.max(0, Math.min(0.5, (m.lat||0)-_myLat));
+    var base=ctx.currentTime+_wall+_latC, i=0;
+    // span/tail by the last END, not the last START — a drone still ringing owns the mirror's end
+    var _span=0; for(var q1=0;q1<evs.length;q1++){ var _e1=evs[q1]._m+(evs[q1].d||0); if(_e1>_span) _span=_e1; }
+    try{ window._palB={base:base, span:_span}; }catch(e){}
+    // the values the scene cannot carry, put back before the first note sounds
+    try{ if(m.snap){
+      if(m.snap._norm!=null && typeof qrBus!=='undefined' && qrBus && qrBus.norm && qrBus.norm.gain) qrBus.norm.gain.value=m.snap._norm;
+      if(m.snap._wetDose!=null && typeof _wetDoseLast!=='undefined'){ _wetDoseLast=m.snap._wetDose; if(typeof refreshLVol==='function') refreshLVol(); }
+    } }catch(e){}
+    if(m.full){ try{ if(typeof _fl==='function') _fl('palindrome','the tape was truncated — the mirror reaches back only as far as it was written'); }catch(e){} }
     if(window._palReplayIv){ try{ clearInterval(window._palReplayIv); }catch(e){} }
     var iv=setInterval(function(){
       try{
         if(i>=evs.length){
           clearInterval(iv); window._palReplayIv=null;
-          var tail=(evs.length? (base+evs[evs.length-1]._m+(evs[evs.length-1].d||0)) : ctx.currentTime)-ctx.currentTime;
+          var tail=(evs.length? (base+_span) : ctx.currentTime)-ctx.currentTime;
           setTimeout(function(){
-            try{ _xpApplying=true; if(state.paused) pauseAudio(); }catch(e){} finally{ _xpApplying=false; }
             send({t:'pal-end', p:state.vizP|0, r:state.vizR|0});
             send({t:'tape-done'});
-            try{ if(typeof _fl==='function') _fl('crab','the mirror is complete — the palindrome closed'); }catch(e){}
+            try{ window._palPhaseB=false; window._palRide=false; }catch(e){}
+            try{ window._palB=null; }catch(e){}
+            var _rest=Math.max(3000,Math.min(10000, 8*60000/(state.bpm||60)));
+            try{ if(typeof _fl==='function') _fl('palindrome','the mirror closed on the form\u2019s first note \u00b7 '+Math.round(_rest/1000)+' s of silence belong to it'); }catch(e){}
+            setTimeout(function(){ try{ _xpApplying=true; if(state.paused) pauseAudio(); }catch(e){} finally{ _xpApplying=false; } }, _rest);
           }, Math.max(400, tail*1000+600));
           return;
         }
@@ -16996,7 +17361,11 @@ startRenderLoop();
           var x=evs[i++]; var tt=base+x._m;
           if(x.k.indexOf('gv_')===0){
             var fn=window._grooveVoices && window._grooveVoices[x.k.slice(3)];
-            if(fn){ var ga=x.a.slice(); ga[0]=tt; try{ fn.apply(null,ga); }catch(e){} }
+            if(fn){ var ga=x.a.slice(); ga[0]=tt;
+              var _sPrev=null;
+              try{ if(x.s!=null && window._gvStep){ _sPrev=window._gvStep.get(); window._gvStep.set(x.s); } }catch(e){}
+              try{ fn.apply(null,ga); }catch(e){}
+              try{ if(_sPrev!=null && window._gvStep) window._gvStep.set(_sPrev); }catch(e){} }
           } else {
             var reg={pulse:(typeof schedulePulseSine!=='undefined')&&schedulePulseSine,
                      cont:(typeof scheduleContinuousSine!=='undefined')&&scheduleContinuousSine,
@@ -17075,10 +17444,45 @@ startRenderLoop();
   window._duoCap=function(){
     try{
       if(IS_LEADER && state.duo.on && state.duo.peer && _peerCap && (Date.now()-_peerCapTs)<6000)
-        return {mode:state.duo.mode, ratio:_freeRatio||0, lead:(state.duo.lead||'markov'), markova:_peerCap};
+        return {mode:state.duo.mode, ratio:_freeRatio||0, lead:(state.duo.lead||'markov'),
+                off:(state.duo.offsetBeats||0), markova:_peerCap};
     }catch(e){}
     return null;
   };
+  // ---- THE ANNOUNCED LANDING (16.08) ---------------------------------------------
+  // The old way was a mirror: the leader changed, the follower heard about it and
+  // changed too — one waiting at its anchor, the other never waiting at all, so ONE
+  // scene arrived on two different beats. Now the leader ANNOUNCES: «this prime lands
+  // at this instant», and both halves put their foot down together. The offset is the
+  // only thing allowed to separate them — and it is a number the author sets.
+  var _landSeen=0;
+  window._duoAnnounceLand=function(p, atWall){
+    try{
+      if(!(state.duo.on && state.duo.peer)) return false;
+      if(!_isLead()) return false;                 // only the conductor announces
+      if(_palLive()) return false;                 // the palindrome owns its own clock
+      if(state.duo.mode==='free') return false;    // «сама»: she is not following anything
+      send({t:'land', p:p|0, at:atWall, ofs:(state.duo.offsetBeats||0)});
+      return true;
+    }catch(e){ return false; }
+  };
+  function _landHere(m){
+    // the answering half: land exactly at the announced instant, shifted by the offset
+    try{
+      if(_isLead() || !state.duo.on) return;
+      if(_palLive() || state.duo.mode==='free') return;
+      if(m.n && m.n===_landSeen) return;
+      // (16.08, measured twice) Timing this in milliseconds is a trap: arming at once
+      // put her a beat EARLY (−973 ms), quantizing put her a beat LATE (+1196 ms).
+      // The honest unit is her own beat. The conductor spends one beat announcing;
+      // she skips exactly one of her own scheduling calls and lands on the same
+      // sounding beat he does. Tempo-independent by construction. The offset then
+      // moves her, and only her, in beats.
+      var _bd=beatDur();
+      var _atCtx=((typeof ctx!=='undefined'&&ctx)?ctx.currentTime:0)+(((m.at||Date.now())-Date.now())/1000)+(+m.ofs||0)*_bd;
+      state._landPend={p:(m.p|0), at:_atCtx};
+    }catch(e){}
+  }
   // restoring a ⚭ scene (or replaying a duet session step) re-establishes the pair:
   // mode, tempo ratio, and Markova's own saved state delivered to her verbatim
   (function(){
@@ -17089,6 +17493,9 @@ startRenderLoop();
         if(s && s.duo){
           if(s.duo.mode){ state.duo.mode=s.duo.mode; send({t:'mode',mode:s.duo.mode}); }
           if(s.duo.lead){ state.duo.lead=s.duo.lead; send({t:'lead', who:s.duo.lead}); }
+          if(s.duo.off!=null){ state.duo.offsetBeats=Math.max(-4,Math.min(4,+s.duo.off||0));
+            if(offIn){ offIn.value=state.duo.offsetBeats; if(offOut) offOut.textContent=_offLabel(state.duo.offsetBeats); }
+            send({t:'soff', v:state.duo.offsetBeats}); }
           _freeRatio=(s.duo.ratio>0)?s.duo.ratio:null;
           if(selRatio) selRatio.value=_ratioKey(_freeRatio);
           send({t:'ratio', v:s.duo.ratio||0, k:_ratioKey(_freeRatio)});
@@ -17145,6 +17552,7 @@ startRenderLoop();
 
   state.duo={ on:false, role:ROLE, peer:false, peerId:null, lastPeer:0,
     lead:'markov',   // who conducts (03.08: «равенство прав») — swappable by the ♛ button on either side
+    offsetBeats:0,   // (16.08 author: «ввести офсет как параметр, по умолчанию выровнять») how much LATER the answering half changes scene, in beats; 0 = both land on the same beat; negative = she lands first, as far as the announcement's notice allows
     mode:'parts' };   // 'parts' — each window sings its part · 'retro' — Markova plays the SAME material as Markov, direction reversed (a retrograde canon)
 
   // ---- Phase 1Б: ROLES — each window sings its own part of the SAME piece --------
@@ -17162,7 +17570,7 @@ startRenderLoop();
     for(var i=0;i<mine.length;i++) if(!state.solo.has(mine[i])) return false; return true; }
   function _applyRoleMask(){
     if(!(state.duo.on && state.duo.peer)) { _dropRoleMask(); return; }
-    if(_palActive){ _dropRoleMask(); return; }   // (05.08) pal is FULL-ensemble on both sides — «одно исполнение равно другому, прочитанному назад» must hold in SOUND, not on paper
+    if(_palLive()){ _dropRoleMask(); return; }   // (05.08) pal is FULL-ensemble on both sides — «одно исполнение равно другому, прочитанному назад» must hold in SOUND, not on paper
     // RETRO / FREE modes: both windows play the FULL ensemble (retro — same material
     // opposite directions; free — she improvises her own) — no part split.
     if(state.duo.mode==='retro' || state.duo.mode==='free'){ _dropRoleMask(); return; }
@@ -17246,7 +17654,7 @@ startRenderLoop();
   function applyRemoteScene(snap){
     if(!state.duo.on || _isLead() || !snap) return;
     if(state.duo.mode==='free') return;   // «сама»: Markova is independent — the mirror stands down entirely
-    if(_palActive) return;                 // a palindrome is running — its own scheduler owns the scenes
+    if(_palLive()) return;                 // a palindrome is running — its own scheduler owns the scenes
     if(_applying){ if(applyRemoteScene._at && Date.now()-applyRemoteScene._at>3000){ _applying=false; } else return; }
     _applying=true; applyRemoteScene._at=Date.now();
     try{
@@ -17280,7 +17688,14 @@ startRenderLoop();
     // переходят в моё управление — частоты не слушаются»). Same strip the leader's
     // improviser obeys, applied against this window's live values.
     try{ if(typeof apStripPinned==='function' && state.apPins && state.apPins.size && snap){
-      snap=Object.assign({}, snap); apStripPinned(snap, scenes.capture()); } }catch(e){}
+      // (09.08 live autopsy — the TRUE root of «на двух экранах разные p», at last)
+      // A hand-typed p pins the 'prime' class; the pin travels the wire; and this
+      // strip then erased the LAW from every incoming mirror — the follower stayed
+      // orphaned on its own p forever, silently, heal after heal. The hand keeps
+      // its faders; the law belongs to the PAIR: p and r always ride the mirror.
+      var _law={p:snap.p, r:snap.r};
+      snap=Object.assign({}, snap); apStripPinned(snap, scenes.capture());
+      if(_law.p!=null) snap.p=_law.p; if(_law.r!=null) snap.r=_law.r; } }catch(e){}
     // if the player owns solo, keep THEIR set across the mirror (restore would overwrite it)
     var _soloKeep=(typeof apPinned==='function' && apPinned('solo')) ? [...(state.solo||[])] : null;
     state._mirrorUntil=Date.now()+2500;   // the baton's gates already ruled — the answer switches IN STEP (03.08: «сцены переключаются синхронно»)
@@ -17297,9 +17712,22 @@ startRenderLoop();
     if(!m || m.id===MY_ID) return;
     if(m.pair && PAIR && m.pair!==PAIR) return;   // another tab's pair — not ours
     if(m.n!=null){ if(_seenN[m.id]!=null && m.n<=_seenN[m.id]) return; _seenN[m.id]=m.n; }
-    if(m.role && m.role!==ROLE){ state.duo.peer=true; state.duo.peerId=m.id; state.duo.lastPeer=Date.now();
+    if(m.role && m.role!==ROLE){ var _newPeer=!state.duo.peer; state.duo.peer=true; state.duo.peerId=m.id; state.duo.lastPeer=Date.now();
+      if(_newPeer){ try{ _paint(); }catch(e){} }
       try{ var _nmk=document.getElementById('phone-nomarkova'); if(_nmk) _nmk.remove(); }catch(e){} }   // (05.08) she DID boot, just late — retract the watchdog
     if(m.t==='hello'){ send({t:'hi'});
+      // (09.08 live autopsy) THE HEARTBEAT HEALS: the seed is ONE message and a boot
+      // race can eat it — then parts mode had no second chance (the pos heal was
+      // retro-only) and the halves lived on different laws for a whole session.
+      // The heartbeat carries the sender's p; a follower that disagrees twice in a
+      // row asks for the scene — any silent loss repairs itself within ~6 s.
+      try{ if(!_isLead() && state.duo.on && !_palLive() && state.duo.mode!=='free' && m.hp && (m.hp|0)!==(state.p|0)){
+        var _hbN=Date.now();
+        if(window._hbMis && window._hbMis.p===(m.hp|0)){
+          if(_hbN-window._hbMis.at>3500 && (!window._scnReqAt || performance.now()-window._scnReqAt>4000)){
+            window._scnReqAt=performance.now(); send({t:'scene-req'}); }
+        } else window._hbMis={p:m.hp|0, at:_hbN};
+      } else if(m.hp) window._hbMis=null; }catch(e){}
       // Full sync ONLY for a NEW peer (first pairing / her frame reloaded). Answering
       // EVERY 2-second heartbeat with a FORCED scene mirror made the follower restore
       // every 2 s — rebuilding the whole residue field each time (the p997 underrun
@@ -17311,6 +17739,7 @@ startRenderLoop();
         _lastPeerSeeded=m.id;
         send({t:'lead', who:(state.duo.lead||'markov')});
         send({t:'ratio', v:_freeRatio||0, k:_ratioKey(_freeRatio)});
+        send({t:'soff', v:(state.duo.offsetBeats||0)});   // (16.08) or a reloaded frame lands on the default while the pill shows the author's number
       }
       if(_isLead() && state.duo.on && m.id!==_lastPeerSynced){
         _lastPeerSynced=m.id;
@@ -17318,10 +17747,10 @@ startRenderLoop();
       } }
     else if(m.t==='mode'){ if(m.mode){ if(m.mode==='pal' && state.duo.mode!=='pal') _prePalMode=state.duo.mode; state.duo.mode=m.mode;   // (05.08 audit) both windows must hold the SAME pre-pal mode, or the crab's natural end crosses them
       if(m.mode!=='pal' && _palActive) _palStopLocal();   // one family: a mode change ends the palindrome everywhere
-      if(!_isLead()){ _needMirrorJump=(m.mode==='retro'); if(!_palActive) _mkFreeSync(); }
+      if(!_isLead()){ _needMirrorJump=(m.mode==='retro'); if(!_palLive()) _mkFreeSync(); }
       if(_isLead() && m.mode!=='free' && m.mode!=='pal') broadcastScene(true);   // adopt the follower's choice and re-mirror with it at once
     } }
-    else if(m.t==='bpm'){ if(!_isLead() && m.bpm>0 && !_palActive){ _lastLeaderBpm=m.bpm|0;
+    else if(m.t==='bpm'){ if(!_isLead() && m.bpm>0 && !_palLive()){ _lastLeaderBpm=m.bpm|0;
       if(state.duo.mode!=='free'){ state.bpm=Math.max(5,Math.min(999,m.bpm|0));
         var _e1=document.getElementById('bpm'), _e2=document.getElementById('bpm-num');
         if(_e1)_e1.value=state.bpm; if(_e2)_e2.value=state.bpm; }
@@ -17339,7 +17768,10 @@ startRenderLoop();
     else if(m.t==='unpin'){ if(_isLead()) apUnpin(m.key); }
     else if(m.t==='clearpins'){ if(_isLead()) apClearPins(); }
     else if(m.t==='pins'){ if(!_isLead() && typeof _apPinSet==='function'){ var s2=_apPinSet(); s2.clear(); (m.pins||[]).forEach(function(k){ s2.add(k); }); if(typeof _apRenderPins==='function') _apRenderPins(); } }
-    else if(m.t==='scene-req'){ if(_isLead()) broadcastScene(true); }   // (07.08) the follower noticed a lost mirror — the conductor re-states the scene
+    else if(m.t==='scene-req'){ if(_isLead()) broadcastScene(true); }
+    else if(m.t==='stage-req'){ try{ if(IS_LEADER && btnStage) btnStage.onclick({stopPropagation:function(){}}); }catch(e){} }
+    else if(m.t==='rec-req'){ try{ if(IS_LEADER && btnRec) btnRec.onclick({stopPropagation:function(){}}); }catch(e){} }
+    else if(m.t==='close-req'){ try{ if(IS_LEADER && document.getElementById('duo-frame-wrap') && btnOpen) btnOpen.onclick({stopPropagation:function(){}}); }catch(e){} }
     else if(m.t==='pal'){ if(m.plan && m.plan.length){   // whoever RECEIVES the plan answers in reverse — either window may start it
       var _rev=m.plan.slice().reverse().map(function(x){ var st=Object.assign({},x.state); if(st.duo) delete st.duo; st.dir=(st.dir<0)?1:-1; return {state:st, dur:x.dur, end:x.end}; });
       _palStopLocal();
@@ -17369,10 +17801,17 @@ startRenderLoop();
         try{ if(typeof _fl==='function') _fl('room','this half now sounds from '+(m.label||'the chosen box')); }catch(e){} }); }
     }catch(e){} }
     else if(m.t==='tacet'){ try{ _setTacet(!!m.on); }catch(e){} }
+    else if(m.t==='land'){ try{ _landHere(m); }catch(e){} }
+    else if(m.t==='soff'){ try{
+      state.duo.offsetBeats=Math.max(-4,Math.min(4,+m.v||0));
+      if(offIn){ offIn.value=state.duo.offsetBeats; if(offOut) offOut.textContent=_offLabel(state.duo.offsetBeats); }
+    }catch(e){} }
+    else if(m.t==='tape-ack'){ try{ if(window._palAckT){ clearTimeout(window._palAckT); window._palAckT=null; } }catch(e){} }
     else if(m.t==='tape'){ try{ _palReplay(m); }catch(e){} }
     else if(m.t==='tape-done'){ try{
-      window._palPhaseB=false; _setTacet(false);
-      try{ _xpApplying=true; if(state.paused) pauseAudio(); }catch(e){} finally{ _xpApplying=false; }
+      window._palPhaseB=false; window._palRide=false; _setTacet(false); try{ window._palB=null; }catch(e){}
+      setTimeout(function(){ try{ _xpApplying=true; if(state.paused) pauseAudio(); }catch(e){} finally{ _xpApplying=false; } },
+        Math.max(3000,Math.min(10000, 8*60000/(state.bpm||60))));
       try{ var _v9=document.getElementById('tb-rec-vid');
         if(_v9 && (_v9._armed || (_v9._isRec && _v9._isRec()) || _v9._duoTint)) _v9.click(); }catch(e){}   // the film ends where the mirror ends
       if(state.duo.mode==='pal'){ state.duo.mode=_prePalMode||'parts'; send({t:'mode',mode:state.duo.mode}); }
@@ -17559,7 +17998,7 @@ startRenderLoop();
 
   // heartbeat (peer presence) + leader change-poll
   setInterval(function(){
-    if(state.duo.on) send({t:'hello'});
+    if(state.duo.on) send({t:'hello', hp:state.p|0});
     if(state.duo.on && !IS_LEADER && state.duo.peer){ var _c=snapshot(); if(_c) send({t:'mycap', snap:_c}); }   // her side of a duet like/save
     if(state.duo.on && _isLead() && state.duo.peer && window._breathState){ var _bs=window._breathState(); send({t:'breath', ph:_bs.ph, T:_bs.T}); }   // his inhale/exhale, for her to answer
     if(state.duo.peer && (Date.now()-state.duo.lastPeer>6000)){ state.duo.peer=false; state.duo.peerId=null; _dropRoleMask(); _paint(); }
@@ -17629,7 +18068,7 @@ startRenderLoop();
       _paint(); });
     // body — hidden until expanded
     bodyEl=document.createElement('div'); bodyEl.style.cssText='margin-top:5px;display:none';
-    btnToggle=document.createElement('button'); btnToggle.textContent='off'; btnToggle.style.cssText='margin-right:4px';
+    btnToggle=document.createElement('button'); btnToggle.textContent='link: off'; btnToggle.style.cssText='margin-right:4px';
     btnToggle.onclick=function(ev){ ev.stopPropagation(); state.duo.on=!state.duo.on;
       if(state.duo.on){ send({t:'hello'}); if(_isLead()){ broadcastScene(true); _sendPins(); } }
       else _dropRoleMask();   // duo off → the full ensemble returns to this window
@@ -17641,6 +18080,8 @@ startRenderLoop();
       var _mkWrap=null;
       function _frClose(){ if(_mkWrap){ _mkWrap.remove(); _mkWrap=null; }
         document.body.classList.remove('duo-framed');
+        try{ var _sm=document.getElementById('duo-seam'); if(_sm) _sm.remove(); }catch(e){}
+        try{ document.body.style.width=''; }catch(e){}
         document.body.classList.remove('duo-narrow');
         document.body.style.paddingTop='';
         // give Markov his full width back and let every canvas re-measure
@@ -17655,7 +18096,11 @@ startRenderLoop();
         state.duo.on=true;
         _mkWrap=document.createElement('div');
         _mkWrap.id='duo-frame-wrap';
-        _mkWrap.style.cssText='position:fixed;top:0;right:0;width:50vw;height:100vh;z-index:58;background:#000;border-left:2px solid var(--accent,#6cf);box-shadow:-8px 0 26px rgba(0,0,0,.55)';
+        _mkWrap.style.cssText='position:fixed;top:0;right:0;width:50vw;height:100vh;z-index:58;background:#000;box-shadow:-8px 0 26px rgba(0,0,0,.55)';
+        var _seam=document.createElement('div');   // the seam draws itself, it does not take space
+        _seam.style.cssText='position:fixed;top:0;bottom:0;left:50vw;width:2px;margin-left:-1px;background:var(--accent,#6cf);opacity:.55;z-index:59;pointer-events:none';
+        _seam.id='duo-seam';
+        document.body.appendChild(_seam);
         var fr=document.createElement('iframe');
         _mkFrameEl=fr;   // postMessage target for the Safari-safe transport
         fr.allow='autoplay *';   // (05.08p) on file:// the frame is an OPAQUE origin — a bare 'autoplay' allowlist ('src') never matches it, so delegation silently died and her context stayed locked; '*' hands the parent's activation to the frame on every origin
@@ -17727,6 +18172,7 @@ startRenderLoop();
         // frame band starts right below it.
         document.body.classList.add('duo-framed');
         var _wrapTop=function(){ try{ if(!_mkWrap) return; var _td=document.getElementById('top-dock'); var h=(_td&&_td.offsetHeight)||0; _mkWrap.style.top=h+'px'; _mkWrap.style.height='calc(100vh - '+h+'px)'; document.body.style.paddingTop=h+'px';
+          try{ document.documentElement.style.setProperty('--dock-h', h+'px'); }catch(e){}   // his stage measures the same field hers does
           document.body.classList.toggle('duo-narrow', (window.innerWidth/2)<760);   // (05.08m) both halves share the layout regime
         }catch(e){} };
         _wrapTop(); setTimeout(_wrapTop,150);
@@ -17735,6 +18181,7 @@ startRenderLoop();
         // полный» — the frame used to cover half of his still-full-width layout) and
         // fire a resize so his canvases re-measure to the visible half.
         document.body.style.marginRight='50vw';
+        document.body.style.width='50vw';   // exactly the half, so both fields measure the same
         try{ window.dispatchEvent(new Event('resize')); }catch(e){}
         btnOpen.textContent='✕ close Markova';
         send({t:'hello'}); _paint(); };
@@ -17880,7 +18327,8 @@ startRenderLoop();
               try{
                 var mixDest=mixCtx.createMediaStreamDestination();
                 if(typeof masterGain!=='undefined' && masterGain && mixCtx===ctx){
-                  var _ringComp=mixCtx.createDelay(0.5); _ringComp.delayTime.value=3*2048/48000;   // = the bridge ring's prebuffer — his master waits for her stream, the take hears them together
+                  var _avL=0; try{ _avL=(ctx.outputLatency||ctx.baseLatency||0)||0; }catch(e){}
+                  var _ringComp=mixCtx.createDelay(1.0); _ringComp.delayTime.value=3*2048/48000+_avL;   // ring prebuffer + the picture's output-latency hold — the take hears what the frame shows
                   masterGain.connect(_ringComp); _ringComp.connect(mixDest);
                   _clean.push(function(){ try{ masterGain.disconnect(_ringComp); _ringComp.disconnect(mixDest); }catch(e){} }); audioN++;
                 }
@@ -17898,14 +18346,16 @@ startRenderLoop();
                         rg._n=(rg._n||0)+1; rg._sum=(rg._sum||0)+rg.q.length;
                         if(rg._n>=24){ var _qb=rg._sum/rg._n; rg._n=0; rg._sum=0;
                           rg._lat=Math.round((_qb+1)*2048/48000*1000);
-                          try{ if(typeof _ringComp!=='undefined'&&_ringComp) _ringComp.delayTime.setTargetAtTime(Math.min(0.4,(_qb+1)*2048/48000), mixCtx.currentTime, 0.6); }catch(e){}
+                          try{ if(typeof _ringComp!=='undefined'&&_ringComp) _ringComp.delayTime.setTargetAtTime(Math.min(0.9,(_qb+1)*2048/48000+((ctx.outputLatency||ctx.baseLatency||0)||0)), mixCtx.currentTime, 0.6); }catch(e){}
                         }
                       }
                       var ch=(rg&&rg.q.shift())||null;
                       if(ch){ L.set(ch.l.subarray(0,L.length)); R.set(ch.r.subarray(0,R.length)); }
                       else { L.fill(0); R.fill(0); }
                     };
-                    vsp.connect(mixDest);
+                    var _vsAV=mixCtx.createDelay(1.0); _vsAV.delayTime.value=_avL;   // her stream waits for the held picture too
+                    vsp.connect(_vsAV); _vsAV.connect(mixDest);
+                    _clean.push(function(){ try{ vsp.disconnect(_vsAV); _vsAV.disconnect(mixDest); }catch(e){} });
                     var vzg=mixCtx.createGain(); vzg.gain.value=0; vsp.connect(vzg); vzg.connect(mixCtx.destination);
                     _clean.push(function(){ try{ var rg2=_vfRecv&&_vfRecv.ring; if(rg2&&rg2._lat&&typeof _fl==='function') _fl('bridge','her stream ran ≈ '+rg2._lat+' ms behind — the take mix was aligned to it'); }catch(e){} });
                     _clean.push(function(){ try{ vsp.onaudioprocess=null; vsp.disconnect(); vzg.disconnect(); vg0.disconnect(); }catch(e){} });
@@ -17984,19 +18434,65 @@ startRenderLoop();
             try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
             var total=(_dChunks||[]).reduce(function(s,c){ return s+(c.size||0); },0);
             window.__lastTake={bytes:total, mime:mime, composite:!!_comp};
+            window.__lastTakeBlob=null;   // the previous take yields the slot to this one
             if(!total){ _recFlash('the take came out EMPTY ('+(mime||'default')+') — please tell me, this is a codec issue'); _dRec=null; _dChunks=null; _paint(); return; }
             var isMp4=/mp4/.test(mime||'');
             var blob=new Blob(_dChunks,{type:(mime||'video/webm').split(';')[0]});
             var d2=new Date(), pad=function(n){ return String(n).padStart(2,'0'); };
             var _fx=(_comp&&selDuoFmt)?((selDuoFmt.value==='insta')?'-916':(selDuoFmt.value==='square')?'-11':''):'';
             var name='qr-duet-'+d2.getFullYear()+pad(d2.getMonth()+1)+pad(d2.getDate())+'-'+pad(d2.getHours())+pad(d2.getMinutes())+pad(d2.getSeconds())+_fx+(isMp4?'.mp4':'.webm');
+            window.__lastTakeBlob=blob; window.__lastTakeName=name;   // the take survives a dismissed dialog — until the NEXT take begins
+            try{
+              var _tl=window.__takeLog||[]; window.__takeLog=null;
+              if(_tl.length){
+                var _items=[], _end=(performance.now()-(window.__takeT0||0))/1000;
+                for(var _qi=0;_qi<_tl.length;_qi++){
+                  var _nx=(_qi+1<_tl.length)?_tl[_qi+1].at:_end;
+                  var _du=Math.max(1, Math.round((_nx-_tl[_qi].at)*10)/10);
+                  var _st=_tl[_qi].s||{}; if(_st.duo) { _st=Object.assign({},_st); delete _st.duo; }
+                  _items.push({name:'take scene '+(_qi+1)+' \u00b7 t='+Math.round(_tl[_qi].at)+'s', dur:_du, state:_st});
+                }
+                var _sess={app:'qr-engine', type:'session', version:2,
+                  _take:name, _note:'auto-recorded score of the take \u2014 load, press session \u25b6, and the piece replays scene by scene', items:_items};
+                var _sb=new Blob([JSON.stringify(_sess)],{type:'application/json'});
+                window.__lastTakeSession=_sb;
+                var _sa=document.createElement('a'); _sa.href=URL.createObjectURL(_sb);
+                _sa.download=name.replace(/\.(mp4|webm)$/,'')+'.session.json';
+                document.body.appendChild(_sa); _sa.click();
+                setTimeout(function(){ try{ URL.revokeObjectURL(_sa.href); _sa.remove(); }catch(e){} },4000);
+                try{ if(typeof _fl==='function') _fl('take','the score is saved beside the film \u2014 '+_items.length+' scene(s) in '+_sa.download); }catch(e){}
+              }
+            }catch(e){}
+            window._saveLastTake=function(){ try{ if(!window.__lastTakeBlob) return false;
+              var a2=document.createElement('a'); a2.href=URL.createObjectURL(window.__lastTakeBlob); a2.download=window.__lastTakeName||'qr-take.mp4';
+              document.body.appendChild(a2); a2.click(); setTimeout(function(){ URL.revokeObjectURL(a2.href); a2.remove(); },4000); return true; }catch(e){ return false; } };
+            try{ var _tb2=document.getElementById('tb-take-again');
+              if(!_tb2){ _tb2=document.createElement('button'); _tb2.id='tb-take-again'; _tb2.className='tb-btn';
+                _tb2.title='save the LAST take again — it stays in memory until the next recording starts';
+                _tb2.onclick=function(){ window._saveLastTake(); };
+                var _vb2=document.getElementById('tb-rec-vid'); if(_vb2&&_vb2.parentNode) _vb2.parentNode.insertBefore(_tb2,_vb2.nextSibling); }
+              _tb2.textContent='\u27f3 take'; _tb2.style.display=''; }catch(e){}
             var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
             document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },4000);
             _recFlash('take saved: '+name+' ('+Math.round(total/1024/102.4)/10+' MB)');
+            try{
+              var _cmd='cd ~/Downloads && ffmpeg -i "'+name+'" -c copy -movflags +faststart "__ok.mp4" && mv -f "__ok.mp4" "'+name+'"';
+              if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(_cmd);
+              if(typeof _fl==='function') _fl('take','browser video is always a FRAGMENTED mp4 — iPhone/WhatsApp refuse to parse it. One lossless remux cures it (the command is on your clipboard; or double-click QR/remux-for-phone.command): '+_cmd);
+            }catch(e){}
             _dRec=null; _dChunks=null; _paint();
           };
           // browser-side "stop sharing" bar also ends a tab-capture take cleanly
           var vt=stream.getVideoTracks()[0]; if(vt && !_comp) vt.onended=function(){ if(_dRec && _dRec.state!=='inactive'){ try{ _dRec.stop(); }catch(e){} } };
+          try{
+            window.__takeLog=[{at:0, s:scenes.capture()}];
+            window.__takeT0=performance.now();
+            if(!window.__takeWrapDone){ window.__takeWrapDone=true;
+              var _r0=scenes.restore;
+              scenes.restore=function(sn,op){ try{ if(window.__takeLog) window.__takeLog.push({at:(performance.now()-window.__takeT0)/1000, s:JSON.parse(JSON.stringify(sn))}); }catch(e){}
+                return _r0.apply(this,arguments); };
+            }
+          }catch(e){}
           _dRec.start(250);
           _paint();
         }catch(e){ try{ if(_comp&&_comp.cleanup)_comp.cleanup(); }catch(e2){}
@@ -18049,6 +18545,25 @@ startRenderLoop();
       };
       selRatio.onclick=function(ev){ ev.stopPropagation(); };
       bodyEl.appendChild(selRatio);
+      // SCENE OFFSET (author 16.08: «ввести офсет как параметр, по умолчанию выровнять»)
+      var offWrap=document.createElement('label');
+      offWrap.style.cssText='display:inline-flex;align-items:center;gap:4px;margin-left:8px;font:10px ui-monospace,monospace;color:var(--muted)';
+      offWrap.title='SCENE OFFSET — how much later the ANSWERING half changes scene, in beats. 0 = both land on the same beat: the conductor announces the instant its own anchor opens and the pair puts its foot down together. To have the ANSWER move first instead, hand it the baton (♛) — the announcement always travels from the conductor outward.';
+      offWrap.appendChild(document.createTextNode('offset'));
+      offIn=document.createElement('input');
+      offIn.type='range'; offIn.min='0'; offIn.max='4'; offIn.step='0.25'; offIn.value='0';
+      offIn.style.cssText='width:84px';
+      offOut=document.createElement('span');
+      offOut.style.cssText='min-width:58px;color:var(--accent)';
+      offOut.textContent=_offLabel(0);
+      offIn.oninput=function(){
+        var v=Math.max(-4,Math.min(4,parseFloat(offIn.value)||0));
+        state.duo.offsetBeats=v; offOut.textContent=_offLabel(v);
+        send({t:'soff', v:v});
+      };
+      offIn.onclick=function(ev){ ev.stopPropagation(); };
+      offWrap.appendChild(offIn); offWrap.appendChild(offOut);
+      bodyEl.appendChild(offWrap);
       // duet MODE: parts (each sings its part) ↔ retro (she plays HIS material reversed)
       btnMode=document.createElement('button');
       btnMode.title='duet mode — «parts»: ONE piece, two voices — Markov sings his voices + the shared bed, Markova hers; structure mirrors, live positions stay each window\'s own. «retro»: the retrograde canon — the answering window plays the SAME material direction-reversed from the mirror beat p−r, note for note (anchor rules stand down in retro). «free»: the answer runs its OWN improviser; only the × tempo ratio couples the two. While ◆ pal plays, its plan owns both windows and this button waits.';
@@ -18078,7 +18593,7 @@ startRenderLoop();
         _setDuoMode(_cyc[(_cyc.indexOf(state.duo.mode)+1)%_cyc.length]); };
       bodyEl.appendChild(btnMode);
       btnMode.style.display='none';   // the open pill shows the four doors; the cycle stays on the collapsed pill and the phone bar
-      var _mGl=[['parts','⚭ parts','one piece, two voices — Markov sings his voices, Markova hers'],['retro','⇄ retro','the retrograde canon — the answer plays the SAME material reversed, note for note'],['free','✦ free','her own improviser — only the tempo ratio couples the two'],['pal','◆ crab','the palindrome — ◆ play form: one half plays the form, the other then leads the SAME notes back, end to start']];
+      var _mGl=[['parts','⚭ parts','one piece, two voices — Markov sings his voices, Markova hers'],['retro','⇄ retro','the retrograde canon — the answer plays the SAME material reversed, note for note'],['free','✦ free','her own improviser — only the tempo ratio couples the two'],['pal','◆ palindrome','note for note, the tape wound backward — one half plays a FINITE form, the other then leads the same notes back, end to start: absolute coincidence. Active only for finite forms (form-dur or a Session).']];
       var _mRow=document.createElement('span'); _mRow.id='duo-mode-row'; _mRow.style.cssText='display:inline-flex;gap:2px;margin-left:4px';
       _mGl.forEach(function(gm){
         var b=document.createElement('button'); b.textContent=gm[1]; b.title=gm[2];
@@ -18090,6 +18605,22 @@ startRenderLoop();
       // routes to its OWN physical output — his voice one box, her voice the other.
       // Two system dialogs (the user picks the devices), then setSinkId here and
       // {t:'sink'} over the wire for her context.
+      if(!IS_LEADER){
+        var btnStageR=document.createElement('button'); btnStageR.textContent='⛶ stage';
+        btnStageR.title='DUET STAGE — fullscreen split of both halves. This asks over the wire; the main window performs.';
+        btnStageR.onclick=function(ev){ ev.stopPropagation(); send({t:'stage-req'}); };
+        bodyEl.appendChild(btnStageR);
+        var btnRecR=document.createElement('button'); btnRecR.textContent='● film';
+        btnRecR.title='record the DUET as one video (both halves + both engines mixed). Asks over the wire; the main window records.';
+        btnRecR.style.cssText='margin-left:4px';
+        btnRecR.onclick=function(ev){ ev.stopPropagation(); send({t:'rec-req'}); };
+        bodyEl.appendChild(btnRecR);
+        var btnCloseR=document.createElement('button'); btnCloseR.textContent='\u2715 close Markova';
+        btnCloseR.title='close this half — the main window folds the frame away';
+        btnCloseR.style.cssText='margin-left:4px';
+        btnCloseR.onclick=function(ev){ ev.stopPropagation(); send({t:'close-req'}); };
+        bodyEl.appendChild(btnCloseR);
+      }
       var btnRoom=document.createElement('button'); btnRoom.textContent='⌖ room';
       btnRoom.title='route the room: pick the loudspeaker for MARKOV, then for MARKOVA — each half sounds from its own box (e.g. EVO 8 and JBL). Bluetooth boxes carry their own radio latency (~150 ms) the beat beacon cannot heal — wire them when the room matters.';
       btnRoom.style.cssText='margin-left:4px';
@@ -18183,7 +18714,7 @@ startRenderLoop();
     document.body.appendChild(panel);
   }
   function _paint(){
-    try{ window._duoGuard={strict:((state.duo.on&&state.duo.peer&&state.duo.mode==='retro')||_palActive), pal:_palActive, retroAns:((state.duo.on&&state.duo.peer&&state.duo.mode==='retro'&&!_isLead())||_palRev)}; }catch(e){}   // (05.08) retro on EITHER side and pal are strict forms: the guard and the gates stand down for note-for-note symmetry; retroAns = this window ANSWERS the canon (the groove walks backward there)
+    try{ window._duoGuard={strict:((state.duo.on&&state.duo.peer&&state.duo.mode==='retro')||_palLive()), pal:_palLive(), retroAns:((state.duo.on&&state.duo.peer&&state.duo.mode==='retro'&&!_isLead())||_palRev)}; }catch(e){}   // (05.08) retro on EITHER side and pal are strict forms: the guard and the gates stand down for note-for-note symmetry; retroAns = this window ANSWERS the canon (the groove walks backward there)
     if(!panel) return;
     if(relEl){ var _ldR=(state.duo.lead||'markov');
       var _ldN=(_ldR==='markova')?'Markova':'Markov', _foN=(_ldR==='markova')?'Markov':'Markova';
@@ -18201,7 +18732,7 @@ startRenderLoop();
       miniEl.style.color=_hot?'#ff5f5f':'var(--muted,#888)';
       miniEl.title=_palActive?'palindrome is playing':(_dRec?'duet video is recording':'duet mode'); }
     if(bodyEl) bodyEl.style.display=_open?'block':'none';
-    if(btnToggle){ btnToggle.textContent=state.duo.on?'on':'off';
+    if(btnToggle){ btnToggle.textContent=state.duo.on?'link: on':'link: off';
       btnToggle.style.color=state.duo.on?'var(--accent,#6cf)':''; }
     if(btnMode){ btnMode.textContent=(state.duo.mode==='retro')?'retro ⇄':(state.duo.mode==='free')?'free ✦':(state.duo.mode==='pal')?(_palActive?'pal ◆ ▶':'pal ◆'):'parts ⚭';
       btnMode.style.color=(state.duo.mode==='retro')?'var(--accent2,#f9c)':(state.duo.mode==='free')?'var(--green,#86ffb0)':(state.duo.mode==='pal')?'#ff8a5f':''; }
@@ -18210,7 +18741,9 @@ startRenderLoop();
         for(var _mi=0;_mi<_mr.children.length;_mi++){ var _mb=_mr.children[_mi], _onM=(_mb.dataset.mode===state.duo.mode);
           _mb.style.color=_onM?(_mc[_mb.dataset.mode]||''):'var(--muted,#888)';
           _mb.style.fontWeight=_onM?'700':'400';
-          if(_mb.dataset.mode==='pal') _mb.textContent=_palActive?'◆ crab ▶':'◆ crab'; } } }catch(e){}
+          if(_mb.dataset.mode==='pal'){ _mb.textContent=_palActive?'◆ palindrome ▶':'◆ palindrome';
+            var _pOK=_palActive||_palReady(); _mb.disabled=!_pOK; _mb.style.opacity=_pOK?'':'0.4';
+            _mb.title=_pOK?'note for note, the tape wound backward — absolute coincidence':'palindrome needs a FINITE form — set form-dur (≥10 s) or load a Session of ≥2 steps'; } } } }catch(e){}
     if(btnLead){ btnLead.textContent=((state.duo.lead||'markov')==='markova')?'♛ Markova':'♛ Markov';
       btnLead.style.color=_isLead()?'var(--accent2,#f9c)':''; }
     if(btnStage){ var _st=document.body.classList.contains('duo-split');
@@ -18223,6 +18756,8 @@ startRenderLoop();
     if(btnPal){ btnPal.textContent=_palActive?'■ pal ●':'◆ pal';
       btnPal.style.color=_palActive?'#ff5f5f':''; }
     if(selRatio){ selRatio.style.opacity=(state.duo.mode==='free')?'1':'0.45'; }
+    try{ if(IS_LEADER && panel){ var _dup=!!(document.getElementById('duo-frame-wrap') && state.duo.peer);
+      panel.style.display=_dup?'none':''; } }catch(e){}   // one duet panel for the family (09.08)
 
   }
   // ---- PHONE mode (author 27.07: «версия для телефона — сдвоенный режим») ----------
@@ -18533,6 +19068,99 @@ startRenderLoop();
 
   global.QRDuo={ send:send, broadcast:function(){ broadcastScene(true); }, role:ROLE, state:function(){ return state.duo; } };
 })(typeof window!=='undefined'?window:globalThis);
+</script>
+<script>
+/* THE HAND ON THE STAGE (author 09.08): a volume knob on EACH half, and the
+   form-progress ribbon along the stage floor — drag moves within the section. */
+(function(){
+  function boot(){
+    var viz=document.getElementById('viz'); if(!viz||document.getElementById('stage-vol')) return;
+    var EMB=document.body.classList.contains('mk-embedded');
+    var KEY='qr_vol_'+(EMB?'markova':'markov');
+    var w=document.createElement('div');
+    w.id='stage-vol';
+    w.style.cssText='position:absolute;left:10px;bottom:10px;z-index:6;display:flex;align-items:center;gap:6px;opacity:.55;transition:opacity .2s';
+    w.onmouseenter=function(){ w.style.opacity='1'; };
+    w.onmouseleave=function(){ w.style.opacity='.55'; };
+    var lb=document.createElement('span'); lb.textContent='\u266a'; lb.style.cssText='color:var(--muted,#888);font-size:12px';
+    var sl=document.createElement('input'); sl.type='range'; sl.min='0'; sl.max='127'; sl.step='1';
+    sl.title='volume of THIS half';
+    sl.style.cssText='width:110px;height:14px;accent-color:var(--accent,#6cf)';
+    var v0=NaN; try{ v0=parseFloat(localStorage.getItem(KEY)); }catch(e){}
+    try{ if(isFinite(v0)&&v0>=0&&v0<=1.27) state.vol.master=v0; }catch(e){}
+    try{ sl.value=Math.round((state.vol.master||1)*100); }catch(e){ sl.value=100; }
+    sl.addEventListener('input',function(){
+      var v=Math.max(0,Math.min(1.27,sl.value/100));
+      try{ state.vol.master=v; }catch(e){}
+      try{ if(typeof masterGain!=='undefined'&&masterGain&&typeof ctx!=='undefined'&&ctx) masterGain.gain.setTargetAtTime(v,ctx.currentTime,0.04); }catch(e){}
+      try{ localStorage.setItem(KEY,String(v)); }catch(e){}
+    });
+    w.appendChild(lb); w.appendChild(sl); viz.appendChild(w);
+    var rb=document.createElement('div');
+    rb.id='form-progress'; rb.title='the form \u00b7 played part \u2014 drag to move within the current section';
+    rb.style.cssText='position:absolute;left:0;right:0;bottom:0;height:5px;z-index:5;background:rgba(255,255,255,.07);cursor:ew-resize';
+    var fill=document.createElement('div');
+    fill.style.cssText='height:100%;width:0%;background:var(--accent,#6cf);opacity:.8;transition:width .25s linear';
+    rb.appendChild(fill); viz.appendChild(rb);
+    function S(){ try{ return (typeof synthState!=='undefined')?synthState:null; }catch(e){ return null; } }
+    function frac(){ var s=S(); if(!s||!s.flow||!s.flow.length) return 0;
+      var ph=(s.rList&&s.rList.length)?((s.rIdx|0)/s.rList.length):0;
+      return Math.max(0,Math.min(1,((s.flowIdx|0)+ph)/s.flow.length)); }
+    setInterval(function(){ try{
+      if(window._palPhaseB && window._palB && typeof ctx!=='undefined' && ctx && window._palB.span>0){
+        // phase B: the ribbon REWINDS — the eye watches the tape wind back to the form's first note
+        var left=Math.max(0, 1-((ctx.currentTime-window._palB.base)/window._palB.span));
+        fill.style.width=(left*100).toFixed(1)+'%';
+        rb.title='\u25c6 palindrome \u00b7 phase B \u00b7 '+Math.round(left*100)+'% of the tape left \u2014 it ends on the very first note';
+        return;
+      }
+      if(window._formArc && window._formArc.T>0){
+        var fa=Math.min(1,(performance.now()-window._formArc.t0)/window._formArc.T);
+        fill.style.width=(fa*100).toFixed(1)+'%';
+        rb.title='form \u00b7 '+Math.round(fa*100)+'% played';
+        return;
+      }
+      fill.style.width=(frac()*100).toFixed(1)+'%';
+      var s=S(); if(s&&s.flow&&s.flow.length) rb.title='form \u00b7 '+(s.flow[s.flowIdx]||'')+' \u00b7 '+Math.round(frac()*100)+'% \u2014 drag to move within the current section'; }catch(e){} },400);
+    var drag=false;
+    function seek(ev){ var s=S(); if(!s||!s.flow||!s.flow.length||!s.rList||!s.rList.length) return;
+      var r=rb.getBoundingClientRect(); var f=Math.max(0,Math.min(0.999,(ev.clientX-r.left)/r.width));
+      var tot=f*s.flow.length, fi=Math.floor(tot);
+      if(fi!==(s.flowIdx|0)) return;
+      s.rIdx=Math.max(0,Math.min(s.rList.length-1,Math.round((tot-fi)*s.rList.length)));
+      fill.style.width=(f*100).toFixed(1)+'%'; }
+    rb.addEventListener('pointerdown',function(ev){ drag=true; try{ rb.setPointerCapture(ev.pointerId); }catch(e){} seek(ev); });
+    rb.addEventListener('pointermove',function(ev){ if(drag) seek(ev); });
+    rb.addEventListener('pointerup',function(){ drag=false; });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+})();
+window._qrDoor=function(patch, opts){
+  opts=opts||{};
+  var dip=(opts.dip!=null)?opts.dip:0.22, wait=(opts.wait!=null)?opts.wait:14;
+  var t0=(typeof performance!=='undefined')?performance.now():0;
+  var key=function(){ try{ return (synthState? (synthState.phase+'|'+(synthState.currentR||0)+'|'+(synthState.flowIdx|0)) : null); }catch(e){ return null; } };
+  var k0=key();
+  function swing(){
+    try{
+      var g=(typeof masterGain!=='undefined')?masterGain:null;
+      var keep=g?g.gain.value:null;
+      if(g && typeof ctx!=='undefined' && ctx) g.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.05);
+      setTimeout(function(){
+        try{ scenes.restore(Object.assign({}, scenes.capture(), patch||{}), {}); }catch(e){}
+        try{ if(g && ctx) g.gain.setTargetAtTime((keep!=null?keep:0.6), ctx.currentTime, 0.10); }catch(e){}
+        try{ if(window._fl) window._fl('door','a new window enters at the seam'+((patch&&patch.minFreq)?(' \u00b7 '+patch.minFreq+'\u2013'+patch.maxFreq+' Hz'):'')); }catch(e){}
+        if(typeof opts.done==='function') { try{ opts.done(); }catch(e){} }
+      }, Math.round(dip*1000));
+    }catch(e){}
+  }
+  (function poll(){
+    var kn=key();
+    if(kn===null || kn!==k0 || ((typeof performance!=='undefined'?performance.now():0)-t0)>wait*1000) swing();
+    else setTimeout(poll,110);
+  })();
+  return true;
+};
 </script>
 </body>
 </html>
