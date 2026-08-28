@@ -190,7 +190,7 @@
 <div class="week" id="week">
   <div class="todayline"><span class="dow" id="dow">—</span><span class="plan" id="dplan">—</span></div>
   <table class="wtbl"><tbody id="wrows"></tbody></table>
-  <div class="wkfoot">every day: psalm first · 10 min listening · craft 45 min (60 from 1.11) · hebrew 45+ min<br>
+  <div class="wkfoot">every day: psalm first · 10 min listening · craft 2 h (the faculty week) · hebrew 45+ min<br>
   from 3.09 the Harmony evenings are irregular — the morning is the protected half, and it moves for no one</div>
 </div>
 
@@ -301,8 +301,17 @@
 
       <div class="tool">
         <div class="trow"><span class="tname"><span class="he">מָנָה</span> · the dose</span>
-          <span class="tdur">45 min/day · 60 from 1.11</span></div>
+          <span class="tdur">2 h/day · the composition faculty</span></div>
         <p class="twhat">Written work counts; reading about music does not. The checking trainer is not built yet — until it is: paper, the textbook's key, and the instrument in the house.</p>
+        <div class="tgauge" style="border-top:none;margin-top:2px">
+          sun&nbsp;· harmony 40 + composition 80 (the week's miniature)<br>
+          mon · harmony 40 + polyphony 50 + solfège 30<br>
+          tue&nbsp;· harmony 40 + form analysis 50 + score reading 30<br>
+          wed · harmony 30 + orchestration 60 + composition 30<br>
+          thu&nbsp;· harmony 40 + polyphony 50 + solfège 30<br>
+          fri&nbsp;· the short day — harmony 30 + analysis 30<br>
+          sat&nbsp;· rest; listening with a score in the lap is rest too
+        </div>
         <div class="timer" style="padding-top:6px">
           <button class="go" id="clog">log minutes</button>
           <span class="tnote" id="cweek"></span>
@@ -547,7 +556,7 @@
 
   /* ---------- the craft dose: his own ruling of 19.08 ---------- */
   if (!state.craft) state.craft = [];
-  function craftDose() { return (new Date() < new Date('2026-11-01T00:00:00')) ? 45 : 60; }   // raised 28.08, his ruling: «увеличим объем занятий музыкой» — the 19.08 dose superseded
+  function craftDose() { return 120; }   // 28.08, his ruling of the same day, third and standing: «2 часа в день на занятия музыкой по программе композиторского факультета» — the chain 25 → 45 → 120 is the chronicle's to keep
   function craftRender() {
     var w = lastDays(state.craft, 7);
     var min = w.reduce(function (a2, r) { return a2 + (r.min || 0); }, 0);
