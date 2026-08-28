@@ -655,6 +655,7 @@ details.acc[open] { padding-bottom: 0; }
         <button class="mini-tgl" id="pulse-cam" title="finger fully over the camera lens (phone: rear camera, near the flash) — the page reads your pulse from the blood-light itself (photoplethysmography). Needs a steady finger and ~10 s">camera</button>
         <button class="mini-tgl" id="pulse-watch" title="Apple Watch → Pulsoid → here. Wear the watch, run the Pulsoid app, and paste its token once (kept locally). The heart rate comes over the cloud in real time — the accurate, stage-ready path. iPhone-friendly (no Bluetooth needed).">⌚ watch</button>
         <select class="mini-tgl" id="pulse-ratio" title="the rational multiple between heart and tempo — tempo = HR × k. Auto-picked to land nearest the current tempo; pick any ratio directly, ×13 down to ×1/13."></select>
+        <select class="mini-tgl" id="pulse-ratio-grv" title="the GROOVE's own gear: drum-grid tempo = HR × this, while the orchestra keeps its ×k — two rational tempi from one heart. '=' rides the orchestra. Works without the heart too: then it is the groove's ratio to the main tempo."></select>
         <button class="mini-tgl" id="pulse-off" title="release the tempo back to the manual control">off</button>
         <span id="pulse-line" style="flex:1;font:10px ui-monospace,monospace;color:var(--muted);text-align:right">—</span>
       </div>
@@ -9495,7 +9496,14 @@ setInterval(()=>{
 // (external relays can call window.setPulseBPM). While a golden form runs, the form owns
 // tempo and the pulse politely waits. k is auto-picked to land nearest the current tempo
 // and can be cycled by hand — the musician chooses the gear, the heart drives.
-state.pulse={on:false, src:null, hr:0, k:2, watch:false};
+state.pulse={on:false, src:null, hr:0, k:2, kg:null, watch:false, noWire:false};
+// (28.08, author: «нужен умный механизм выбора темпа. темп для грува и темп для
+// основного оркестра. темп марковой и маркова. возможность держать темп равным
+// пульсу или кратным ему») THE TEMPO DESK. One heart, many gears: the orchestra
+// follows HR × k (the ratio above), the GROOVE may hold its own HR × kg — kg null
+// means it simply rides the orchestra, ×1 in either gear means tempo = the pulse
+// itself. And over the duet wire the heart travels to the other window, where
+// MARKOVA applies her own gears to the same beat — two tempi, one blood.
 // coefficient ladder (author 24.07): 1/13 … 1 … 13 — in fractions the numerator is
 // always 1 (a unit-fraction / integer ladder, the project's rational-tempo language)
 const _PULSE_RATIOS=(()=>{ const a=[]; for(let n=13;n>=2;n--) a.push(1/n); a.push(1); for(let n=2;n<=13;n++) a.push(n); return a; })();
@@ -9518,12 +9526,26 @@ function setPulseBPM(hr, src){
   state.pulse.hr=Math.round(_pulseHr);
   if(!state.pulse.on){ state.pulse.on=true; state.pulse.k=_pulseRatioPick(_pulseHr); }
   if(src) state.pulse.src=src;
+  // the heart goes over the duet wire, throttled to one beat of news a second;
+  // the OTHER window applies its own gears to the same blood
+  if(src!=='wire'){ try{
+    if(window._duoHr && (!state.pulse._hrTx || Date.now()-state.pulse._hrTx>900)){
+      state.pulse._hrTx=Date.now(); window._duoHr(Math.round(_pulseHr));
+    } }catch(e){} }
   _pulsePaint();
 }
 try{ window.setPulseBPM=setPulseBPM; }catch(e){}       // the open port (Watch relay, console, OSC…)
-function _pulseWatchTick(){ if(state.pulse.watch) _pulsePaint(); }
+function _pulseWatchTick(){
+  if(!state.pulse.watch) return;
+  try{ const hr=(typeof QRHR!=='undefined')?(QRHR.ema||QRHR.bpm||0):0;
+    if(hr && window._duoHr && (!state.pulse._hrTx || Date.now()-state.pulse._hrTx>900)){
+      state.pulse._hrTx=Date.now(); window._duoHr(Math.round(hr));
+    } }catch(e){}
+  _pulsePaint();
+}
 function _pulseRelease(){
   state.pulse.on=false; state.pulse.src=null; _pulseHr=0; state.pulse.hr=0;
+  state.pulse.noWire=true;                                 // a released tempo stays released — the wire may not re-arm it uninvited
   _pulseCamStop(); _pulseTapReset();
   if(state.pulse.watch){                                  // hand tempo back from the Watch too
     try{ if(typeof QRHR!=='undefined'){ QRHR.off('hr', _pulseWatchTick); QRHR.tempo.stop(); QRHR.disconnect(); } }catch(e){}
@@ -9600,6 +9622,17 @@ async function _pulseCamStart(){
     // permission-gated, arms tempo only (never starts sound); recording never touches it.
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:320}, height:{ideal:240}}, audio:false});
   }catch(e){ _reportErr('pulseCam', e); _pulsePaint('camera blocked — allow it, or use tap'); return; }
+  // (28.08, author: «камера по-моему реально не работает») he was right, and the
+  // reason is the platform, not the blood: PPG needs the LED lit under the finger,
+  // iPhone Safari gives web pages NO torch at all, and a Mac hands over a webcam
+  // with no lamp. Light the torch where the browser allows it (Android Chrome),
+  // and SAY the wall where it does not, instead of listening to darkness.
+  try{
+    const tr=stream.getVideoTracks()[0];
+    const caps=(tr.getCapabilities?tr.getCapabilities():{})||{};
+    if(caps.torch){ await tr.applyConstraints({advanced:[{torch:true}]}); }
+    else _pulsePaint('camera — no torch on this device (iPhone web has none): needs bright light through the finger, or the watch');
+  }catch(e){}
   const video=document.createElement('video');
   video.muted=true; video.playsInline=true; video.srcObject=stream;
   try{ await video.play(); }catch(e){}
@@ -9668,6 +9701,8 @@ function _pulsePaint(note){
   const bt=document.getElementById('pulse-tap'), bc=document.getElementById('pulse-cam'), br=document.getElementById('pulse-ratio'), bw=document.getElementById('pulse-watch');
   if(br){ if(br.tagName==='SELECT'){ if(br.value!==String(state.pulse.k)) br.value=String(state.pulse.k); }
     else br.textContent=_PULSE_NAMES[_PULSE_RATIOS.indexOf(state.pulse.k)]||('×'+state.pulse.k); }
+  const bg=document.getElementById('pulse-ratio-grv');
+  if(bg && bg.tagName==='SELECT'){ const want=(state.pulse.kg>0)?String(state.pulse.kg):'='; if(bg.value!==want) bg.value=want; }
   if(bt) bt.classList.toggle('active', state.pulse.src==='tap');
   if(bc) bc.classList.toggle('active', state.pulse.src==='camera');
   if(bw) bw.classList.toggle('active', !!state.pulse.watch);
@@ -9676,12 +9711,15 @@ function _pulsePaint(note){
   const formHold=(typeof formOn!=='undefined' && formOn)?' · paused by form':'';
   if(state.pulse.watch && typeof QRHR!=='undefined'){       // the Watch drives via QRHR
     const hr=QRHR.bpm||0, k=(QRHR.tempo&&QRHR.tempo.active?QRHR.tempo.k:state.pulse.k);
-    line.textContent = hr ? `⌚ ${hr} ${_PULSE_NAMES[_PULSE_RATIOS.indexOf(k)]||('×'+k)} → ${Math.max(5,Math.min(999,Math.round((QRHR.ema||hr)*k)))} bpm${formHold}`
+    const grvW=(state.pulse.kg>0)?(' · groove '+(_PULSE_NAMES[_PULSE_RATIOS.indexOf(state.pulse.kg)]||('×'+state.pulse.kg))):'';
+    line.textContent = hr ? `⌚ ${hr} ${_PULSE_NAMES[_PULSE_RATIOS.indexOf(k)]||('×'+k)} → ${Math.max(5,Math.min(999,Math.round((QRHR.ema||hr)*k)))} bpm${grvW}${formHold}`
                           : 'watch — waiting for heartbeat…';
     return;
   }
   if(!state.pulse.on){ line.textContent='—'; return; }
-  line.textContent=`❤ ${state.pulse.hr} ${_PULSE_NAMES[_PULSE_RATIOS.indexOf(state.pulse.k)]||''} → ${Math.max(5,Math.min(999,Math.round(_pulseHr*state.pulse.k)))} bpm${formHold}`;
+  const glyph=(state.pulse.src==='wire')?'❤⇄':'❤';
+  const grv=(state.pulse.kg>0)?(' · groove '+(_PULSE_NAMES[_PULSE_RATIOS.indexOf(state.pulse.kg)]||('×'+state.pulse.kg))):'';
+  line.textContent=`${glyph} ${state.pulse.hr} ${_PULSE_NAMES[_PULSE_RATIOS.indexOf(state.pulse.k)]||''} → ${Math.max(5,Math.min(999,Math.round(_pulseHr*state.pulse.k)))} bpm${grv}${formHold}`;
 }
 // Set the pulse coefficient k (tempo = HR × k) from ONE place: state, the Watch gear, the readout.
 function _pulseSetK(k){
@@ -9692,9 +9730,9 @@ function _pulseSetK(k){
 }
 (function(){
   const bt=document.getElementById('pulse-tap');
-  if(bt) bt.addEventListener('click',()=>{ _pulseCamStop(); _pulseTap(); });
+  if(bt) bt.addEventListener('click',()=>{ state.pulse.noWire=false; _pulseCamStop(); _pulseTap(); });
   const bc=document.getElementById('pulse-cam');
-  if(bc) bc.addEventListener('click',()=>{ _pulseTapReset(); _pulseCamStart(); });
+  if(bc) bc.addEventListener('click',()=>{ state.pulse.noWire=false; _pulseTapReset(); _pulseCamStart(); });
   const br=document.getElementById('pulse-ratio');
   if(br && br.tagName==='SELECT' && !br.options.length){
     // (05.08 author: «выбор ratio неудобный — сделай как у Марковой») direct pick,
@@ -9706,8 +9744,16 @@ function _pulseSetK(k){
     _pulseSetK(parseFloat(br.value)||1);
     if(typeof apPin==='function') apPin('pulseK');   // grabbing the ratio pins it — the Markovs leave k alone until you hand it back
   });
+  const bg=document.getElementById('pulse-ratio-grv');
+  if(bg && bg.tagName==='SELECT' && !bg.options.length){
+    const eq=document.createElement('option'); eq.value='='; eq.textContent='⚙ ='; bg.appendChild(eq);
+    _PULSE_RATIOS.map((k,i)=>[k,_PULSE_NAMES[i]]).reverse().forEach(pair=>{ const op=document.createElement('option'); op.value=String(pair[0]); op.textContent='⚙ '+pair[1]; bg.appendChild(op); });
+    bg.value='=';
+    bg.addEventListener('change',()=>{ state.pulse.kg=(bg.value==='=')?null:(parseFloat(bg.value)||null); _pulsePaint(); });
+  }
   const bw=document.getElementById('pulse-watch');
   if(bw) bw.addEventListener('click', async ()=>{
+    state.pulse.noWire=false;
     if(typeof QRHR==='undefined'){ _pulsePaint('watch — QRHR not loaded'); return; }
     if(state.pulse.watch){ _pulseRelease(); return; }        // toggle off
     let tok=null; try{ tok=localStorage.getItem('qrhr.token'); }catch(e){}
@@ -10923,7 +10969,14 @@ const groove=(()=>{
   // sixteenth, and no prime can. Both primes are drawn from the world, not dice.
   const _GRV_DENS=[3,5,7,11,13,17,19];
   function _grvDen(){ const d=(state.groove&&state.groove.den|0)||13; return (d>=2&&d<=31)?d:13; }
-  function _grvStep(){ return feltQuarter()*4/_grvDen(); }     // one step of the prime grid, in seconds
+  function _grvStep(){                                          // one step of the prime grid, in seconds
+    // the groove's own gear (28.08): under the heart the grid runs at HR × kg while
+    // the orchestra runs at HR × k, so the step scales by k/kg; without the heart kg
+    // is the grid's plain ratio to the main tempo. kg unset — the grid rides along.
+    let f=1; const kg=state.pulse&&state.pulse.kg;
+    if(kg>0) f=(_pulseOwnsTempo()? (state.pulse.k||1) : 1)/kg;
+    return feltQuarter()*4/_grvDen()*f;
+  }
   function _fold(f,lo,hi){ let g=0; while(f>hi&&g++<14)f/=2; while(f<lo&&g++<14)f*=2; return f; }
   function _pitchOf(v,P,lo,hi){
     let f=55; try{ f=freqForIndex(Math.max(1,Math.min(P-1,v|0)),P)||55; }catch(e){ f=55; }
@@ -19683,6 +19736,7 @@ startRenderLoop();
   try{ BC=new BroadcastChannel('qr-duo'); }catch(e){ BC=null; }
   var _mkFrameEl=null;   // Markova's iframe element (leader side) — postMessage target
   var _msgN=0, _seenN={};
+  window._duoHr=function(v){ try{ send({t:'hr', v:v|0}); }catch(e){} };   // the heart's own line on the wire
   function send(msg){ msg.id=MY_ID; msg.role=ROLE; msg.ts=Date.now(); msg.n=++_msgN; if(PAIR) msg.pair=PAIR;
     // DUAL TRANSPORT (author 29.07: stage dead in Safari): BroadcastChannel for
     // same-origin windows/tabs PLUS direct postMessage parent<->frame. Safari blocks
@@ -19843,7 +19897,14 @@ startRenderLoop();
       if(!_isLead()){ _needMirrorJump=(m.mode==='retro'); if(!_palLive()) _mkFreeSync(); }
       if(_isLead() && m.mode!=='free' && m.mode!=='pal') broadcastScene(true);   // adopt the follower's choice and re-mirror with it at once
     } }
-    else if(m.t==='bpm'){ if(!_isLead() && m.bpm>0 && !_palLive()){ _lastLeaderBpm=m.bpm|0;
+    else if(m.t==='hr'){ // the beloved's heart arrives; this window answers with ITS OWN gears
+      try{
+        if(!(state.pulse.watch || (state.pulse.on && state.pulse.src && state.pulse.src!=='wire')) && !state.pulse.noWire && m.v>0){
+          setPulseBPM(m.v, 'wire');
+        }
+      }catch(e){}
+    }
+    else if(m.t==='bpm'){ if(!_isLead() && m.bpm>0 && !_palLive() && !_pulseOwnsTempo()){ _lastLeaderBpm=m.bpm|0;
       if(state.duo.mode!=='free'){ state.bpm=Math.max(5,Math.min(999,m.bpm|0));
         var _e1=document.getElementById('bpm'), _e2=document.getElementById('bpm-num');
         if(_e1)_e1.value=state.bpm; if(_e2)_e2.value=state.bpm; }

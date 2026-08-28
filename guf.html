@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>גּוּף · guf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* the home body session of the machon: one drawn figure, a Hebrew count,
+     a body word in every long rest. The interesting text is the body heard
+     as an instrument — his instrument. */
+  :root {
+    --paper:#F3EDDF; --card:#FAF6EC;
+    --ink:#262C44; --ink-strong:#1B2138; --ink-soft:#5A5A50;
+    --gold:#9C7A26; --gold-strong:#7E6118; --indigo:#3A4A85; --oxide:#8F4130;
+    --line:rgba(38,44,68,.22); --line-faint:rgba(38,44,68,.12);
+    --gold-wash:rgba(156,122,38,.09); --chip-bg:rgba(58,74,133,.08);
+    --fig:#262C44; --fig2:#8A93B8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#14182A; --card:#1C2136;
+      --ink:#DDD6C4; --ink-strong:#F0EADA; --ink-soft:#9B968A;
+      --gold:#CFA84E; --gold-strong:#E0BC66; --indigo:#9AA9DE; --oxide:#D28067;
+      --line:rgba(221,214,196,.25); --line-faint:rgba(221,214,196,.12);
+      --gold-wash:rgba(207,168,78,.10); --chip-bg:rgba(154,169,222,.12);
+      --fig:#E8E2D0; --fig2:#5A6488;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#14182A; --card:#1C2136;
+    --ink:#DDD6C4; --ink-strong:#F0EADA; --ink-soft:#9B968A;
+    --gold:#CFA84E; --gold-strong:#E0BC66; --indigo:#9AA9DE; --oxide:#D28067;
+    --line:rgba(221,214,196,.25); --line-faint:rgba(221,214,196,.12);
+    --gold-wash:rgba(207,168,78,.10); --chip-bg:rgba(154,169,222,.12);
+    --fig:#E8E2D0; --fig2:#5A6488;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--paper); color:var(--ink);
+    font-family:"Source Serif 4", Georgia, serif; font-size:16.5px; line-height:1.55;
+    -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:560px; margin:0 auto; padding:0 18px 70px; }
+  header { padding:26px 0 8px; }
+  .masthead { display:flex; align-items:baseline; justify-content:space-between;
+    border-bottom:2px solid var(--ink-strong); padding-bottom:6px; }
+  .masthead a, .masthead span { font-family:"IBM Plex Mono",monospace; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft); text-decoration:none; }
+  h1 { font-family:"Frank Ruhl Libre",serif; font-weight:700; color:var(--ink-strong);
+    font-size:clamp(30px,7vw,40px); padding:14px 0 2px; }
+  h1 .lat { font-family:"IBM Plex Mono",monospace; font-size:.34em; font-weight:400;
+    color:var(--ink-soft); margin-inline-start:12px; letter-spacing:.06em; }
+
+  /* mode pick */
+  #pick { display:flex; flex-direction:column; gap:12px; padding:18px 0; }
+  .mode { text-align:start; cursor:pointer; background:var(--card); border:1px solid var(--line);
+    border-radius:6px; padding:16px 18px; font-family:inherit; color:var(--ink); }
+  .mode:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .mode .nm { font-family:"Frank Ruhl Libre",serif; font-size:21px; font-weight:700; color:var(--ink-strong); }
+  .mode .nm .lat { font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:400; color:var(--gold-strong); margin-inline-start:10px; }
+  .mode .d { font-size:14px; color:var(--ink-soft); padding-top:4px; }
+  .picknote { font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-soft); line-height:1.7; }
+
+  /* session */
+  #session { display:none; }
+  .stage { background:var(--card); border:1px solid var(--line-faint); border-radius:8px;
+    padding:10px 10px 4px; margin-top:14px; }
+  canvas { display:block; width:100%; height:auto; }
+  .cue { text-align:center; padding:6px 8px 12px; }
+  .cue .he-big { font-family:"Frank Ruhl Libre",serif; font-size:30px; font-weight:700;
+    color:var(--ink-strong); line-height:1.2; direction:rtl; }
+  .cue .en { font-family:"IBM Plex Mono",monospace; font-size:12.5px; color:var(--gold-strong);
+    letter-spacing:.04em; padding-top:2px; }
+  .cue .why { font-size:15px; font-style:italic; color:var(--ink-soft); padding-top:8px;
+    min-height:44px; max-width:40em; margin:0 auto; }
+  .counters { display:flex; align-items:baseline; justify-content:center; gap:26px; padding:2px 0 8px; }
+  .big { font-family:"IBM Plex Mono",monospace; font-size:44px; color:var(--ink-strong);
+    font-variant-numeric:tabular-nums; }
+  .big .u { font-size:13px; color:var(--ink-soft); }
+  .prog { font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-soft); }
+  .bar { height:4px; background:var(--line-faint); border-radius:2px; overflow:hidden; margin:0 8px 10px; }
+  .bar i { display:block; height:100%; width:0; background:var(--gold); transition:width .5s linear; }
+  .ctl { display:flex; gap:10px; justify-content:center; padding:12px 0 4px; }
+  .ctl button { font-family:"Frank Ruhl Libre",serif; font-size:17px; cursor:pointer;
+    background:var(--gold-wash); color:var(--gold-strong); border:1px solid var(--gold);
+    border-radius:4px; padding:10px 22px; min-width:110px; }
+  .ctl button.ghost { background:var(--card); color:var(--ink-soft); border-color:var(--line); }
+  .ctl button:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  #endnote { display:none; text-align:center; padding:22px 0; }
+  #endnote .he-big { font-family:"Frank Ruhl Libre",serif; font-size:30px; font-weight:700; color:var(--gold-strong); }
+  #endnote p { font-size:15px; color:var(--ink-soft); padding-top:8px; }
+  #endnote a { color:var(--indigo); }
+  footer { margin-top:34px; padding-top:12px; border-top:1px solid var(--line);
+    font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-soft); line-height:1.8; }
+  @media (prefers-reduced-motion: reduce) { .bar i { transition:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="masthead">
+    <a href="machon.html">&larr; machon</a>
+    <span>מַרְקוֹב · voice he+en</span>
+  </div>
+  <h1><span class="he">גּוּף</span><span class="lat">guf · Markov trains at home</span></h1>
+</header>
+
+<div id="pick">
+  <button class="mode" data-mode="full">
+    <span class="nm"><span class="he">אִמּוּן מָלֵא</span><span class="lat">imun male · the full session</span></span>
+    <span class="d">warm-up · three rounds of strength · plank · the six stretches — about 30 minutes</span>
+  </button>
+  <button class="mode" data-mode="stretch">
+    <span class="nm"><span class="he">מְתִיחוֹת</span><span class="lat">metichot · stretches only</span></span>
+    <span class="d">the six openings for a body kept shut — about 8 minutes</span>
+  </button>
+  <label class="picknote" style="display:flex;gap:8px;align-items:center;cursor:pointer">
+    <input type="checkbox" id="music" checked style="accent-color:var(--gold)">
+    <span><span class="he" style="font-size:14px">הַמַּרְקוֹבִים מְנַגְּנִים</span> · the Markovs improvise the music — their interval set for the rounds, the prayer for the stretches</span>
+  </label>
+  <label class="picknote" style="display:flex;gap:8px;align-items:center;cursor:pointer">
+    <input type="checkbox" id="pulse" style="accent-color:var(--gold)">
+    <span><span class="he" style="font-size:14px">הַלֵּב מְנַצֵּחַ</span> · the heart conducts — Apple Watch → Pulsoid, and the Markovs' tempo follows your pulse at a rational multiple. First time asks for the token once.</span>
+  </label>
+  <p class="picknote">the count is in Hebrew, the rests teach a body word · reps follow the voice, stretches follow the breath<br>
+  keep the phone propped where you can see the figure · the screen stays awake</p>
+</div>
+<iframe id="eng" style="display:none" title="the Markovs' room"></iframe>
+
+<div id="session">
+  <div class="stage">
+    <canvas id="cv" width="720" height="440"></canvas>
+    <div class="bar"><i id="bari"></i></div>
+    <div class="cue">
+      <div class="he-big" id="cue-he">—</div>
+      <div class="en" id="cue-en">—</div>
+      <div class="why" id="cue-why"></div>
+    </div>
+    <div class="counters">
+      <span class="big" id="big">—</span>
+      <span class="prog" id="prog">—</span>
+      <span class="prog" id="hr" style="color:var(--oxide)"></span>
+    </div>
+  </div>
+  <div class="ctl">
+    <button id="pause">הַפְסָקָה · pause</button>
+    <button id="skip" class="ghost">דַּלֵּג · skip</button>
+    <button id="stop" class="ghost">סִיּוּם · end</button>
+  </div>
+</div>
+
+<div id="endnote">
+  <div class="he-big">כָּל הַכָּבוֹד</div>
+  <p>kol hakavod — the session is done. Markov bows.<br>
+  Write the numbers into the <a href="machon.html">machon</a> while the muscles still remember them.</p>
+</div>
+
+<footer>
+  stretch rule: to a gentle pull, never to pain · no bouncing — the exhale deepens it<br>
+  the voice is the system's own (Hebrew + English) · works offline once loaded
+</footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var FAST = /(\?|&)fast=1/.test(location.search) ? 8 : 1;   // test throttle
+
+  /* ============ voice: two tongues, one queue ============ */
+  var VOICES = { he: null, en: null }, vReady = false;
+  function pickVoices() {
+    try {
+      var vs = speechSynthesis.getVoices(); if (!vs.length) return;
+      VOICES.he = vs.find(function (v) { return /he[-_]/i.test(v.lang) && /carmit/i.test(v.name); }) ||
+                  vs.find(function (v) { return /^he/i.test(v.lang); }) || null;
+      VOICES.en = vs.find(function (v) { return /^en/i.test(v.lang) && /daniel|samantha/i.test(v.name); }) ||
+                  vs.find(function (v) { return /^en/i.test(v.lang); }) || null;
+      vReady = true;
+    } catch (e) {}
+  }
+  if ('speechSynthesis' in window) {
+    pickVoices();
+    speechSynthesis.onvoiceschanged = pickVoices;
+  }
+  function say(text, lang, rate) {
+    if (!('speechSynthesis' in window) || muted) return;
+    try {
+      var u = new SpeechSynthesisUtterance(text);
+      if (VOICES[lang]) u.voice = VOICES[lang];
+      u.lang = lang === 'he' ? 'he-IL' : 'en-US';
+      u.rate = (rate || 0.95) * (FAST > 1 ? 1.3 : 1);
+      if (eng.on) {
+        u.onstart = function () { engMaster(0.10); };       // the band leans back for the voice
+        u.onend = function () { if (eng.on) engMaster(0.26); };
+      }
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  var muted = false;
+
+  /* ============ the Markovs: the engine in the next room ============ */
+  // The QR engine lives one file away on the same origin. It is loaded hidden at
+  // page-open (so the start tap's user-activation reaches an ALREADY-parsed page),
+  // driven through its own buttons, and softened under the counting voice. If the
+  // file is absent — a local copy without the engine — everything degrades to
+  // silence without a word of complaint.
+  var eng = { win: null, ready: false, on: false, room: null };
+  (function armPulseBox() {
+    try { if (localStorage.getItem('qrhr.token')) { var pb = document.getElementById('pulse'); if (pb) pb.checked = true; } } catch (e) {}
+  })();
+  (function preloadEngine() {
+    try {
+      var f = document.getElementById('eng');
+      f.addEventListener('load', function () {
+        try { eng.win = f.contentWindow; eng.ready = !!(eng.win && eng.win.document.getElementById('engine-play')); } catch (e) {}
+      });
+      f.src = '2907QR_Engine_8.html';
+    } catch (e) {}
+  })();
+  function engClick(id) {
+    try { var b = eng.win.document.getElementById(id); if (b) { b.click(); return true; } } catch (e) {}
+    return false;
+  }
+  function engMaster(v) {
+    // the engine's globals are lexical, not window properties — its own master
+    // slider is the public handle, and it listens like a hand moved it
+    try {
+      var el = eng.win.document.getElementById('v-master');
+      if (el) {
+        el.value = v;
+        el.dispatchEvent(new eng.win.Event('input', { bubbles: true }));
+        el.dispatchEvent(new eng.win.Event('change', { bubbles: true }));
+      }
+    } catch (e) {}
+  }
+  function bandRoom(room) {           // 'work' -> the interval set, 'stretch' -> the prayer
+    if (!eng.on || !eng.ready || eng.room === room) return;
+    eng.room = room;
+    engClick(room === 'stretch' ? 'act-meditate' : 'act-workout');
+  }
+  function bandStart(firstRoom) {
+    if (!eng.ready) return;
+    eng.on = true; eng.room = firstRoom;
+    engClick(firstRoom === 'stretch' ? 'act-meditate' : 'act-workout');
+    setTimeout(function () {
+      try {
+        var b = eng.win.document.getElementById('engine-play');
+        if (b && !/stop|■/i.test(b.textContent)) b.click();
+        var a = eng.win.document.getElementById('ai-auto');
+        if (a && !/stop/i.test(a.textContent)) a.click();   // the improviser breathes scene to scene
+        engMaster(0.26);                                    // under the voice, over the silence
+      } catch (e) {}
+    }, 250);
+    // the heart's door — the engine's own pulse-watch (author, 24.07): Apple Watch
+    // -> Pulsoid cloud -> the tempo follows the heartbeat at a rational multiple,
+    // and the pulse keeps the last word on tempo through every room change
+    if ($('#pulse').checked) {
+      eng.heart = true;
+      setTimeout(function () {
+        engClick('pulse-watch');
+        setTimeout(function () {   // mirror the reading into the session, if the engine lets us
+          try {
+            eng.win.QRHR.on('hr', function (v) {
+              var el = $('#hr'); if (el) el.textContent = '♥ ' + Math.round(v.bpm || v || 0);
+            });
+          } catch (e) {}
+        }, 900);
+      }, 700);
+    }
+  }
+  function bandStop() {
+    if (!eng.on) return;
+    eng.on = false; eng.room = null;
+    if (eng.heart) { eng.heart = false; engClick('pulse-off'); }
+    try {
+      var a = eng.win.document.getElementById('ai-auto');
+      if (a && /stop/i.test(a.textContent)) a.click();
+      var b = eng.win.document.getElementById('engine-play');
+      if (b && /stop|■/i.test(b.textContent)) b.click();
+    } catch (e) {}
+  }
+
+  /* a soft tick for transitions — WebAudio, no assets */
+  var actx = null;
+  function tick(freq) {
+    try {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      var t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'triangle'; o.frequency.value = freq || 660;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.12, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+      o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + 0.3);
+    } catch (e) {}
+  }
+
+  /* Hebrew counting, feminine — the count of things done */
+  var HEB_N = ['', 'אַחַת', 'שְׁתַּיִם', 'שָׁלוֹשׁ', 'אַרְבַּע', 'חָמֵשׁ', 'שֵׁשׁ', 'שֶׁבַע', 'שְׁמוֹנֶה', 'תֵּשַׁע', 'עֶשֶׂר',
+    'אַחַת עֶשְׂרֵה', 'שְׁתֵּים עֶשְׂרֵה', 'שְׁלוֹשׁ עֶשְׂרֵה', 'אַרְבַּע עֶשְׂרֵה', 'חֲמֵשׁ עֶשְׂרֵה',
+    'שֵׁשׁ עֶשְׂרֵה', 'שְׁבַע עֶשְׂרֵה', 'שְׁמוֹנֶה עֶשְׂרֵה', 'תְּשַׁע עֶשְׂרֵה', 'עֶשְׂרִים'];
+
+  /* the words the rests teach — the light carrier for the heavy cargo */
+  var WORDS = [
+    { he: 'גַּב', lat: 'gav', en: 'back' },
+    { he: 'כָּתֵף', lat: 'katef', en: 'shoulder' },
+    { he: 'חָזֶה', lat: 'chazeh', en: 'chest' },
+    { he: 'בֶּרֶךְ', lat: 'berech', en: 'knee' },
+    { he: 'צַוָּאר', lat: 'tsavar', en: 'neck' },
+    { he: 'שְׁרִיר', lat: 'shrir', en: 'muscle' },
+    { he: 'נְשִׁימָה', lat: 'neshima', en: 'breath' },
+    { he: 'מַרְפֵּק', lat: 'marpek', en: 'elbow' },
+    { he: 'יָרֵךְ', lat: 'yarech', en: 'thigh' },
+    { he: 'עַצְמָה', lat: 'otsma', en: 'strength' }
+  ];
+  var wordIdx = 0;
+
+  /* ============ the drawn figure ============ */
+  var cv = $('#cv'), cx = cv.getContext('2d');
+  var W = 720, H = 440, FLOOR = 386;
+  function rad(d) { return d * Math.PI / 180; }
+  // limb helper: from (x,y) at angle a (0 = straight down, +clockwise = forward/right), length L
+  function limb(x, y, a, L) { return [x + Math.sin(rad(a)) * L, y + Math.cos(rad(a)) * L]; }
+  function up(x, y, a, L) { return [x + Math.sin(rad(a)) * L, y - Math.cos(rad(a)) * L]; }
+  function seg(p, q, w, col) {
+    cx.strokeStyle = col; cx.lineWidth = w; cx.lineCap = 'round';
+    cx.beginPath(); cx.moveTo(p[0], p[1]); cx.lineTo(q[0], q[1]); cx.stroke();
+  }
+  var FIG = { t1: 52, t2: 46, neck: 14, headR: 17, thigh: 62, shin: 58, upper: 44, fore: 40 };
+
+  // a pose is joint angles; the renderer is one forward-kinematic pass
+  function drawFigure(p, col) {
+    var ink = col || getComputedStyle(document.documentElement).getPropertyValue('--fig').trim() || '#222';
+    var hip = [p.x, p.y];
+    var chest = up(hip[0], hip[1], p.torso, FIG.t1);
+    var sh = up(chest[0], chest[1], p.torso + (p.bend || 0), FIG.t2);
+    var headDir = p.torso + (p.bend || 0) + (p.head || 0);
+    var hc = up(sh[0], sh[1], headDir, FIG.neck + FIG.headR);
+    // far limbs first, faint
+    var faint = getComputedStyle(document.documentElement).getPropertyValue('--fig2').trim() || '#999';
+    drawLeg(hip, p.legB || p.legF, faint);
+    drawArm(sh, p.armB || p.armF, faint);
+    seg(hip, chest, 9, ink); seg(chest, sh, 9, ink);
+    // the head is MARKOV'S RING — the walk cursor of the engine, come home to a body
+    var gold = getComputedStyle(document.documentElement).getPropertyValue('--gold-strong').trim();
+    cx.strokeStyle = gold; cx.lineWidth = 5;
+    cx.beginPath(); cx.arc(hc[0], hc[1], FIG.headR, 0, Math.PI * 2); cx.stroke();
+    cx.fillStyle = gold; cx.beginPath(); cx.arc(hc[0], hc[1], 3.2, 0, Math.PI * 2); cx.fill();
+    drawLeg(hip, p.legF, ink);
+    drawArm(sh, p.armF, ink);
+    if (p.prop) p.prop(sh, hip);
+  }
+  function drawLeg(hip, l, col) {
+    if (!l) return;
+    var knee = limb(hip[0], hip[1], l.hip, FIG.thigh);
+    var ank = limb(knee[0], knee[1], l.hip + l.knee, FIG.shin);
+    seg(hip, knee, 8, col); seg(knee, ank, 8, col);
+    var toe = limb(ank[0], ank[1], l.hip + l.knee + 90 + (l.foot || 0), 14);
+    seg(ank, toe, 6, col);
+  }
+  function drawArm(sh, a, col) {
+    if (!a) return;
+    var el = limb(sh[0], sh[1], a.sh, FIG.upper);
+    var wr = limb(el[0], el[1], a.sh + a.el, FIG.fore);
+    seg(sh, el, 7, col); seg(el, wr, 7, col);
+    if (a.pack) { // the book-filled backpack
+      cx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--gold').trim();
+      cx.fillRect(wr[0] - 12, wr[1] - 4, 24, 20);
+    }
+  }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function lerpPose(A, B, t) {
+    function L(x, y) { return lerp(x == null ? 0 : x, y == null ? 0 : y, t); }
+    function limbL(a, b) {
+      if (!a && !b) return null; a = a || b; b = b || a;
+      var o = {}; ['hip', 'knee', 'foot', 'sh', 'el'].forEach(function (k) {
+        if (a[k] != null || b[k] != null) o[k] = L(a[k], b[k]);
+      });
+      if (a.pack || b.pack) o.pack = true;
+      return o;
+    }
+    return { x: L(A.x, B.x), y: L(A.y, B.y), torso: L(A.torso, B.torso), bend: L(A.bend, B.bend),
+      head: L(A.head, B.head),
+      legF: limbL(A.legF, B.legF), legB: limbL(A.legB, B.legB),
+      armF: limbL(A.armF, B.armF), armB: limbL(A.armB, B.armB),
+      prop: A.prop || B.prop };
+  }
+
+  /* scene props */
+  function doorFrame() {
+    var c = getComputedStyle(document.documentElement).getPropertyValue('--line').trim();
+    cx.strokeStyle = c; cx.lineWidth = 10;
+    cx.beginPath(); cx.moveTo(250, 60); cx.lineTo(250, FLOOR); cx.stroke();
+    cx.beginPath(); cx.moveTo(470, 60); cx.lineTo(470, FLOOR); cx.stroke();
+  }
+  function chair() {
+    var c = getComputedStyle(document.documentElement).getPropertyValue('--line').trim();
+    cx.strokeStyle = c; cx.lineWidth = 8;
+    cx.strokeRect(268, 268, 80, 8);
+    cx.beginPath(); cx.moveTo(276, 276); cx.lineTo(276, FLOOR); cx.moveTo(340, 276); cx.lineTo(340, FLOOR); cx.stroke();
+  }
+
+  /* ============ the exercise book: poses + words worth reading ============ */
+  var STAND = { x: 360, y: 262, torso: 0, head: 0,
+    legF: { hip: 4, knee: 0 }, legB: { hip: -4, knee: 0 },
+    armF: { sh: 8, el: 6 }, armB: { sh: -8, el: 6 } };
+
+  var EX = {
+    breath: {
+      he: 'נְשִׁימָה', en: 'neshima · breathe', why: 'Three slow breaths. Tune first, play second — the body is the instrument you have had longest.',
+      period: 5, poses: [
+        Object.assign({}, STAND, { bend: -4 }),
+        Object.assign({}, STAND, { bend: 5, y: 258 })
+      ]
+    },
+    neckroll: {
+      he: 'סִבּוּבֵי צַוָּאר', en: 'sivuvei tsavar · neck circles', why: 'The head weighs as much as a viola case. Let it roll slowly — the neck carries it all day without applause.',
+      period: 6, custom: function (t) {
+        var p = JSON.parse(JSON.stringify(STAND));
+        p.head = Math.sin(rad(t * 360)) * 28;
+        p.bend = Math.cos(rad(t * 360)) * 7;
+        drawFigure(p);
+      }
+    },
+    armcircle: {
+      he: 'סִבּוּבֵי כְּתֵפַיִם', en: 'sivuvei ktefayim · arm circles', why: 'Thirty years at a mixing desk close the shoulders forward. Circles are the un-doing — slow, both directions, like winding a reel back.',
+      period: 3.2, custom: function (t) {
+        var p = JSON.parse(JSON.stringify(STAND));
+        var a = t * 360;
+        p.armF = { sh: 180 - a, el: 4 }; p.armB = { sh: 180 - a - 25, el: 4 };
+        drawFigure(p);
+      }
+    },
+    hipcircle: {
+      he: 'סִבּוּבֵי אַגָּן', en: 'sivuvei agan · hip circles', why: 'The pelvis is the bridge of the instrument: everything above rings through it. Draw slow circles, knees soft.',
+      period: 5, custom: function (t) {
+        var p = JSON.parse(JSON.stringify(STAND));
+        p.x = 360 + Math.sin(rad(t * 360)) * 16;
+        p.torso = Math.cos(rad(t * 360)) * 6;
+        p.legF = { hip: 6, knee: 8 }; p.legB = { hip: -6, knee: 8 };
+        drawFigure(p);
+      }
+    },
+    squat: {
+      he: 'סְקוּוֹט', en: 'squat', why: 'The bass line. Sit back as onto a chair that is not there; heels stay down; the chest stays proud.',
+      period: 3, poses: [
+        Object.assign({}, STAND),
+        { x: 348, y: 300, torso: 28, head: -14,
+          legF: { hip: 62, knee: -110, foot: 24 }, legB: { hip: 58, knee: -106, foot: 24 },
+          armF: { sh: 96, el: -8 }, armB: { sh: 92, el: -8 } }
+      ]
+    },
+    pushup: {
+      he: 'שְׁכִיבוֹת סְמִיכָה', en: 'shchivot smicha · push-ups', why: 'A chord voiced by the whole body: one straight line from heel to head. If the line breaks, drop to the knees — the voicing matters more than the count.',
+      period: 2.8, poses: [
+        { x: 390, y: 322, torso: 88, head: -66,
+          legF: { hip: -95, knee: 3 }, legB: { hip: -98, knee: 3 },
+          armF: { sh: 6, el: 4 }, armB: { sh: 10, el: 4 } },
+        { x: 390, y: 350, torso: 88, head: -66,
+          legF: { hip: -99, knee: 3 }, legB: { hip: -102, knee: 3 },
+          armF: { sh: 42, el: -95 }, armB: { sh: 48, el: -95 } }
+      ]
+    },
+    crunch: {
+      he: 'כְּפִיפוֹת בֶּטֶן', en: 'kfifot beten · crunches', why: 'Curl only until the shoulder blades leave the floor — a short strong interval, not a big gesture. Exhale on the way up.',
+      period: 2.6, poses: [
+        { x: 330, y: 356, torso: 96, head: -40,
+          legF: { hip: -50, knee: -68 }, legB: { hip: -56, knee: -64 },
+          armF: { sh: 100, el: 30 }, armB: { sh: 104, el: 30 } },
+        { x: 330, y: 352, torso: 62, head: -30,
+          legF: { hip: -50, knee: -68 }, legB: { hip: -56, knee: -64 },
+          armF: { sh: 70, el: 30 }, armB: { sh: 74, el: 30 } }
+      ]
+    },
+    row: {
+      he: 'חֲתִירָה', en: 'chatira · backpack row', why: 'The pull the missing bar owes you. Back flat as a table; the elbow slides along the ribs; the shoulder blade finishes the note.',
+      period: 2.6, poses: [
+        { x: 348, y: 286, torso: 64, head: -30,
+          legF: { hip: 16, knee: -20 }, legB: { hip: -22, knee: -6 },
+          armF: { sh: 22, el: 4, pack: true }, armB: { sh: -14, el: -50 } },
+        { x: 348, y: 286, torso: 64, head: -30,
+          legF: { hip: 16, knee: -20 }, legB: { hip: -22, knee: -6 },
+          armF: { sh: 58, el: -100, pack: true }, armB: { sh: -14, el: -50 } }
+      ]
+    },
+    plank: {
+      he: 'פְּלַאנְק', en: 'plank', why: 'A held note. Do not grip it — support it, the way breath supports a long tone. The line sings; the clock is nobody.',
+      period: 4, poses: [
+        { x: 390, y: 336, torso: 86, head: -60,
+          legF: { hip: -96, knee: 2 }, legB: { hip: -99, knee: 2 },
+          armF: { sh: 24, el: -88 }, armB: { sh: 28, el: -88 } },
+        { x: 390, y: 333, torso: 86, head: -60,
+          legF: { hip: -96, knee: 2 }, legB: { hip: -99, knee: 2 },
+          armF: { sh: 24, el: -88 }, armB: { sh: 28, el: -88 } }
+      ]
+    },
+    necktilt: {
+      he: 'מְתִיחַת צַוָּאר', en: 'metichat tsavar · neck stretch', why: 'Ear toward shoulder, the palm resting on the head like a light mute — weight, not force. The far shoulder stays low.',
+      period: 6, custom: function (t) {
+        var p = JSON.parse(JSON.stringify(STAND));
+        var s = Math.sin(rad(Math.min(t, 0.5) * 2 * 90));
+        p.head = 30 * s;
+        p.armF = { sh: 168, el: 96 };
+        drawFigure(p);
+      }
+    },
+    doorway: {
+      he: 'פְּתִיחַת חָזֶה', en: 'ptichat chazeh · doorway chest', why: 'Forearms on the frame, one step through. The chest opens like a case long shut — and the instrument inside is fine.',
+      period: 6, poses: [
+        { x: 352, y: 262, torso: 4, head: 4, prop: doorFrame,
+          legF: { hip: 14, knee: -8 }, legB: { hip: -8, knee: 0 },
+          armF: { sh: 148, el: 100 }, armB: { sh: -148, el: -100 } },
+        { x: 362, y: 262, torso: 9, head: 5, prop: doorFrame,
+          legF: { hip: 18, knee: -10 }, legB: { hip: -12, knee: 0 },
+          armF: { sh: 146, el: 100 }, armB: { sh: -146, el: -100 } }
+      ]
+    },
+    catcow: {
+      he: 'חָתוּל־פָּרָה', en: 'chatul-para · cat-cow', why: 'The spine is a phrase: the exhale rounds it, the inhale opens it. Eight bars, legato, the head following the line.',
+      period: 6, poses: [
+        { x: 322, y: 320, torso: 96, bend: -26, head: -34,
+          legF: { hip: -6, knee: -86 }, legB: { hip: -12, knee: -80 },
+          armF: { sh: 4, el: 2 }, armB: { sh: 8, el: 2 } },
+        { x: 322, y: 326, torso: 84, bend: 24, head: -96,
+          legF: { hip: -6, knee: -86 }, legB: { hip: -12, knee: -80 },
+          armF: { sh: 4, el: 2 }, armB: { sh: 8, el: 2 } }
+      ]
+    },
+    lunge: {
+      he: 'מְתִיחַת יָרֵךְ', en: 'metichat yarech · hip flexor', why: 'Back knee down, pelvis slides forward a finger-width. Years of sitting live in this muscle; let it go note by note.',
+      period: 6, poses: [
+        { x: 340, y: 306, torso: 2, head: 0,
+          legF: { hip: 58, knee: -122, foot: 20 }, legB: { hip: -42, knee: -84 },
+          armF: { sh: 12, el: 6 }, armB: { sh: -6, el: 6 } },
+        { x: 352, y: 308, torso: -3, head: 2,
+          legF: { hip: 64, knee: -126, foot: 20 }, legB: { hip: -50, knee: -80 },
+          armF: { sh: 12, el: 6 }, armB: { sh: -6, el: 6 } }
+      ]
+    },
+    hamstring: {
+      he: 'מְתִיחַת גִּיד הַבֶּרֶךְ', en: 'metichat gid haberech · hamstring', why: 'On the chair edge, one heel forward, and the fold comes from the hips — a straight back travels one centimetre and does everything.',
+      period: 6, poses: [
+        { x: 310, y: 262, torso: 14, head: -6, prop: chair,
+          legF: { hip: 74, knee: -6, foot: -60 }, legB: { hip: -12, knee: -78 },
+          armF: { sh: 40, el: 10 }, armB: { sh: 36, el: 10 } },
+        { x: 310, y: 262, torso: 30, head: -10, prop: chair,
+          legF: { hip: 74, knee: -6, foot: -60 }, legB: { hip: -12, knee: -78 },
+          armF: { sh: 56, el: 10 }, armB: { sh: 52, el: 10 } }
+      ]
+    },
+    child: {
+      he: 'תְּנוּחַת הַיֶּלֶד', en: 'tnuchat hayeled · child\'s pose', why: 'Knees down, arms long, forehead to the floor. The day\'s last chord, held until it stops needing you. Breathe into the back.',
+      period: 5, poses: [
+        { x: 330, y: 344, torso: 74, bend: 18, head: -60,
+          legF: { hip: -24, knee: -120 }, legB: { hip: -28, knee: -116 },
+          armF: { sh: 96, el: 2 }, armB: { sh: 100, el: 2 } },
+        { x: 330, y: 341, torso: 74, bend: 22, head: -60,
+          legF: { hip: -24, knee: -120 }, legB: { hip: -28, knee: -116 },
+          armF: { sh: 96, el: 2 }, armB: { sh: 100, el: 2 } }
+      ]
+    }
+  };
+
+  /* ============ the two programmes ============ */
+  function rep(ex, n, note) { return { kind: 'reps', ex: ex, n: n, note: note }; }
+  function timed(ex, sec, note) { return { kind: 'timed', ex: ex, sec: sec, note: note }; }
+  function rest(sec, teach) { return { kind: 'rest', ex: 'breath', sec: sec, teach: teach }; }
+
+  var STRETCH_STEPS = [
+    timed('breath', 20),
+    timed('necktilt', 24, 'right side'), timed('necktilt', 24, 'left side'),
+    timed('doorway', 45),
+    timed('catcow', 50),
+    timed('lunge', 32, 'right leg back'), timed('lunge', 32, 'left leg back'),
+    timed('hamstring', 32, 'right heel out'), timed('hamstring', 32, 'left heel out'),
+    timed('child', 45)
+  ];
+  function circuit(i) {
+    return [
+      rep('pushup', 12), rest(20, true),
+      rep('crunch', 18), rest(20, true),
+      rep('squat', 20), rest(20, true),
+      rep('row', 12, 'right arm'), rep('row', 12, 'left arm'),
+      rest(i < 3 ? 90 : 45, true)
+    ];
+  }
+  var FULL_STEPS = [
+    timed('breath', 25),
+    timed('neckroll', 30), timed('armcircle', 40), timed('hipcircle', 30),
+    rep('squat', 20, 'slow — this is still the warm-up'),
+    rest(25, true)
+  ].concat(circuit(1), circuit(2), circuit(3), [
+    timed('plank', 40), rest(30, true), timed('plank', 40), rest(25, true)
+  ], STRETCH_STEPS.slice(1));
+
+  /* ============ the engine ============ */
+  var steps = [], si = -1, running = false, paused = false;
+  var stepT0 = 0, pauseT0 = 0, repCount = 0, repTimer = null, animEx = null, animT0 = 0;
+  var wakeLock = null;
+
+  function fmt(s) { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+
+  var stretchFrom = 0;
+  function startSession(mode) {
+    steps = (mode === 'stretch') ? STRETCH_STEPS.slice() : FULL_STEPS.slice();
+    stretchFrom = (mode === 'stretch') ? 0 : FULL_STEPS.length - (STRETCH_STEPS.length - 1);
+    si = -1; running = true; paused = false;
+    $('#pick').style.display = 'none'; $('#session').style.display = 'block'; $('#endnote').style.display = 'none';
+    try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function (w) { wakeLock = w; }).catch(function () {}); } catch (e) {}
+    if (actx == null) tick(660);
+    if ($('#music').checked) bandStart(mode === 'stretch' ? 'stretch' : 'work');
+    say(mode === 'stretch' ? 'מְתִיחוֹת. מַרְקוֹב אִתְּךָ.' : 'אִמּוּן מָלֵא. מַרְקוֹב אִתְּךָ.', 'he');
+    nextStep();
+    requestAnimationFrame(frame);
+  }
+
+  function nextStep() {
+    if (repTimer) { clearInterval(repTimer); repTimer = null; }
+    si++;
+    if (si >= steps.length) { return endSession(true); }
+    var st = steps[si], ex = EX[st.ex];
+    bandRoom(si >= stretchFrom ? 'stretch' : 'work');
+    animEx = ex; animT0 = performance.now();
+    stepT0 = performance.now();
+    repCount = 0;
+    $('#cue-he').textContent = st.kind === 'rest' ? 'מְנוּחָה' : ex.he;
+    $('#cue-en').textContent = (st.kind === 'rest' ? 'menucha · rest' : ex.en) + (st.note ? ' — ' + st.note : '');
+    $('#cue-why').textContent = st.kind === 'rest' ? '' : ex.why;
+    $('#prog').textContent = (si + 1) + ' / ' + steps.length;
+    tick(st.kind === 'rest' ? 440 : 660);
+    if (st.kind === 'rest') {
+      say('מְנוּחָה', 'he');
+      if (st.teach) {
+        var w = WORDS[wordIdx++ % WORDS.length];
+        $('#cue-why').textContent = w.he + ' · ' + w.lat + ' — ' + w.en;
+        setTimeout(function () { say(w.he, 'he', 0.82); }, 1400 / FAST);
+        setTimeout(function () { say(w.en, 'en'); }, 3000 / FAST);
+        setTimeout(function () { say(w.he, 'he', 0.82); }, 4400 / FAST);
+      }
+    } else if (st.kind === 'timed') {
+      say(ex.he, 'he');
+      if (st.note) setTimeout(function () { say(st.note, 'en'); }, 1600 / FAST);
+    } else { // reps
+      say(ex.he, 'he');
+      var period = ex.period * 1000 / FAST;
+      var startDelay = 2200 / FAST;
+      repTimer = setInterval(function () {
+        if (paused) return;
+        repCount++;
+        say(HEB_N[Math.min(repCount, 20)], 'he', 1.02);
+        $('#big').innerHTML = repCount + ' <span class="u">/ ' + st.n + '</span>';
+        if (repCount >= st.n) { clearInterval(repTimer); repTimer = null; setTimeout(nextStep, period); }
+      }, period);
+      setTimeout(function () {}, startDelay);
+    }
+  }
+
+  function endSession(complete) {
+    running = false;
+    bandStop();
+    if (repTimer) { clearInterval(repTimer); repTimer = null; }
+    try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) {}
+    try { speechSynthesis.cancel(); } catch (e) {}
+    $('#session').style.display = 'none';
+    if (complete) {
+      $('#endnote').style.display = 'block';
+      say('כָּל הַכָּבוֹד. סִיַּמְנוּ.', 'he');
+      setTimeout(function () { say('Write the numbers into the machon.', 'en'); }, 2200 / FAST);
+      try { // the machon's craft of memory: log the session's date for the hub to see one day
+        var K = 'guf-log-v1', L = JSON.parse(localStorage.getItem(K) || '[]');
+        L.push({ d: new Date().toISOString().slice(0, 10), steps: si });
+        localStorage.setItem(K, JSON.stringify(L.slice(-90)));
+      } catch (e) {}
+    } else {
+      $('#pick').style.display = 'flex';
+    }
+  }
+
+  function drawScene(now) {
+    cx.clearRect(0, 0, W, H);
+    var lc = getComputedStyle(document.documentElement).getPropertyValue('--line').trim();
+    cx.strokeStyle = lc; cx.lineWidth = 3;
+    cx.beginPath(); cx.moveTo(40, FLOOR + 14); cx.lineTo(W - 40, FLOOR + 14); cx.stroke();
+    var ex = animEx;
+    if (ex) {
+      var t = ((now - animT0) / 1000 * FAST % ex.period) / ex.period;
+      if (paused) t = 0.25;
+      if (ex.custom) ex.custom(t);
+      else {
+        var k = (Math.sin(t * Math.PI * 2 - Math.PI / 2) + 1) / 2;   // ease in-out loop
+        drawFigure(lerpPose(ex.poses[0], ex.poses[1], k));
+      }
+    }
+  }
+  function frame(now) {
+    if (!running) return;
+    drawScene(now);
+    requestAnimationFrame(frame);
+  }
+  // THE CLOCK LIVES OUTSIDE rAF (28.08): requestAnimationFrame freezes the moment
+  // the screen darkens or the phone goes into a pocket — and a session that halts
+  // silently mid-plank is worse than no session. setInterval keeps counting, the
+  // voice keeps leading, and the drawing simply catches up when the eyes return.
+  setInterval(function () {
+    if (!running || paused) return;
+    var st = steps[si]; if (!st) return;
+    var el = (performance.now() - stepT0) / 1000 * FAST;
+    if (st.kind === 'timed' || st.kind === 'rest') {
+      var left = st.sec - el;
+      $('#big').innerHTML = fmt(left) + ' <span class="u">min</span>';
+      $('#bari').style.width = Math.min(100, el / st.sec * 100) + '%';
+      if (left <= 0) nextStep();
+    } else {
+      $('#bari').style.width = Math.min(100, repCount / st.n * 100) + '%';
+    }
+  }, 200);
+  // a test hand: draw one exercise at one phase, outside the session
+  window.__eng = eng;
+  window.__gufDraw = function (key, t) {
+    var ex = EX[key]; if (!ex) return 'no ' + key;
+    animEx = null;
+    cx.clearRect(0, 0, W, H);
+    var lc = getComputedStyle(document.documentElement).getPropertyValue('--line').trim();
+    cx.strokeStyle = lc; cx.lineWidth = 3;
+    cx.beginPath(); cx.moveTo(40, FLOOR + 14); cx.lineTo(W - 40, FLOOR + 14); cx.stroke();
+    if (ex.custom) ex.custom(t);
+    else drawFigure(lerpPose(ex.poses[0], ex.poses[1], t));
+    return 'drew ' + key + '@' + t;
+  };
+
+  /* controls */
+  document.querySelectorAll('.mode').forEach(function (b) {
+    b.addEventListener('click', function () { startSession(b.dataset.mode); });
+  });
+  $('#pause').addEventListener('click', function () {
+    paused = !paused;
+    if (paused) { pauseT0 = performance.now(); try { speechSynthesis.pause(); } catch (e) {} }
+    else { stepT0 += performance.now() - pauseT0; animT0 += performance.now() - pauseT0; try { speechSynthesis.resume(); } catch (e) {} }
+    this.textContent = paused ? 'הַמְשֵׁךְ · resume' : 'הַפְסָקָה · pause';
+  });
+  $('#skip').addEventListener('click', function () { if (running) nextStep(); });
+  $('#stop').addEventListener('click', function () { endSession(false); });
+})();
+</script>
+</body>
+</html>
