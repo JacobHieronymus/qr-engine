@@ -190,7 +190,7 @@
 <div class="week" id="week">
   <div class="todayline"><span class="dow" id="dow">—</span><span class="plan" id="dplan">—</span></div>
   <table class="wtbl"><tbody id="wrows"></tbody></table>
-  <div class="wkfoot">every day: psalm first · 10 min listening · craft 25 min (45 from 1.11) · hebrew 45+ min<br>
+  <div class="wkfoot">every day: psalm first · 10 min listening · craft 45 min (60 from 1.11) · hebrew 45+ min<br>
   from 3.09 the Harmony evenings are irregular — the morning is the protected half, and it moves for no one</div>
 </div>
 
@@ -301,7 +301,7 @@
 
       <div class="tool">
         <div class="trow"><span class="tname"><span class="he">מָנָה</span> · the dose</span>
-          <span class="tdur">25 min/day · 45 from 1.11</span></div>
+          <span class="tdur">45 min/day · 60 from 1.11</span></div>
         <p class="twhat">Written work counts; reading about music does not. The checking trainer is not built yet — until it is: paper, the textbook's key, and the instrument in the house.</p>
         <div class="timer" style="padding-top:6px">
           <button class="go" id="clog">log minutes</button>
@@ -547,7 +547,7 @@
 
   /* ---------- the craft dose: his own ruling of 19.08 ---------- */
   if (!state.craft) state.craft = [];
-  function craftDose() { return (new Date() < new Date('2026-11-01T00:00:00')) ? 25 : 45; }
+  function craftDose() { return (new Date() < new Date('2026-11-01T00:00:00')) ? 45 : 60; }   // raised 28.08, his ruling: «увеличим объем занятий музыкой» — the 19.08 dose superseded
   function craftRender() {
     var w = lastDays(state.craft, 7);
     var min = w.reduce(function (a2, r) { return a2 + (r.min || 0); }, 0);
