@@ -53,7 +53,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <div id="top">
-  <h1>שְׁמִיעָה</h1><span class="sub">shmia · listening gym · v0.1.5 · five gauges</span>
+  <h1>שְׁמִיעָה</h1><span class="sub">shmia · listening gym · v0.1.6 · five gauges</span>
 </div>
 <div id="tabs">
   <div class="tab on" data-v="flow"><span class="heb">אִמּוּן</span><span class="lat">train</span></div>
@@ -286,6 +286,9 @@ let view = 'flow', bi = -1, stair = null, trial = null, babbleBuf = null, ears =
 // fourteen of twenty-six gap trials were taken without effort — half the block
 // carried no information, and «two voices» ran out of trials while still
 // descending, so its «threshold» was the average of two early lapses: +14 dB.
+const APP_VER = '0.1.6';   // (28.08) every stored number carries the build that made it:
+                           // on 27.08 a session ran on a stale build and nobody could tell
+                           // from the export — that ambiguity is now impossible
 const RAIL_TOP = { hevdel: 30, revach: 120, kolot: 18, ivrit: 18 };
 function lastThreshold(key) {
   for (let i = state.thresholds.length - 1; i >= 0; i--) {
@@ -425,7 +428,7 @@ function finishBlock() {
   if (b.key === 'oznayim') {
     const rows = EAR_FREQS.map((f, i) => {
       const d = earBalance(ears.stairs[i]);
-      if (d != null) state.thresholds.push({ date: dayKey(now()), block: 'ozn' + f, value: d, dev: state.device || undefined });
+      if (d != null) state.thresholds.push({ date: dayKey(now()), block: 'ozn' + f, value: d, dev: state.device || undefined, ver: APP_VER });
       const tag = d == null ? '—'
         : (Math.abs(d) < 4 ? 'even' : (d > 0 ? 'left needs +' + d : 'right needs +' + (-d)));
       return `<tr><td style="padding:3px 12px 3px 0">${f} Hz</td>
@@ -456,7 +459,7 @@ function finishBlock() {
   // the deepest level reached. Store that level marked «at least this sharp»;
   // it also seeds tomorrow's warm start, which a null cannot.
   if (th == null && stair.lastDir < 0) { bound = '\u2264'; th = Math.round(stair.v * 100) / 100; }
-  state.thresholds.push({ date: dayKey(now()), block: b.key, value: th, bound: bound || undefined, dev: state.device || undefined });
+  state.thresholds.push({ date: dayKey(now()), block: b.key, value: th, bound: bound || undefined, dev: state.device || undefined, ver: APP_VER });
   save();
   $('#stage').innerHTML = `<div class="center">
     <div class="bigheb">${b.he}</div>
@@ -540,12 +543,12 @@ function renderDash() {
   $('#controls').innerHTML = '';
 }
 function exportJSON() {
-  const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), state, log }, null, 1)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), ver: APP_VER, state, log }, null, 1)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = 'shmia-' + dayKey(now()) + '.json'; a.click();
 }
 function shareJSON() {
-  const f = new File([JSON.stringify({ exported: new Date().toISOString(), state, log }, null, 1)],
+  const f = new File([JSON.stringify({ exported: new Date().toISOString(), ver: APP_VER, state, log }, null, 1)],
     'shmia-' + dayKey(now()) + '.json', { type: 'application/json' });
   if (navigator.canShare && navigator.canShare({ files: [f] })) {
     navigator.share({ files: [f], title: 'shmia log' }).catch(() => {});
