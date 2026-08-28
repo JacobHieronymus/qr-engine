@@ -137,6 +137,26 @@
     border:1px solid var(--line); border-radius:3px; background:var(--paper); color:var(--ink-strong); }
   .bweek { font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-soft); text-align:right; }
 
+  /* the week board */
+  .week { background:var(--card); border:1px solid var(--line-faint); border-radius:4px;
+    padding:14px 16px 10px; margin:14px 0 4px; }
+  .todayline { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
+    padding-bottom:10px; border-bottom:1px solid var(--line-faint); }
+  .todayline .dow { font-family:"Frank Ruhl Libre",serif; font-weight:700; font-size:20px; color:var(--gold-strong); }
+  .todayline .plan { font-size:14.5px; color:var(--ink); }
+  .wtbl { width:100%; border-collapse:collapse; margin-top:6px; }
+  .wtbl td { padding:6px 8px 6px 0; border-bottom:1px dashed var(--line-faint);
+    font-size:13px; vertical-align:baseline; }
+  .wtbl tr:last-child td { border-bottom:none; }
+  .wtbl .d { font-family:"Frank Ruhl Libre",serif; font-size:14.5px; font-weight:500;
+    color:var(--ink-strong); white-space:nowrap; width:88px; }
+  .wtbl .d .en { font-family:"IBM Plex Mono",monospace; font-size:9.5px; color:var(--ink-soft);
+    display:block; text-transform:uppercase; letter-spacing:.08em; }
+  .wtbl tr.now td { background:var(--gold-wash); }
+  .wtbl tr.now .d { color:var(--gold-strong); }
+  .wtbl .b { font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--indigo); white-space:nowrap; }
+  .wkfoot { font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-soft);
+    padding-top:8px; line-height:1.7; }
   footer { margin-top:52px; padding-top:14px; border-top:1px solid var(--line);
     font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-soft);
     line-height:1.8; letter-spacing:.03em; }
@@ -156,7 +176,7 @@
 <header>
   <div class="masthead">
     <span class="meta">machon · the training house</span>
-    <span class="meta">v0.2</span>
+    <span class="meta">v0.3</span>
   </div>
   <h1><span class="he">מָכוֹן</span><span class="lat">one door to every trainer</span></h1>
   <p class="lede">The order below is the map's own verdict: what comes first — happens; what waits for a free hour — never does. Practice first, the body in the morning, the line and its craft in the best hours, mechanics in what remains.</p>
@@ -166,6 +186,13 @@
     <button class="pchip" data-p="bachutz"><span class="he">בַּחוּץ</span><span>outside</span></button>
   </div>
 </header>
+
+<div class="week" id="week">
+  <div class="todayline"><span class="dow" id="dow">—</span><span class="plan" id="dplan">—</span></div>
+  <table class="wtbl"><tbody id="wrows"></tbody></table>
+  <div class="wkfoot">every day: psalm first · 10 min listening · craft 25 min (45 from 1.11) · hebrew 45+ min<br>
+  from 3.09 the Harmony evenings are irregular — the morning is the protected half, and it moves for no one</div>
+</div>
 
 <div class="axis">
 
@@ -583,6 +610,31 @@
     if (!s || !s.cells) { el.textContent = 'never opened in this browser'; return; }
     var n = Object.keys(s.cells).length;
     el.innerHTML = n ? 'cells touched <b>' + n + '</b> / 96' : 'the lattice is blank — as it should be before the first pass';
+  })();
+
+  /* ---------- the week board: a template, not a log ---------- */
+  var WEEK = [
+    { he: 'רִאשׁוֹן',  en: 'sun', body: 'run · morning',      day: 'the line in the best hours · ear cold at the desk' },
+    { he: 'שֵׁנִי',    en: 'mon', body: 'strength · home',    day: 'the line · language deep block' },
+    { he: 'שְׁלִישִׁי', en: 'tue', body: 'run · morning',      day: 'the line · craft double dose welcome' },
+    { he: 'רְבִיעִי',  en: 'wed', body: 'strength · home',    day: 'episode day — the Markovs go out' },
+    { he: 'חֲמִישִׁי',  en: 'thu', body: 'run · morning',      day: 'the line · language deep block' },
+    { he: 'שִׁישִׁי',   en: 'fri', body: 'light · stretch',    day: 'short day: shopping early, the house for Shabbat, stop before candles' },
+    { he: 'שַׁבָּת',    en: 'sat', body: 'rest',               day: 'psalms and listening only — no gauges, no ladders · episode after havdala' }
+  ];
+  (function weekBoard() {
+    var dow = (new Date().getDay() + 0) % 7;   // 0 = Sunday, the week's first day here
+    var rows = $('#wrows'); if (!rows) return;
+    WEEK.forEach(function (w, i) {
+      var tr = document.createElement('tr');
+      if (i === dow) tr.className = 'now';
+      tr.innerHTML = '<td class="d"><span class="he">' + w.he + '</span><span class="en">' + w.en + '</span></td>' +
+        '<td class="b">' + w.body + '</td><td>' + w.day + '</td>';
+      rows.appendChild(tr);
+    });
+    var t = WEEK[dow];
+    $('#dow').textContent = t.he;
+    $('#dplan').textContent = t.day + ' · body: ' + t.body;
   })();
 
   /* ---------- boot ---------- */
