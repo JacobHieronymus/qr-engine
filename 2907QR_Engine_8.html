@@ -139,6 +139,14 @@ body.viz-max #stage-exit { display: block; position: fixed; top: calc(8px + env(
 body.viz-max #stage-exit:hover { border-color: var(--accent, #6cf); color: var(--accent, #6cf); }
 body.mk-embedded #stage-exit { display: none !important; }   /* one door for the pair, in the window that owns the stage */
 body.phone-mode #face-back { z-index: 71; bottom: calc(108px + env(safe-area-inset-bottom)); }   /* (16.08 verify) the phone bar is z70 and opaque — the way back must not be buried under it */
+/* (28.08) ONE stage key: both halves by default, or one alone by the mark */
+body.viz-max.stage-his #duo-frame-wrap { display: none !important; }
+body.viz-max.stage-his #viz { width: 100vw !important; }
+body.viz-max.stage-hers #viz { display: none !important; }
+body.viz-max.stage-hers #duo-frame-wrap { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 9999 !important; transform: none !important; }
+body.viz-max.stage-hers #duo-frame-wrap iframe { width: 100% !important; height: 100% !important; }
+#fs-toggle { display: none !important; }        /* the per-half fullscreen keys retired — ⛶ stage is the one door */
+#duo-stage-btn { display: none !important; }    /* the pill's stage key folds into the face's ⛶ (its machinery still answers the call) */
 /* DUET STAGE (author 26.07): fullscreen split — Markov's picture keeps the LEFT half,
    Markova's frame holds the right; the duo pill rides above everything for the exit. */
 body.viz-max.duo-split #viz { width: 50vw; top: var(--dock-h, 0px); height: calc(100vh - var(--dock-h, 0px)); }
@@ -9096,6 +9104,8 @@ function _resetView(){ _view.scale=1; _view.tx=0; _applyView(); }
     if(_sx) _sx.addEventListener('click',ev=>{ ev.stopPropagation();
       try{ const b=document.getElementById('duo-stage-btn'); if(b && document.body.classList.contains('duo-split')){ b.click(); return; } }catch(e){}
       document.body.classList.remove('viz-max');
+      if(document.body.classList.contains('stage-hers')){ try{ if(window._qrDuo && window._qrDuo.vizmax) window._qrDuo.vizmax(false); }catch(e){} }
+      document.body.classList.remove('stage-his'); document.body.classList.remove('stage-hers');
       try{ document.getElementById('fs-toggle').classList.remove('active'); }catch(e){}
       try{ if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); }catch(e){}
       setTimeout(resizeCanvas,80);
@@ -17731,7 +17741,7 @@ startRenderLoop();
     if(document.getElementById('engine-play')) return;
     const lbl=document.createElement('span'); lbl.id='td-label'; lbl.textContent='QR ENGINE';
     lbl.title='build 07.08c — the note-for-note palindrome, retro self-heal, honest score';
-    const _bst=document.createElement('span'); _bst.textContent='28.08a';
+    const _bst=document.createElement('span'); _bst.textContent='28.08c';
     _bst.style.cssText='font-size:9px;color:var(--muted,#667);margin-left:4px;letter-spacing:1px';
     _bst.title='build stamp — if this does not match what Claude just shipped, the tab is serving a stale copy (hard reload: Cmd+Shift+R)';
     const play=document.createElement('button'); play.id='engine-play'; play.className='primary';
@@ -20889,7 +20899,9 @@ startRenderLoop();
           if(offIn){ offIn.value=v; if(offOut) offOut.textContent=_offLabel(v); }
           send({t:'soff', v:v}); }catch(e){} },
         offsetNow:function(){ try{ return state.duo.offsetBeats||0; }catch(e){ return 0; } },
-        paired:function(){ try{ return !!(state.duo.on && state.duo.peer); }catch(e){ return false; } }
+        paired:function(){ try{ return !!(state.duo.on && state.duo.peer); }catch(e){ return false; } },
+        frame:function(){ try{ if(!(_mkWrap && _mkWrap.parentNode) && btnOpen) btnOpen.onclick({stopPropagation:function(){}}); }catch(e){} },
+        vizmax:function(on){ try{ send({t:'vizmax', on:!!on}); }catch(e){} }
       }; }catch(e){}
       btnMode.style.display='none';   // the open pill shows the four doors; the cycle stays on the collapsed pill and the phone bar
       var _mGl=[['parts','⚭ parts','one piece, two voices — Markov sings his voices, Markova hers'],['retro','⇄ retro','the retrograde canon — the answer plays the SAME material reversed, note for note'],['free','✦ free','her own improviser — only the tempo ratio couples the two'],['pal','◆ palindrome','note for note, the tape wound backward — one half plays a FINITE form, the other then leads the same notes back, end to start: absolute coincidence. Active only for finite forms (form-dur or a Session).']];
@@ -21481,11 +21493,36 @@ body.viz-max #face { display: none; }
 body.mk-embedded #face, body.mk-embedded #face-back { display: none !important; }   /* one face for the pair — hers is a picture, not a console */
 body.face-quiet #controls, body.face-quiet #top-dock, body.face-quiet #phone-bar { display: none !important; }   /* her cockpit rests while the face greets */
 @media (max-width: 620px){ #face-doors button { font-size: 12px; padding: 8px 2px; } }
-#face-doors { display: flex; gap: 6px; }
-#face-doors button { flex: 1 1 0; min-height: 46px; background: #12161b; color: #cfd6de;
-  border: 1px solid #262e38; border-radius: 11px; font: inherit; padding: 8px 4px; cursor: pointer; }
-#face-doors button.on { border-color: var(--accent, #6cf); color: var(--accent, #6cf); background: #101a20; }
-#face-body { margin-top: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#face-doors { display: flex; gap: 2px; border-bottom: 1px solid #1c222a; }
+#face-doors button { flex: 1 1 0; min-height: 46px; background: transparent; color: #79828e;
+  border: 0; border-bottom: 2px solid transparent; font: inherit; padding: 8px 4px; cursor: pointer;
+  letter-spacing: .04em; }
+#face-doors button:hover { color: #cfd6de; }
+#face-doors button.on { color: #e8e4da; border-bottom-color: var(--accent, #6cf); background: transparent; }
+#face-body { margin-top: 10px; display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+#face-body > div:not(#face-note) { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#face button:focus { outline: none; }
+#face button:focus-visible, #face input:focus-visible { outline: 1px solid var(--accent, #6cf); outline-offset: 2px; }
+#face-note { order: -1; font-size: 12.5px !important; color: #a9b0ba !important;
+  border-bottom: 1px dashed #232a33; padding-bottom: 8px; letter-spacing: .02em; }
+#face-gen button, #face-formp button {
+  background: transparent !important; border: 0 !important; border-bottom: 1px solid transparent !important;
+  border-radius: 0 !important; color: #79828e !important; min-height: 44px; cursor: pointer; }
+#face-gen button:hover, #face-formp button:hover { color: #cfd6de !important; }
+#face-gen button.on, #face-formp button.on {
+  color: #e8e4da !important; border-bottom: 1px solid var(--accent, #6cf) !important; background: transparent !important; }
+#face-formp { border-top: 1px solid #1c222a; padding-top: 8px; }
+#face-formp::before { content: 'form'; font-size: 9px; letter-spacing: .3em; color: #565e68; text-transform: uppercase; margin-right: 8px; }
+#face-gen::before { content: 'genre'; font-size: 9px; letter-spacing: .3em; color: #565e68; text-transform: uppercase; margin-right: 8px; }
+#face-act { border-top: 1px solid #1c222a; padding-top: 10px; }
+#face-make, #face-rec, #face-safe {
+  background: transparent !important; border: 0 !important; border-radius: 0 !important;
+  color: #9aa4b0 !important; }
+#face-make:hover, #face-rec:hover, #face-safe:hover { color: #e8e4da !important; }
+#face-go { background: transparent !important; border: 1px solid #4a5568 !important;
+  color: #e8e4da !important; border-radius: 4px !important; font-size: 19px !important; }
+#face-go:hover { border-color: var(--accent, #6cf) !important; color: var(--accent, #6cf) !important; }
+#face-go.playing { border-color: #5a2a2a !important; color: #ff8a8a !important; background: transparent !important; }
 /* (16.08, at the table: «колеса заменить на что-то более управляемое для курсора»,
    then «убери и +− тоже — оставь ввод и всё») Genres are buttons you can see all at
    once; the length is two typed fields, minutes and seconds, with overflow. */
@@ -21517,7 +21554,6 @@ body.face-manual #face-back { display: block; }
 <div id="face">
   <div id="face-doors">
     <button id="door-play" class="on">◆ form</button>
-    <button id="door-duet">⚭ duet</button>
     <button id="door-demo">∴ demo</button>
     <button id="door-manual">✎ manual</button>
   </div>
@@ -21636,8 +21672,58 @@ body.face-manual #face-back { display: block; }
         b.onclick=function(){ try{ if(!(fm[0]==='pal'&&isInfinite()) && window._qrDuo) window._qrDuo.mode(fm[0]); }catch(e){} paintForms(); note(); paintGo(); };
         frm.appendChild(b);
       });
-      var _fs=document.createElement('style'); _fs.textContent='#face-formp button.on{border-color:var(--accent,#6cf);color:var(--accent,#6cf);background:#101a20}#face-formp button:disabled{opacity:.38;cursor:not-allowed}';
+      var _fs=document.createElement('style'); _fs.textContent='#face-formp button.on{border-color:var(--accent,#6cf);color:var(--accent,#6cf);background:#101a20}#face-formp button:disabled{opacity:.38;cursor:not-allowed}#face-formp .who.on{color:#e8e4da!important;border-bottom:1px solid var(--accent,#6cf)!important}';
       frm.appendChild(_fs);
+      // the duet's last organs live HERE now — the pair is part of the form
+      var sep=function(){ var s=document.createElement('span'); s.style.cssText='color:#3a424c;margin:0 2px'; s.textContent='·'; return s; };
+      frm.appendChild(sep());
+      var bat=document.createElement('button'); bat.textContent='♛ baton';
+      bat.title='hand the baton to the other half — the conductor announces, the answer lands';
+      bat.onclick=function(){ try{ if(window._qrDuo) window._qrDuo.baton(); }catch(e){} note(); };
+      frm.appendChild(bat);
+      var offL=document.createElement('span'); offL.textContent='offset'; offL.style.cssText='color:#565e68;font-size:11px;letter-spacing:.1em;margin-left:6px';
+      var offI=document.createElement('input'); offI.type='text'; offI.inputMode='decimal'; offI.autocomplete='off'; offI.spellcheck=false;
+      offI.style.cssText='width:56px;height:40px;text-align:center;background:transparent;color:#e8e4da;border:0;border-bottom:1px solid #2b323c;font:15px "SF Mono",ui-monospace,monospace';
+      offI.title='beats, both ways — ±(p−1)/2 · negative: the answer moves first';
+      var offO=document.createElement('span'); offO.style.cssText='color:#79828e;font-size:12px';
+      var _offPaint=function(){ try{ var v=window._qrDuo?window._qrDuo.offsetNow():0; offI.value=String(v);
+        offO.textContent=(v===0)?'together':((v>0?'+':'−')+Math.abs(v)+' beats'+(v<0?' · answer first':'')); }catch(e){} };
+      offI.onchange=offI.onblur=function(){ try{ if(window._qrDuo) window._qrDuo.offset(parseFloat(String(offI.value).replace(',','.'))||0); }catch(e){} _offPaint(); };
+      _offPaint();
+      frm.appendChild(offL); frm.appendChild(offI); frm.appendChild(offO);
+      frm.appendChild(sep());
+      // ONE stage key: both by default; mark him or her to stage a single half
+      window._stageWho=window._stageWho||'both';
+      var stg=document.createElement('button'); stg.textContent='⛶ stage';
+      stg.title='fullscreen — by default both halves; mark his or hers to stage one alone. Exit: the ✕ on the stage, or Esc.';
+      stg.onclick=function(){
+        try{
+          var who=window._stageWho||'both';
+          document.body.classList.remove('stage-his','stage-hers');
+          if(who==='both'){ if(window._qrDuo) window._qrDuo.stage(); return; }
+          if(who==='hers' && window._qrDuo){ if(window._qrDuo.frame) window._qrDuo.frame(); if(window._qrDuo.vizmax) window._qrDuo.vizmax(true); }
+          document.body.classList.add(who==='his'?'stage-his':'stage-hers');
+          document.body.classList.add('viz-max');
+          try{ if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); }catch(e){}
+          if(!window._stageFsHook){ window._stageFsHook=1;
+            document.addEventListener('fullscreenchange',function(){
+              if(!document.fullscreenElement && (document.body.classList.contains('stage-his')||document.body.classList.contains('stage-hers'))){
+                document.body.classList.remove('stage-his','stage-hers','viz-max');
+                try{ if(window._qrDuo && window._qrDuo.vizmax) window._qrDuo.vizmax(false); }catch(e){}
+                window.dispatchEvent(new Event('resize'));
+              } }); }
+          window.dispatchEvent(new Event('resize'));
+        }catch(e){}
+      };
+      frm.appendChild(stg);
+      [['both','both'],['his','markov'],['hers','markova']].forEach(function(w){
+        var b=document.createElement('button'); b.className='who'; b.dataset.w=w[0]; b.textContent=w[1];
+        b.style.cssText='font-size:11px;letter-spacing:.06em;min-height:36px;padding:4px 6px';
+        b.onclick=function(){ window._stageWho=w[0];
+          [].forEach.call(frm.querySelectorAll('.who'),function(x){ x.classList.toggle('on',x.dataset.w===w[0]); }); };
+        if(w[0]===(window._stageWho||'both')) b.classList.add('on');
+        frm.appendChild(b);
+      });
       setTimeout(paintForms,0); setInterval(paintForms,900);
       var mk=document.createElement('button'); mk.id='face-make'; mk.textContent='✚ create form';
       mk.title='the Markovs compose a score of this length — nothing sounds yet';
@@ -21675,7 +21761,9 @@ body.face-manual #face-back { display: block; }
       sf.style.cssText='min-height:52px;padding:0 12px;background:#12161b;color:#9aa4b0;border:1px solid #262e38;border-radius:12px;font:13px "SF Mono",ui-monospace,monospace;cursor:pointer';
       sf.onclick=function(){ try{ window._qrSafeExport(); }catch(e){} };
       var n=document.createElement('div'); n.id='face-note';
-      body.appendChild(gen); body.appendChild(frm); body.appendChild(len); body.appendChild(mk); body.appendChild(fr); body.appendChild(go); body.appendChild(sf); body.appendChild(n);
+      var act=document.createElement('div'); act.id='face-act';
+      act.appendChild(len); act.appendChild(mk); act.appendChild(fr); act.appendChild(go); act.appendChild(sf);
+      body.appendChild(n); body.appendChild(gen); body.appendChild(frm); body.appendChild(act);
       showLen(); _facePaintRec();
     }
     function note(){
@@ -21745,54 +21833,6 @@ body.face-manual #face-back { display: block; }
       setTimeout(paintGo,150);
     }
 
-    function paintDuet(){
-      clearBody(); setDoor('door-duet');
-      var row=document.createElement('div'); row.id='face-row';
-      function proxy(label,title,fn,dis){
-        var b=document.createElement('button'); b.textContent=label; b.title=title||'';
-        if(dis){ b.disabled=true; } else b.onclick=fn; row.appendChild(b); return b; }
-      var _now=null; try{ _now=window._qrDuo?window._qrDuo.modeNow():(state.duo&&state.duo.mode); }catch(e){}
-      var _mk=function(lbl,title,m){ var b=proxy(lbl,title,function(){ _dmode(m); });
-        if(_now===m) b.style.borderColor='var(--accent,#6cf)', b.style.color='var(--accent,#6cf)';
-        return b; };
-      _mk('⚭ parts','both halves sing one piece, each its own voices','parts');
-      _mk('⇄ retro','she answers with his material reversed','retro');
-      _mk('✦ free','she runs her own improviser','free');
-      proxy('◆ palindrome', isInfinite()?'a palindrome needs a finite form — choose a length on the play wheel':'the form plays through, then the answer leads it back note for note',
-            function(){ _dmode('pal'); }, isInfinite());
-      proxy('♛ baton','hand the baton to the other half',function(){ try{ if(window._qrDuo) window._qrDuo.baton(); }catch(e){} paintDuet(); });
-      proxy('⛶ stage','fullscreen split of both halves',function(){ try{ if(window._qrDuo) window._qrDuo.stage(); }catch(e){} });
-      var offWrap=document.createElement('label');
-      offWrap.style.cssText='display:inline-flex;align-items:center;gap:6px;color:#6b7480';
-      offWrap.appendChild(document.createTextNode('offset'));
-      var off=document.createElement('input'); off.type='text'; off.inputMode='decimal'; off.autocomplete='off'; off.spellcheck=false;
-      off.style.cssText='width:72px;text-align:center;background:#0d1116;color:#e8e4da;border:1px solid #262e38;border-radius:10px;min-height:44px;font:15px "SF Mono",ui-monospace,monospace';
-      off.title='beats, both ways — ±(p−1)/2 · negative: the answer moves first';
-      try{ off.value=(window._qrDuo?window._qrDuo.offsetNow():((state.duo&&state.duo.offsetBeats)||0)); }catch(e){ off.value=0; }
-
-      var offv=document.createElement('span'); offv.style.color='#cfd6de';
-      var lab=function(v){ v=+v||0; return v===0?'together':('+'+(Math.round(v*100)/100)+' beat'+(v===1?'':'s')); };
-      offv.textContent=lab(off.value);
-      off.onchange=off.onblur=function(){
-        try{ if(window._qrDuo){ window._qrDuo.offset(off.value); off.value=String(window._qrDuo.offsetNow()); } }catch(e){}
-        offv.textContent=lab(off.value); };
-      offWrap.appendChild(off); offWrap.appendChild(offv); row.appendChild(offWrap);
-      body.appendChild(row);
-      var n=document.createElement('div'); n.id='face-note';
-      var _m=null; try{ _m=window._qrDuo?window._qrDuo.modeNow():null; }catch(e){}
-      n.textContent = (_m==='pal')
-        ? ('⟲ palindrome is armed — now open ◆ form and start it: this half plays the whole form, then the other leads it back note for note, end to start'+(isInfinite()?' (choose a length first — an endless piece has no end to mirror)':''))
-        : (_m==='retro') ? '⇄ retro — she answers with his material reversed, from the mirror beat p−r'
-        : (_m==='free') ? '✦ free — she runs her own improviser; only the tempo ratio couples the two'
-        : 'two engines, one law. The conductor announces every change of world a beat ahead, so both halves land on the same beat — the offset moves the answer, and only the answer.';
-      body.appendChild(n);
-    }
-    function _dmode(m){
-      if(m==='pal' && isInfinite()) return;
-      try{ if(window._qrDuo && window._qrDuo.mode){ window._qrDuo.mode(m); paintDuet(); return; } }catch(e){}
-      try{ if(state && state.duo) state.duo.mode=m; }catch(e){}
-    }
-
     function paintDemo(){
       clearBody(); setDoor('door-demo');
       var row=document.createElement('div'); row.id='face-row';
@@ -21839,7 +21879,6 @@ body.face-manual #face-back { display: block; }
     }
 
     document.getElementById('door-play').onclick=function(){ paintPlay(); _fitViz(); };
-    document.getElementById('door-duet').onclick=function(){ paintDuet(); _fitViz(); };
     document.getElementById('door-demo').onclick=function(){ paintDemo(); _fitViz(); };
     document.getElementById('door-manual').onclick=toManual;
     document.getElementById('face-back').onclick=toFace;
