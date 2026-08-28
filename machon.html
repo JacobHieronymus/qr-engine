@@ -156,10 +156,10 @@
 <header>
   <div class="masthead">
     <span class="meta">machon · the training house</span>
-    <span class="meta">v0.1</span>
+    <span class="meta">v0.2</span>
   </div>
   <h1><span class="he">מָכוֹן</span><span class="lat">one door to every trainer</span></h1>
-  <p class="lede">The order below is the map's own verdict: what comes first — happens; what waits for a free hour — never does. Practice first, the body in the morning, the line in the best hours, mechanics in what remains.</p>
+  <p class="lede">The order below is the map's own verdict: what comes first — happens; what waits for a free hour — never does. Practice first, the body in the morning, the line and its craft in the best hours, mechanics in what remains.</p>
   <div class="places" id="places" role="group" aria-label="where are you">
     <button class="pchip" data-p="bayit"><span class="he">בַּיִת</span><span>home</span></button>
     <button class="pchip" data-p="sifria"><span class="he">סִפְרִיָּה</span><span>library</span></button>
@@ -180,6 +180,18 @@
         <span class="tbig" id="tdisp">10:00</span>
         <button class="go" id="tgo">הַתְחֵל · start</button>
         <span class="tnote" id="tweek"></span>
+      </div>
+    </div>
+    <div class="tool">
+      <div class="trow">
+        <span class="tname"><a id="pslink" href="tehilim.html#1"><span class="he">תְּהִלִּים</span> · tehilim</a></span>
+        <span class="tdur" id="psnext">next · 1 / 150</span>
+      </div>
+      <p class="twhat">One psalm a day, in order — all hundred and fifty, then again. The link opens today's psalm: vowels, Latin transliteration, English underneath, each layer switchable. Reading older than any method, in the language that is becoming the room.</p>
+      <div class="tmode" data-mode-note data-quiet="read with the eyes — the voice waits for home" data-free="aloud, unhurried"></div>
+      <div class="timer" style="padding-top:6px">
+        <button class="go" id="psdone">קָרָאתִי · read it</button>
+        <span class="tnote" id="psweek"></span>
       </div>
     </div></div>
   </section>
@@ -224,10 +236,51 @@
     </div>
   </section>
 
-  <!-- 4 · THE EAR -->
+  <!-- 4 · THE CRAFT -->
   <section class="level" data-modes="bayit sifria">
     <span class="node" aria-hidden="true"></span>
-    <div class="eyebrow"><span>04 · the ear</span><span class="tag">measure cold, don't drill</span></div>
+    <div class="eyebrow"><span>04 · the craft</span><span class="tag">the conservatory course, taken up at last</span></div>
+    <h2><span class="he">מְלָאכָה</span><span class="lat">melakha · the craft</span></h2>
+    <div class="tools">
+
+      <div class="tool">
+        <div class="trow"><span class="tname"><span class="he">הַרְמוֹנְיָה</span> · harmony</span>
+          <span class="tdur">a written problem a day</span></div>
+        <p class="twhat">Kholopov's practical course — his call: the best of the harmony books. A written problem a day, checked against the key; the brigade textbook stays as the drill bank. Past the performer's course this is acquisition, not recovery — expect it to feel new, not remembered.</p>
+        <div class="tmode" data-mode-note></div>
+      </div>
+
+      <div class="tool">
+        <div class="trow"><span class="tname"><span class="he">הוֹלָכַת קוֹלוֹת</span> · voice leading</span>
+          <span class="tdur">species by species</span></div>
+        <p class="twhat">Strict counterpoint — the discipline under the residue choir: every rule here is a singer's breath. Viola hands remember the inner voices; this names what they remember.</p>
+        <div class="tmode" data-mode-note></div>
+      </div>
+
+      <div class="tool">
+        <div class="trow"><span class="tname"><span class="he">צוּרָה</span> · form &amp; composition</span>
+          <span class="tdur">a miniature a week</span></div>
+        <p class="twhat">The form course read with scores — period, sentence, the small forms — and a written miniature each week in the form just read.</p>
+        <div class="tmode" data-mode-note></div>
+      </div>
+
+      <div class="tool">
+        <div class="trow"><span class="tname"><span class="he">מָנָה</span> · the dose</span>
+          <span class="tdur">25 min/day · 45 from 1.11</span></div>
+        <p class="twhat">Written work counts; reading about music does not. The checking trainer is not built yet — until it is: paper, the textbook's key, and the instrument in the house.</p>
+        <div class="timer" style="padding-top:6px">
+          <button class="go" id="clog">log minutes</button>
+          <span class="tnote" id="cweek"></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 5 · THE EAR -->
+  <section class="level" data-modes="bayit sifria">
+    <span class="node" aria-hidden="true"></span>
+    <div class="eyebrow"><span>05 · the ear</span><span class="tag">measure cold, don't drill</span></div>
     <h2><span class="he">אֹזֶן</span><span class="lat">ozen · the ear</span></h2>
     <div class="tools">
       <div class="tool">
@@ -242,10 +295,10 @@
     </div>
   </section>
 
-  <!-- 5 · THE LANGUAGE -->
+  <!-- 6 · THE LANGUAGE -->
   <section class="level" data-modes="bayit sifria">
     <span class="node" aria-hidden="true"></span>
-    <div class="eyebrow"><span>05 · the room</span><span class="tag">from September the language is the workplace</span></div>
+    <div class="eyebrow"><span>06 · the room</span><span class="tag">from September the language is the workplace</span></div>
     <h2><span class="he">עִבְרִית</span><span class="lat">ivrit · the language</span></h2>
     <div class="tools">
 
@@ -440,6 +493,46 @@
     });
   }
   renderBody();
+
+  /* ---------- psalms: one a day, in order, and round again ---------- */
+  if (!state.psalms) state.psalms = { next: 1, log: [] };
+  function psRender() {
+    var n = state.psalms.next;
+    var link = $('#pslink'); if (link) link.href = 'tehilim.html#' + n;
+    $('#psnext').textContent = 'next · ' + n + ' / 150';
+    var w = lastDays(state.psalms.log, 7);
+    $('#psweek').textContent = w.length ? w.length + ' psalms this week' : 'none yet this week';
+  }
+  $('#psdone').addEventListener('click', function () {
+    state.psalms.log.push({ d: today(), n: state.psalms.next });
+    state.psalms.next = state.psalms.next % 150 + 1;
+    save(); psRender();
+  });
+  psRender();
+
+  /* ---------- the craft dose: his own ruling of 19.08 ---------- */
+  if (!state.craft) state.craft = [];
+  function craftDose() { return (new Date() < new Date('2026-11-01T00:00:00')) ? 25 : 45; }
+  function craftRender() {
+    var w = lastDays(state.craft, 7);
+    var min = w.reduce(function (a2, r) { return a2 + (r.min || 0); }, 0);
+    $('#cweek').textContent = Math.round(min) + ' / ' + craftDose() * 7 + ' min this week';
+  }
+  $('#clog').addEventListener('click', function () {
+    var host = $('#clog').parentElement;
+    var inp = document.createElement('input');
+    inp.className = 'n'; inp.type = 'number'; inp.min = '0'; inp.inputMode = 'numeric'; inp.placeholder = 'min';
+    host.insertBefore(inp, $('#clog')); $('#clog').style.display = 'none'; inp.focus();
+    function commit() {
+      var n = parseInt(inp.value, 10);
+      if (n > 0) { state.craft.push({ d: today(), min: n }); save(); }
+      inp.remove(); $('#clog').style.display = '';
+      craftRender();
+    }
+    inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') commit(); });
+    inp.addEventListener('blur', commit);
+  });
+  craftRender();
 
   /* ---------- gauges read from the instruments' own storage (same origin) ----------
      Defensive throughout: on a browser where an instrument never ran, its key is
