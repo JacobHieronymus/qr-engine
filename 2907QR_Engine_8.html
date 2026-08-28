@@ -9622,6 +9622,17 @@ async function _pulseCamStart(){
     // permission-gated, arms tempo only (never starts sound); recording never touches it.
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:320}, height:{ideal:240}}, audio:false});
   }catch(e){ _reportErr('pulseCam', e); _pulsePaint('camera blocked — allow it, or use tap'); return; }
+  // (28.08, author: «камера по-моему реально не работает») he was right, and the
+  // reason is the platform, not the blood: PPG needs the LED lit under the finger,
+  // iPhone Safari gives web pages NO torch at all, and a Mac hands over a webcam
+  // with no lamp. Light the torch where the browser allows it (Android Chrome),
+  // and SAY the wall where it does not, instead of listening to darkness.
+  try{
+    const tr=stream.getVideoTracks()[0];
+    const caps=(tr.getCapabilities?tr.getCapabilities():{})||{};
+    if(caps.torch){ await tr.applyConstraints({advanced:[{torch:true}]}); }
+    else _pulsePaint('camera — no torch on this device (iPhone web has none): needs bright light through the finger, or the watch');
+  }catch(e){}
   const video=document.createElement('video');
   video.muted=true; video.playsInline=true; video.srcObject=stream;
   try{ await video.play(); }catch(e){}
