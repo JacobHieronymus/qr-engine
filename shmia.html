@@ -53,7 +53,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <div id="top">
-  <h1>שְׁמִיעָה</h1><span class="sub">shmia · listening gym · v0.1.4 · five gauges</span>
+  <h1>שְׁמִיעָה</h1><span class="sub">shmia · listening gym · v0.1.5 · five gauges</span>
 </div>
 <div id="tabs">
   <div class="tab on" data-v="flow"><span class="heb">אִמּוּן</span><span class="lat">train</span></div>
@@ -197,7 +197,12 @@ function stairStep(st, correct, rule) { // rule: 3 = 3-down-1-up (79.4%), 2 = 2-
   // down until the first miss; the textbook rule takes over from there.
   if (correct) {
     st.ok++;
-    if (st.noMissYet !== false) { st.ok = 0; dir = -1; }
+    // (28.08) the fast phase demands TWO in a row, not one: on 2AFC a single
+    // correct is a coin flip half the time, and the 28.08 session rode lucky
+    // guesses straight to the 0.15% floor, then spent the block climbing back —
+    // 27 trials, 3 reversals, null. Two-in-a-row cuts the guess-overshoot to a
+    // quarter per step and still descends twice as fast as the textbook rule.
+    if (st.noMissYet !== false) { if (st.ok >= 2) { st.ok = 0; dir = -1; } }
     else if (st.ok >= rule) { st.ok = 0; dir = -1; }
   }
   else { st.ok = 0; dir = +1; st.noMissYet = false; }
