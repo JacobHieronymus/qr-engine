@@ -119,6 +119,10 @@
     <input type="checkbox" id="music" checked style="accent-color:var(--gold)">
     <span><span class="he" style="font-size:14px">הַמַּרְקוֹבִים מְנַגְּנִים</span> · the Markovs improvise the music — their interval set for the rounds, the prayer for the stretches</span>
   </label>
+  <label class="picknote" style="display:flex;gap:8px;align-items:center;cursor:pointer">
+    <input type="checkbox" id="pulse" style="accent-color:var(--gold)">
+    <span><span class="he" style="font-size:14px">הַלֵּב מְנַצֵּחַ</span> · the heart conducts — Apple Watch → Pulsoid, and the Markovs' tempo follows your pulse at a rational multiple. First time asks for the token once.</span>
+  </label>
   <p class="picknote">the count is in Hebrew, the rests teach a body word · reps follow the voice, stretches follow the breath<br>
   keep the phone propped where you can see the figure · the screen stays awake</p>
 </div>
@@ -136,6 +140,7 @@
     <div class="counters">
       <span class="big" id="big">—</span>
       <span class="prog" id="prog">—</span>
+      <span class="prog" id="hr" style="color:var(--oxide)"></span>
     </div>
   </div>
   <div class="ctl">
@@ -202,6 +207,9 @@
   // file is absent — a local copy without the engine — everything degrades to
   // silence without a word of complaint.
   var eng = { win: null, ready: false, on: false, room: null };
+  (function armPulseBox() {
+    try { if (localStorage.getItem('qrhr.token')) { var pb = document.getElementById('pulse'); if (pb) pb.checked = true; } } catch (e) {}
+  })();
   (function preloadEngine() {
     try {
       var f = document.getElementById('eng');
@@ -245,10 +253,27 @@
         engMaster(0.26);                                    // under the voice, over the silence
       } catch (e) {}
     }, 250);
+    // the heart's door — the engine's own pulse-watch (author, 24.07): Apple Watch
+    // -> Pulsoid cloud -> the tempo follows the heartbeat at a rational multiple,
+    // and the pulse keeps the last word on tempo through every room change
+    if ($('#pulse').checked) {
+      eng.heart = true;
+      setTimeout(function () {
+        engClick('pulse-watch');
+        setTimeout(function () {   // mirror the reading into the session, if the engine lets us
+          try {
+            eng.win.QRHR.on('hr', function (v) {
+              var el = $('#hr'); if (el) el.textContent = '♥ ' + Math.round(v.bpm || v || 0);
+            });
+          } catch (e) {}
+        }, 900);
+      }, 700);
+    }
   }
   function bandStop() {
     if (!eng.on) return;
     eng.on = false; eng.room = null;
+    if (eng.heart) { eng.heart = false; engClick('pulse-off'); }
     try {
       var a = eng.win.document.getElementById('ai-auto');
       if (a && /stop/i.test(a.textContent)) a.click();
