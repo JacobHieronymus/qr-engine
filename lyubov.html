@@ -47,6 +47,9 @@
 /* Он касается — я считаю. Восемь касаний дают темп, дальше страница
    сама ставит рамку любви, длину формы и съёмку, и уходит с глаз. */
 var NEED = 8, TAPS = [], started = false;
+// Простое для любви — из их собственного архива: 13, 17, 89 они брали сами,
+// p=3 не брали никогда. Берём среднее из трёх, оно же самое частое.
+var LOVE_P = 17;
 var f = document.getElementById('stage');
 var veil = document.getElementById('veil'), heart = document.getElementById('heart');
 var bpmEl = document.getElementById('bpm'), say = document.getElementById('say');
@@ -115,10 +118,14 @@ function go() {
   say.innerHTML = 'слышу ' + b + '. Одна минута — только смотри и будь.';
   var steps = [];
   try { eng.win.__qrWake(); } catch (e) {}
-  // Сегодня take сольный. Движок помнит прошлые дуэты, а его съёмка вежливо
-  // уступает паре: пока стоит duo-метка, форма фильма не начнётся вовсе.
-  try { eng.win.eval('try{ state.duo.on=false; state.duo.peer=false; }catch(e){}'); } catch (e) {}
-  try { var _v = E('tb-rec-vid'); if (_v) { _v._duoTint = false; _v._armed = false; } } catch (e) {}
+  say.innerHTML = 'слышу ' + b + '. Бужу Маркову.';
+  // Маркова должна проснуться ДО съёмки: форма снимает парную сцену, когда
+  // открыт её кадр (29.08: «Маркова не проснулась, проспала съёмки» — я
+  // тогда снял дуэт ради камеры и обменял её на запись. Больше нет).
+  try { var mb = E('markova-btn'); if (mb && mb.className.indexOf('active') < 0) mb.click(); } catch (e) {}
+  // И простое число, на котором есть что петь. Их любовь жила на 13, 17, 89;
+  // p=3 даёт три вычета — материала нет, и вечер выходит унылым.
+  try { eng.win.eval('try{ state.reqP=' + LOVE_P + '; }catch(e){}'); } catch (e) {}
   steps.push(click('act-lyric'));                    // ❤ рамка любви
   setTimeout(function () {
     steps.push(setVal('form-dur', 60));              // ровно минута
@@ -127,7 +134,7 @@ function go() {
     steps.push(setVal('tb-vid-fmt', 'insta'));
     steps.push(setChk('form-film', true));           // форма снимет себя сама
     setTimeout(function () {
-      steps.push(click('form-go'));                  // ◆ и начали
+      steps.push(click('form-go'));                  // ◆ и начали — двое, не один
       veil.classList.add('gone');
       document.getElementById('note').textContent =
         'снимаю · ' + b + ' ударов · форма остановит запись сама';
