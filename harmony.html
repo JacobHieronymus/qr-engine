@@ -264,7 +264,7 @@ function chordFreqs(specs, root, mul) {
 /* intervals: letter steps + semitones, so the spelling comes out exact */
 var IV = {
   P1:[0,0], m2:[1,1], M2:[1,2], A2:[1,3], m3:[2,3], M3:[2,4], P4:[3,5], A4:[3,6],
-  d5:[4,6], P5:[4,7], A5:[4,8], m6:[5,8], M6:[5,9], m7:[6,10], M7:[6,11], P8:[7,12]
+  d5:[4,6], P5:[4,7], A5:[4,8], m6:[5,8], M6:[5,9], A6:[5,10], m7:[6,10], M7:[6,11], P8:[7,12]
 };
 function up(spec, iv) {
   var n = parse(spec), d = IV[iv];
@@ -603,10 +603,13 @@ LESSONS.push({
        'music stands on.') +
 
     '<h3>the tritone is two intervals, not one</h3>' +
-    '<p>On a piano this section is invisible; in just intonation it is audible and on the staff it is ' +
-    'plain. The augmented fourth is 45/32, the diminished fifth 64/45 — about 19.5 cents apart, a fifth ' +
-    'of a semitone. Equal temperament fuses them, and then theory has to explain in words a distinction ' +
-    'the tuning used to make with sound.</p>' +
+    '<p>On the staff the difference is plain; in sound it depends on the tuning, and that dependence is ' +
+    'itself the lesson. In the 5-limit tuning used here the augmented fourth measures 45/32 and the ' +
+    'diminished fifth 64/45, about 19.5 cents apart. In Pythagorean tuning the relation <em>reverses</em>: ' +
+    'there the augmented fourth is the wider of the two. Equal temperament fuses them outright. So the ' +
+    'size is a property of a tuning system, never of the interval — what identifies an augmented fourth ' +
+    'is where it is obliged to go. Sounded bare, with no context, the question "which tritone is this" ' +
+    'has no answer, and saying so is the correct answer.</p>' +
     group('F–B against B–F, and where each one goes', [
       ['augmented fourth 45/32', one(['F4','B4'], 2.6), 'F–B', 'The upper note is high: 45/32 above F.'],
       ['diminished fifth 64/45', one(['B3','F4'], 2.6), 'B–F', 'The upper note is low: 64/45 above B.'],
@@ -615,20 +618,30 @@ LESSONS.push({
     ], 'The dissonance does not merely sound harsh — it has a direction. The interval carries an ' +
        'obligation, and the obligation is what makes the system a system.') +
 
-    '<blockquote>The task is deliberately hard: name the tritone from the sound alone, with no ' +
-    'resolution to give it away — a 19.5-cent judgement in a bare texture.</blockquote>';
+    '<h3>the same four pitches, two obligations</h3>' +
+    group('A♭–C–E♭–G♭ against A♭–C–E♭–F♯', [
+      ['dominant seventh → D♭', [P(['Ab2','C4','Eb4','Gb4'],1.7,'Ab2'), P(['Db3','Db4','F4','Ab4'],2.3,'Db3')],
+        'A♭7 – D♭', 'The seventh falls: the chord is a dominant and goes down a fifth.'],
+      ['augmented sixth → G', [P(['Ab2','C4','Eb4','F#4'],1.7,'Ab2'), P(['G2','D4','G4','B4'],2.3,'G2')],
+        'Ger⁺⁶ – V in C minor', 'The sixth expands outward to the octave: the chord is a dominant preparation.'],
+      ['the sonority alone', one(['Ab2','C4','Eb4','Gb4'], 2.4), 'undecidable',
+        'Nothing here decides it. On a piano the two are one sound; the difference lives in what follows.']
+    ], 'The same keys on a piano, two different chords — and no property of the sonority tells you which. ' +
+       'This is the chapter\'s thesis at its sharpest: the identity of a dissonance is its obligation.') +
+
+    '<blockquote>The task therefore never asks you to name a tritone in the void. It gives you as much ' +
+    'context as it gives, and sometimes the honest answer is that there is not enough.</blockquote>';
   },
   task: {
-    id: 'tritone', prompt: 'Augmented fourth or diminished fifth?',
-    expect: 'Expected for you: 65–80%. A real discrimination task, not a formality — the two ' +
-            'intervals are 19.5 cents apart with no resolution to lean on. Below 60% the ladder ' +
-            'drops back to long notes with a reference fifth.',
+    id: 'tritone', prompt: 'What is this chord, and where must it go?',
+    expect: 'Expected for you: 85%+ when the resolution is given — level 1 is a baseline, run it once. ' +
+            'The work is at levels 3–4, where the key must be held in the ear without the resolution, ' +
+            'and where "undecidable" is sometimes the right answer. Target 80% at level 4.',
     ladder: [
-      { name: 'long notes, a reference fifth first', make: function () { return triItem(2.8, false, true); } },
-      { name: 'long notes, no reference', make: function () { return triItem(2.8, false, false); } },
-      { name: 'short, no reference', make: function () { return triItem(1.1, false, false); } },
-      { name: 'short, transposed each time', make: function () { return triItem(1.1, true, false); } },
-      { name: 'inside a four-voice chord', make: function () { return triItem(1.8, true, false, true); } }
+      { name: 'context, chord, resolution', make: function () { return sixItem(2, true); } },
+      { name: 'context, chord — no resolution', make: function () { return sixItem(2, false); } },
+      { name: 'one chord of context', make: function () { return sixItem(1, false); } },
+      { name: 'sometimes there is no context at all', make: function () { return sixItem(-1, false); } }
     ]
   }
 });
@@ -747,25 +760,44 @@ function item(specs, choices, right, label, root) {
   return { piece: [P(specs, 2.3, root)], choices: choices, right: right, label: label };
 }
 
-var TRI_A4 = [['F4','B4'], ['C4','F#4'], ['G3','C#4'], ['Bb3','E4'], ['Eb4','A4'], ['Ab3','D4']];
-var TRI_D5 = [['B3','F4'], ['F#4','C5'], ['C#4','G4'], ['E4','Bb4'], ['A3','Eb4'], ['D4','Ab4']];
-function triItem(dur, transpose, reference, thick) {
-  var up4 = Math.random() < 0.5;
-  var pair = transpose ? pick(up4 ? TRI_A4 : TRI_D5) : (up4 ? TRI_A4[0] : TRI_D5[0]);
-  var specs = pair.slice(), tuneRoot = pair[0];
-  if (thick) {
-    // the tritone's home is the dominant seventh: the same chord both ways, only
-    // the position differs — so the size of the interval is the only clue left.
-    // The chord tunes from ITS root, not from the tritone's lower note.
-    var root = down(up4 ? pair[1] : pair[0], 'M3');
-    specs = up4 ? [pair[0], root, pair[1], up(root, 'P5')]        // seventh in the bass
-                : [pair[0], up(root, 'P5'), pair[1], up(root, 'P8')];  // first inversion
-    tuneRoot = root;
-  }
-  var piece = [P(specs, dur, tuneRoot)];
-  if (reference) piece = [P([pair[0], up(pair[0], 'P5')], 1.3, pair[0])].concat(piece);
-  return { piece: piece, choices: ['augmented 4th', 'diminished 5th'], right: up4 ? 0 : 1,
-           label: (up4 ? 'A4 · 45/32' : 'd5 · 64/45') + ' — ' + pcOf(pair[0]) + '–' + pcOf(pair[1]) };
+/* The dominant seventh and the German sixth are the same keys on a piano and two
+   different chords. Nothing in the sonority decides which — only what surrounds it.
+   So the item hands over exactly as much context as its level allows, and when the
+   context does not decide, "undecidable" is the correct answer, not a cop-out. */
+var SIX_ROOTS = ['Ab2', 'Bb2', 'C3', 'Db3', 'Eb3', 'F2', 'G2'];
+function sixItem(ctxLen, withResolution) {
+  var R = pick(SIX_ROOTS);
+  var isGer = Math.random() < 0.5;
+  var son = [R, up(R, 'M3'), up(R, 'P5'), up(R, isGer ? 'A6' : 'm7')];
+  // where each one is obliged to go
+  var resRoot = isGer ? down(R, 'm2') : down(R, 'P5');
+  var res = [resRoot, up(resRoot, 'P8'), up(resRoot, 'M3'), up(resRoot, 'P5')];
+  // the key each one belongs to: the seventh chord is the dominant of a fifth below,
+  // the augmented sixth belongs to the minor key a major third above its bass
+  var tonic = isGer ? up(R, 'M3') : down(R, 'P5');
+  var third = isGer ? 'm3' : 'M3';
+  var I  = [tonic, up(tonic, 'P8'), up(tonic, third), up(tonic, 'P5')];
+  var IV = [up(tonic, 'P4'), up(tonic, 'P8'), up(up(tonic, 'P4'), third), up(up(tonic, 'P4'), 'P5')];
+  var noKey = [['D3','A3','D4','F#4'], ['E3','B3','E4','G#4'], ['F#2','C#4','F#4','A#4']];
+
+  var steps = [], decided = true;
+  if (ctxLen === -1) {                       // sometimes the context is simply absent
+    if (Math.random() < 0.5) { decided = false; }
+    else { steps.push(I); }
+  } else if (ctxLen >= 2) { steps.push(I, IV); }
+  else if (ctxLen === 1) { steps.push(I); }
+  if (!decided && Math.random() < 0.5) steps.push(pick(noKey));   // a chord that settles nothing
+
+  var piece = steps.map(function (c) { return P(c, 1.15, c[0]); });
+  piece.push(P(son, withResolution ? 1.6 : 2.4, R));
+  if (withResolution) piece.push(P(res, 2.4, resRoot));
+  var right = !decided && !withResolution ? 2 : (isGer ? 1 : 0);
+  return { piece: piece,
+           choices: ['dominant 7th → down a fifth', 'augmented 6th → outward to the dominant', 'undecidable'],
+           right: right,
+           label: (!decided && !withResolution) ? 'no context — the question has no answer'
+                 : (isGer ? 'Ger⁺⁶ on ' + pcOf(R) + ' in ' + pcOf(tonic) + ' minor'
+                          : pcOf(R) + '7 → ' + pcOf(resRoot)) };
 }
 
 var KEYR = { P1:1, M2:9/8, M3:5/4, P4:4/3, P5:3/2 };
