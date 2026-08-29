@@ -59,7 +59,7 @@
 <body>
 <header>
   <h1>גַּן סַאקֶר</h1>
-  <div class="sub">gan · guided workout · v0.3 live · pulse-aware · logs</div>
+  <div class="sub">gan · guided workout · v0.4 · the markovs play live · pulse-aware · logs</div>
 </header>
 
 <div id="clockRow">
@@ -96,6 +96,12 @@
       <button class="intBtn" data-i="H">חָזָק · strong</button>
     </div>
   </div>
+  <div class="row">
+    <label>music · the Markovs improvise live in the engine's room; off = the built-in pattern</label>
+    <div style="display:flex;gap:8px">
+      <button class="intBtn on" id="bandBtn">הַמַּרְקוֹבִים · live</button>
+    </div>
+  </div>
 </div>
 
 <div id="controls">
@@ -105,6 +111,7 @@
   <button id="shareBtn" class="hidden">➦ share</button>
 </div>
 <div id="note">Keep the screen ON — iPhone pauses the page when locked. AirPods in, phone in hand or armband.</div>
+<iframe id="eng" style="display:none" title="the Markovs' room"></iframe>
 
 <script>
 'use strict';
@@ -296,9 +303,78 @@ function speak(text, slow) {
   if (!isHe && enVoice) u.voice = enVoice;
   u.lang = isHe ? 'he-IL' : 'en-US';
   u.rate = isHe ? (slow ? 0.78 : 0.9) : 1.0;
-  u.onstart = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain * 0.45, ctx.currentTime, 0.15); };
-  u.onend = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain, ctx.currentTime, 0.3); };
+  u.onstart = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain * 0.45, ctx.currentTime, 0.15); if (eng.on) engMaster(0.10); };
+  u.onend = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain, ctx.currentTime, 0.3); if (eng.on) engMaster(0.26); };
   speechSynthesis.speak(u);
+}
+
+/* ============ the Markovs: the engine in the next room ============ */
+// The QR engine is loaded hidden at page-open and driven through its own
+// buttons: the Markovs improvise the music live, room by room — the interval
+// set while he moves, the prayer for the stretch and the breath. If the file
+// is absent, gan falls back to its own baked blips without a word.
+var eng = { win: null, ready: false, on: false, room: null, heart: false };
+let bandWant = true, bandPaused = false;
+try { bandWant = localStorage.getItem('gan-band-v1') !== 'off'; } catch (e) {}
+(function preloadEngine() {
+  try {
+    const f = document.getElementById('eng');
+    f.addEventListener('load', () => {
+      try { eng.win = f.contentWindow; eng.ready = !!(eng.win && eng.win.document.getElementById('engine-play')); } catch (e) {}
+    });
+    f.src = '2907QR_Engine_8.html';
+  } catch (e) {}
+})();
+function engClick(id) {
+  try { const b = eng.win.document.getElementById(id); if (b) { b.click(); return true; } } catch (e) {}
+  return false;
+}
+function engMaster(v) {
+  // the engine's globals are lexical; its master slider is the public handle
+  try {
+    const el = eng.win.document.getElementById('v-master');
+    if (el) {
+      el.value = v;
+      el.dispatchEvent(new eng.win.Event('input', { bubbles: true }));
+      el.dispatchEvent(new eng.win.Event('change', { bubbles: true }));
+    }
+  } catch (e) {}
+}
+function bandRoom(room) {          // 'work' -> the interval set, 'stretch' -> the prayer
+  if (!eng.on || !eng.ready || eng.room === room) return;
+  eng.room = room;
+  engClick(room === 'stretch' ? 'act-meditate' : 'act-workout');
+}
+function bandStart(firstRoom) {
+  if (!eng.ready || !bandWant) return;
+  eng.on = true; eng.room = firstRoom;
+  try { if (eng.win.__qrWake) eng.win.__qrWake(); } catch (e) {}   // a cold iframe ctx is born suspended
+  engClick(firstRoom === 'stretch' ? 'act-meditate' : 'act-workout');
+  setTimeout(() => {
+    try {
+      const b = eng.win.document.getElementById('engine-play');
+      if (b && !/stop|■/i.test(b.textContent)) b.click();
+      const a = eng.win.document.getElementById('ai-auto');
+      if (a && !/stop/i.test(a.textContent)) a.click();   // the improviser breathes scene to scene
+      engMaster(0.26);                                    // under the voice, over the silence
+    } catch (e) {}
+  }, 250);
+  let tok = null; try { tok = localStorage.getItem(TOK_KEY); } catch (e) {}
+  if (tok) {
+    eng.heart = true;                                     // the tempo desk follows the same watch
+    setTimeout(() => engClick('pulse-watch'), 700);
+  }
+}
+function bandStop() {
+  if (!eng.on) return;
+  eng.on = false; eng.room = null;
+  if (eng.heart) { eng.heart = false; engClick('pulse-off'); }
+  try {
+    const a = eng.win.document.getElementById('ai-auto');
+    if (a && /stop/i.test(a.textContent)) a.click();
+    const b = eng.win.document.getElementById('engine-play');
+    if (b && /stop|■/i.test(b.textContent)) b.click();
+  } catch (e) {}
 }
 
 /* ============ the program ============ */
@@ -442,10 +518,12 @@ function tick() {
     }
   }
 
-  // music: lookahead beat scheduler
+  // music: the Markovs when the band is on; the baked blips otherwise
   const act = ctx.currentTime;
+  bandRoom(ph[0] >= 1880 ? 'stretch' : 'work');
   const bpm = ph[3];
-  if (bpm > 0) {
+  if (eng.on) { /* the engine plays in the next room */ }
+  else if (bpm > 0) {
     const step = 60 / bpm;
     if (lastSched < act) { lastSched = act + 0.1; beatPos = lastSched; }
     while (beatPos < act + 0.8) {
@@ -618,6 +696,7 @@ $('startBtn').onclick = () => {
   beatIdx = 0; lastSched = 0; heartNext = 0;
   rec = { date: new Date().toISOString(), intensity, hr: [], cues: [], phase: 0, done: false };
   lastHrSample = 0;
+  bandStart('work');
   $('setup').classList.add('hidden');
   $('startBtn').classList.add('hidden');
   $('pauseBtn').classList.remove('hidden');
@@ -628,10 +707,12 @@ $('pauseBtn').onclick = () => {
   if (!paused) {
     paused = true; pausedAt = (Date.now() - t0) / 1000;
     ctx.suspend(); speechSynthesis.cancel();
+    if (eng.on) { bandPaused = true; bandStop(); }
     $('pauseBtn').textContent = 'הַמְשֵׁךְ · resume';
   } else {
     paused = false; t0 = Date.now() - pausedAt * 1000;
     ctx.resume(); lastSched = 0; heartNext = 0;
+    if (bandPaused) { bandPaused = false; bandStart(phaseAt(now())[0] >= 1880 ? 'stretch' : 'work'); }
     $('pauseBtn').textContent = 'הַפְסֵק · pause';
   }
 };
@@ -646,6 +727,7 @@ $('skipBtn').onclick = () => {
 };
 function finish() {
   running = false;
+  bandStop();
   qrTone(ctx.currentTime + 0.1, 12, 0.12, 8.0, 'flute', -0.2);
   qrTone(ctx.currentTime + 0.1, 49, 0.12, 8.0, 'flute', 0.2);
   $('clock').textContent = '0:00';
@@ -682,10 +764,20 @@ function shareLog() {
 
 $('shareBtn').onclick = shareLog;
 
+$('bandBtn').onclick = () => {
+  bandWant = !bandWant;
+  try { localStorage.setItem('gan-band-v1', bandWant ? 'on' : 'off'); } catch (e) {}
+  $('bandBtn').classList.toggle('on', bandWant);
+  $('bandBtn').textContent = bandWant ? 'הַמַּרְקוֹבִים · live' : 'הַמַּרְקוֹבִים · off';
+  if (running && !paused) { if (bandWant) bandStart(phaseAt(now())[0] >= 1880 ? 'stretch' : 'work'); else bandStop(); }
+};
+
 /* prefill */
 (function () {
   const tk = localStorage.getItem(TOK_KEY); if (tk) $('tokIn').value = tk;
   const ak = localStorage.getItem(API_KEY); if (ak) $('keyIn').value = ak;
+  $('bandBtn').classList.toggle('on', bandWant);
+  $('bandBtn').textContent = bandWant ? 'הַמַּרְקוֹבִים · live' : 'הַמַּרְקוֹבִים · off';
 })();
 setInterval(tick, 250);
 </script>
