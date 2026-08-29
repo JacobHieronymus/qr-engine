@@ -281,8 +281,9 @@
       <div class="tool">
         <div class="trow"><span class="tname"><a href="harmony.html"><span class="he">הַרְמוֹנְיָה</span> · harmony</a></span>
           <span class="tdur">40 min · exposition, then the tasks</span></div>
-        <p class="twhat">Kholopov's practical course — his call: the best of the harmony books. A written problem a day, checked against the key; the brigade textbook stays as the drill bank. Past the performer's course this is acquisition, not recovery — expect it to feel new, not remembered.</p>
-        <div class="tmode" data-mode-note></div>
+        <p class="twhat">Kholopov's course — his call: the best of the harmony books. Chapter by chapter: the exposition first, with every example playable in just intonation, then one adaptive task built on it. A written problem a day stays the homework beside it. Past the performer's course this is acquisition, not recovery — expect it to feel new, not remembered.</p>
+        <div class="tmode" data-mode-note data-quiet="headphones — the whole chapter is sound"></div>
+        <div class="tgauge" id="g-harmony">—</div>
       </div>
 
       <div class="tool">
@@ -302,7 +303,7 @@
       <div class="tool">
         <div class="trow"><span class="tname"><span class="he">מָנָה</span> · the dose</span>
           <span class="tdur">2 h/day · the composition faculty</span></div>
-        <p class="twhat">Written work counts; reading about music does not. The checking trainer is not built yet — until it is: paper, the textbook's key, and the instrument in the house.</p>
+        <p class="twhat">Written work counts; reading about music does not. Harmony now checks itself — its minutes are logged from the page. For the rest: paper, the textbook's key, and the instrument in the house.</p>
         <div class="tgauge" style="border-top:none;margin-top:2px">
           sun&nbsp;· harmony 40 + composition 80 (the week's miniature)<br>
           mon · harmony 40 + polyphony 50 + solfège 30<br>
@@ -603,6 +604,22 @@
     if (oz.length === 6) parts.push('oznayim <b>' + oz.join(' / ') + '</b>');
     parts.push('<span class="tgt">ivrit target: native −8…−12</span>');
     el.innerHTML = parts.length ? parts.join(' · ') : 'no thresholds stored yet';
+  })();
+
+  (function harmonyGauge() {
+    var s = readJSON('harmony-kholopov-v1');
+    var el = $('#g-harmony');
+    if (!el) return;
+    if (!s) { el.textContent = 'not opened in this browser yet'; return; }
+    var seen = 0; for (var k in (s.seen || {})) if (s.seen[k]) seen++;
+    var LAD = { root: 6, tritone: 5, func: 5, modal: 3 };
+    var parts = ['chapters <b>' + seen + '</b>/4'];
+    ['root', 'tritone', 'func', 'modal'].forEach(function (t) {
+      var lv = s.level && s.level[t];
+      if (lv != null) parts.push(t + ' <b>' + (lv + 1) + '</b>/' + LAD[t]);
+    });
+    parts.push('<span class="tgt">root → 5 by 30 Sep</span>');
+    el.innerHTML = parts.join(' · ');
   })();
 
   (function zovGauge() {

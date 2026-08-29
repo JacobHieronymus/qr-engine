@@ -225,13 +225,23 @@ var KEY = 'harmony-kholopov-v1', MK = 'machon-state-v1';
 var st; try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { st = null; }
 if (!st) st = { lesson: 1, level: {}, seen: {}, log: [] };
 function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
-function toMachon(n) {
+var t0 = Date.now(), logged = 0;                 // minutes already handed to the machon
+function toMachon(min) {
+  if (!(min >= 1)) return;
   try {
     var m = JSON.parse(localStorage.getItem(MK) || 'null') || { place:'bayit', listen:[], body:{} };
-    if (!m.craft) m.craft = { log: [] };
-    m.craft.log.push({ d: new Date().toISOString().slice(0,10), what: 'harmony ' + n });
+    if (!Array.isArray(m.craft)) {                 // repair, never discard
+      var old = (m.craft && m.craft.log) || [];
+      m.craft = old.map(function (r) { return { d: r.d, min: r.min || 0 }; });
+    }
+    m.craft.push({ d: new Date().toISOString().slice(0,10), min: min, what: 'harmony' });
     localStorage.setItem(MK, JSON.stringify(m));
   } catch (e) {}
+}
+function craftMinutes() {                          // the dose counts time actually spent here
+  var min = Math.round((Date.now() - t0) / 60000) - logged;
+  if (min >= 1) { logged += min; return min; }
+  return 0;
 }
 
 /* ============ the lessons ============ */
@@ -698,7 +708,7 @@ document.addEventListener('click', function (e) {
   if (t.id === 'resume') { startTask(LESSONS.filter(function (x) { return x.n === st.lesson; })[0]); return; }
   if (t.id === 'mark') {
     st.seen[st.lesson] = true; st.log.push({ d: new Date().toISOString().slice(0,10), n: st.lesson });
-    save(); toMachon(st.lesson); paint(st.lesson);
+    save(); toMachon(craftMinutes()); paint(st.lesson);
   }
 });
 paint(st.lesson || 1);
