@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kholopov · harmony course</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* the harmony room of the machon: Kholopov's course, chapter by chapter —
+     exposition with sounding examples first, then the tasks built on them.
+     All sound is just intonation: the scale is 5-limit, the tritones are two
+     different pitches, and that difference is teaching material, not an error. */
+  :root {
+    --paper:#F3EDDF; --card:#FAF6EC;
+    --ink:#262C44; --ink-strong:#1B2138; --ink-soft:#5A5A50;
+    --gold:#9C7A26; --gold-strong:#7E6118; --indigo:#3A4A85;
+    --line:rgba(38,44,68,.22); --line-faint:rgba(38,44,68,.12);
+    --gold-wash:rgba(156,122,38,.09); --chip-bg:rgba(58,74,133,.08);
+    --good:#3D6B45; --bad:#8C3A32;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#14182A; --card:#1C2136;
+      --ink:#DDD6C4; --ink-strong:#F0EADA; --ink-soft:#9B968A;
+      --gold:#CFA84E; --gold-strong:#E0BC66; --indigo:#9AA9DE;
+      --line:rgba(221,214,196,.25); --line-faint:rgba(221,214,196,.12);
+      --gold-wash:rgba(207,168,78,.10); --chip-bg:rgba(154,169,222,.12);
+      --good:#7FB489; --bad:#D98A80;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#14182A; --card:#1C2136;
+    --ink:#DDD6C4; --ink-strong:#F0EADA; --ink-soft:#9B968A;
+    --gold:#CFA84E; --gold-strong:#E0BC66; --indigo:#9AA9DE;
+    --line:rgba(221,214,196,.25); --line-faint:rgba(221,214,196,.12);
+    --gold-wash:rgba(207,168,78,.10); --chip-bg:rgba(154,169,222,.12);
+    --good:#7FB489; --bad:#D98A80;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--paper); color:var(--ink);
+    font-family:"Source Serif 4", Georgia, serif; font-size:17px; line-height:1.62;
+    -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:680px; margin:0 auto; padding:0 20px 100px; }
+  header { padding:34px 0 10px; }
+  .masthead { display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    border-bottom:2px solid var(--ink-strong); padding-bottom:6px; }
+  .masthead a, .masthead span { font-family:"IBM Plex Mono",monospace; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft); text-decoration:none; }
+  .masthead a:hover { color:var(--gold-strong); }
+  h1 { font-weight:600; color:var(--ink-strong); font-size:clamp(27px,6vw,36px);
+    padding:16px 0 2px; line-height:1.15; }
+  .standfirst { color:var(--ink-soft); font-size:15px; padding-bottom:6px; }
+
+  .lessonbar { display:flex; gap:6px; flex-wrap:wrap; padding:18px 0 8px;
+    border-bottom:1px solid var(--line-faint); }
+  .lbtn { font-family:"IBM Plex Mono",monospace; font-size:12px; cursor:pointer;
+    background:var(--card); color:var(--ink-soft); border:1px solid var(--line-faint);
+    border-radius:3px; padding:7px 11px; }
+  .lbtn.on { color:var(--indigo); border-color:var(--indigo); background:var(--chip-bg); }
+  .lbtn.done::after { content:" ·"; color:var(--gold-strong); }
+
+  h2 { font-size:22px; font-weight:600; color:var(--ink-strong); padding:26px 0 2px; line-height:1.25; }
+  h2 .ru { font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-soft);
+    display:block; letter-spacing:.04em; padding-top:4px; font-weight:400; }
+  h3 { font-size:13px; font-family:"IBM Plex Mono",monospace; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--gold-strong); padding:26px 0 8px; font-weight:500; }
+  p { padding:9px 0; }
+  p.lead { font-size:18.5px; }
+  em.term { font-style:normal; font-weight:600; color:var(--ink-strong); }
+  em.term .ru { font-family:"IBM Plex Mono",monospace; font-size:12.5px; font-weight:400;
+    color:var(--ink-soft); }
+  ul { padding:6px 0 6px 22px; } li { padding:4px 0; }
+  blockquote { border-inline-start:3px solid var(--gold); padding:6px 0 6px 14px;
+    margin:12px 0; color:var(--ink-soft); font-style:italic; }
+
+  .ex { background:var(--card); border:1px solid var(--line-faint); border-radius:5px;
+    padding:14px 16px; margin:14px 0; }
+  .ex .cap { font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--ink-soft); padding-bottom:8px; }
+  .ex .why { font-size:15px; color:var(--ink-soft); padding-top:9px; }
+  .plays { display:flex; gap:8px; flex-wrap:wrap; }
+  .play { font-family:"IBM Plex Mono",monospace; font-size:13px; cursor:pointer;
+    background:var(--gold-wash); color:var(--gold-strong); border:1px solid var(--gold);
+    border-radius:3px; padding:8px 13px; }
+  .play:hover { background:var(--gold); color:var(--paper); }
+  .play:active { transform:translateY(1px); }
+
+  .task { border:1px solid var(--line); border-radius:5px; padding:16px 18px; margin:18px 0; }
+  .task .gauge { display:flex; gap:16px; flex-wrap:wrap; font-family:"IBM Plex Mono",monospace;
+    font-size:11.5px; color:var(--ink-soft); border-bottom:1px solid var(--line-faint);
+    padding-bottom:10px; margin-bottom:12px; }
+  .task .gauge b { color:var(--ink-strong); font-weight:500; }
+  .qrow { display:flex; gap:8px; flex-wrap:wrap; padding:10px 0 4px; }
+  .ans { font-family:"IBM Plex Mono",monospace; font-size:14px; cursor:pointer;
+    background:var(--card); color:var(--ink-strong); border:1px solid var(--line);
+    border-radius:3px; padding:9px 15px; }
+  .ans:hover { border-color:var(--indigo); color:var(--indigo); }
+  .ans.right { border-color:var(--good); color:var(--good); }
+  .ans.wrong { border-color:var(--bad); color:var(--bad); }
+  .verdict { font-size:15px; padding-top:8px; min-height:24px; }
+  .verdict.ok { color:var(--good); } .verdict.no { color:var(--bad); }
+  .hidden { display:none !important; }
+
+  .roadmap { border-top:1px solid var(--line-faint); margin-top:34px; padding-top:8px; }
+  .roadmap li { color:var(--ink-soft); font-size:15.5px; }
+  footer { margin-top:44px; padding-top:14px; border-top:1px solid var(--line);
+    font-family:"IBM Plex Mono",monospace; font-size:11px; line-height:1.7; color:var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="masthead">
+    <a href="machon.html">&larr; machon</a>
+    <span id="progress">—</span>
+  </div>
+  <h1>Harmony — a theoretical course</h1>
+  <div class="standfirst">after Yu. N. Kholopov · exposition with sounding examples, then the tasks ·
+    everything sounds in just intonation</div>
+</header>
+
+<div class="lessonbar" id="lessonbar"></div>
+<div id="lesson"></div>
+
+<div class="roadmap">
+  <h3>the chapters ahead</h3>
+  <ul>
+    <li>5 · The tonal system as a whole — degrees, the circle, the key as a field</li>
+    <li>6 · Voice leading: what the four voices are actually doing</li>
+    <li>7 · Seventh chords and the dissonance that became furniture</li>
+    <li>8 · Chromatic alteration; the subdominant that borrowed from minor</li>
+    <li>9 · Deviation and modulation — how a system changes underfoot</li>
+    <li>10 · Late-romantic harmony: ellipsis, tritone substitution, the unresolved</li>
+    <li>11 · The central element (ЦЭ) — tonic generalized beyond tonality</li>
+    <li>12 · Symmetrical modes; the twentieth century's own systems</li>
+  </ul>
+</div>
+
+<footer>
+  tuning: 5-limit just intonation, C = 261.63 Hz · the major triad is 4:5:6, the augmented fourth 45/32
+  and the diminished fifth 64/45 — two different pitches, 19.5 cents apart<br>
+  timbre: four partials, rolled off hard above the fourth — the 4 kHz region is left alone on purpose<br>
+  source: Ю. Н. Холопов, «Гармония. Теоретический курс» · chapter numbers here follow the course's
+  order of topics, not a printed edition — check them against your copy
+</footer>
+</div>
+
+<script>
+'use strict';
+/* ============ sound: a just-intonation room ============ */
+var ctx = null, out = null;
+function audio() {
+  if (ctx) return ctx;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  out = ctx.createGain(); out.gain.value = 0.5;
+  var soft = ctx.createBiquadFilter();      // his ear takes 4 kHz badly — the timbre stays under it
+  soft.type = 'lowpass'; soft.frequency.value = 2600; soft.Q.value = 0.4;
+  out.connect(soft); soft.connect(ctx.destination);
+  return ctx;
+}
+var C4 = 261.6255;
+var PARTIAL = [1, 2, 3, 4], PGAIN = [1, 0.34, 0.16, 0.07];
+
+function voice(f, t, dur, amp, pan) {
+  var c = audio(), g = c.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(amp, t + 0.028);
+  g.gain.setTargetAtTime(amp * 0.72, t + 0.028, 0.4);
+  g.gain.setTargetAtTime(0.0001, t + dur, 0.13);
+  var node = g;
+  if (c.createStereoPanner) { var p = c.createStereoPanner(); p.pan.value = pan || 0; g.connect(p); node = p; }
+  node.connect(out);
+  for (var i = 0; i < PARTIAL.length; i++) {
+    var o = c.createOscillator(), pg = c.createGain();
+    o.type = 'sine'; o.frequency.value = f * PARTIAL[i];
+    pg.gain.value = PGAIN[i] * 0.22;
+    o.connect(pg); pg.connect(g);
+    o.start(t); o.stop(t + dur + 0.7);
+  }
+}
+// ratios sounded together, root first; spread = how wide the voicing sits
+function chord(ratios, opts) {
+  opts = opts || {};
+  var c = audio(); if (c.state === 'suspended') c.resume();
+  var t = c.currentTime + 0.05 + (opts.at || 0);
+  var base = (opts.base || 1) * C4 * (opts.oct || 1);
+  var dur = opts.dur || 1.9;
+  for (var i = 0; i < ratios.length; i++) {
+    var pan = ratios.length > 1 ? -0.28 + 0.56 * (i / (ratios.length - 1)) : 0;
+    voice(base * ratios[i], t + i * 0.006, dur, (opts.amp || 0.5) / Math.sqrt(ratios.length), pan);
+  }
+  return dur;
+}
+function seq(steps, opts) {           // steps: [{r:[ratios], base, dur}]
+  opts = opts || {};
+  var at = 0;
+  for (var i = 0; i < steps.length; i++) {
+    var s = steps[i], d = s.dur || 1.15;
+    chord(s.r, { base: s.base || 1, dur: d * 0.95, at: at, amp: opts.amp, oct: s.oct });
+    at += d;
+  }
+  return at;
+}
+
+/* just intervals, 5-limit */
+var R = {
+  uni:1, m2:16/15, M2:9/8, m3:6/5, M3:5/4, P4:4/3, A4:45/32, d5:64/45,
+  P5:3/2, m6:8/5, M6:5/3, m7:9/5, hm7:16/9, M7:15/8, oct:2
+};
+var TRIAD = {
+  maj:[1, R.M3, R.P5], min:[1, R.m3, R.P5], dim:[1, R.m3, R.d5], aug:[1, R.M3, R.m6],
+  dom7:[1, R.M3, R.P5, R.hm7], maj7:[1, R.M3, R.P5, R.M7], min7:[1, R.m3, R.P5, R.m7],
+  add6:[1, R.M3, R.P5, R.M6], quartal:[1, R.P4, R.hm7], cluster:[1, R.M2, R.m3]
+};
+var NOTE = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+function nameOf(ratio) {              // nearest chromatic name of a ratio above C
+  var c = 1200 * Math.log2(ratio); while (c < 0) c += 1200; while (c >= 1200) c -= 1200;
+  return NOTE[Math.round(c / 100) % 12];
+}
+
+/* ============ progress ============ */
+var KEY = 'harmony-kholopov-v1', MK = 'machon-state-v1';
+var st; try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { st = null; }
+if (!st) st = { lesson: 1, level: {}, seen: {}, log: [] };
+function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+function toMachon(n) {
+  try {
+    var m = JSON.parse(localStorage.getItem(MK) || 'null') || { place:'bayit', listen:[], body:{} };
+    if (!m.craft) m.craft = { log: [] };
+    m.craft.log.push({ d: new Date().toISOString().slice(0,10), what: 'harmony ' + n });
+    localStorage.setItem(MK, JSON.stringify(m));
+  } catch (e) {}
+}
+
+/* ============ the lessons ============ */
+// Each: title, ru (Kholopov's own term), body (HTML built by a function that may
+// register example buttons), and a task with an ordered difficulty ladder.
+var EX = {};        // id -> function, wired to the .play buttons
+var exN = 0;
+function ex(label, fn, why) {
+  var id = 'x' + (++exN); EX[id] = fn;
+  return '<div class="plays"><button class="play" data-x="' + id + '">' + label + '</button></div>' +
+         (why ? '<div class="why">' + why + '</div>' : '');
+}
+function exRow(items, why) {
+  var h = '<div class="plays">';
+  for (var i = 0; i < items.length; i++) {
+    var id = 'x' + (++exN); EX[id] = items[i][1];
+    h += '<button class="play" data-x="' + id + '">' + items[i][0] + '</button>';
+  }
+  return h + '</div>' + (why ? '<div class="why">' + why + '</div>' : '');
+}
+
+var LESSONS = [];
+
+/* ---------- 1. Sonority and chord ---------- */
+LESSONS.push({
+  n: 1, tab: '1 · chord',
+  title: 'Sonority and chord',
+  ru: 'созвучие и аккорд · Холопов, вводный раздел',
+  target: 'level 5 by 30 Sep',
+  body: function () {
+    return '' +
+    '<p class="lead">Kholopov opens not with chords but with the system that reads them. ' +
+    'A <em class="term">sonority <span class="ru">(созвучие)</span></em> is any simultaneity — ' +
+    'three pitches sounding together, nothing more claimed. ' +
+    'A <em class="term">chord <span class="ru">(аккорд)</span></em> is a sonority that the system reads ' +
+    'as a structure: it has a <em class="term">root <span class="ru">(основной тон)</span></em>, ' +
+    'and every other pitch has a position relative to that root.</p>' +
+
+    '<p>The distinction is not acoustic. The same three pitches are a chord or merely a sonority ' +
+    'depending on whether a reading with a root is available and is confirmed by what surrounds it. ' +
+    'This is why Kholopov puts the system before the object: harmony is the set of relations, ' +
+    'and the chord is what those relations make of a handful of frequencies.</p>' +
+
+    '<h3>the same chord, four spacings</h3>' +
+    '<div class="ex"><div class="cap">C major · root position, wide, high third, root doubled</div>' +
+    exRow([
+      ['close', function () { chord(TRIAD.maj); }],
+      ['open', function () { chord([1, R.P5, 2 * R.M3]); }],
+      ['third on top', function () { chord([1, R.P5, 2, 2 * R.M3]); }],
+      ['low and thick', function () { chord([0.5, 1, R.M3, R.P5]); }]
+    ], 'Four different sonorities. One chord — the root does not move, so the reading does not change. ' +
+       'The distance between "different sound" and "different harmony" is the whole subject.') +
+    '</div>' +
+
+    '<h3>a sonority the thirds cannot read</h3>' +
+    '<div class="ex"><div class="cap">tertian, then quartal, then a cluster</div>' +
+    exRow([
+      ['C E G', function () { chord(TRIAD.maj); }],
+      ['C F Bb', function () { chord(TRIAD.quartal); }],
+      ['C D Eb', function () { chord(TRIAD.cluster); }]
+    ], 'The second has no root in the tertian sense — stack it any way you like and no pitch claims ' +
+       'priority. In the twentieth century that is not a defect but the point: the sonority is used ' +
+       'for its own colour, and the system that reads it is a different one.') +
+    '</div>' +
+
+    '<h3>the ambiguity that will not go away</h3>' +
+    '<div class="ex"><div class="cap">C E G A — added sixth, or A minor seventh in inversion?</div>' +
+    exRow([
+      ['bass on C', function () { chord([0.5, 1, R.M3, R.P5, R.M6]); }],
+      ['bass on A', function () { chord([R.M6 / 2, 1, R.M3, R.P5, R.M6]); }],
+      ['no bass at all', function () { chord([1, R.M3, R.P5, R.M6]); }]
+    ], 'The same four pitch classes. The bass decides, and where there is no bass the ear waits for ' +
+       'what comes next. Here the root is not a property of the sound — it is a reading, and the ' +
+       'reading is supplied from outside the sonority.') +
+    '</div>' +
+
+    '<blockquote>A chord is a sonority plus an interpretation. The exercise below asks you for the ' +
+    'interpretation, not for the notes — you can already hear the notes.</blockquote>';
+  },
+  task: {
+    id: 'root', prompt: 'Which pitch is the root?',
+    expect: 'Expected for you: near 100% at levels 1–2 (that is why the ladder starts at 3), ' +
+            'around 80% at 4–5. If you sit above 90% for a whole run, the ladder is too short — tell me.',
+    // each level: a builder that returns {ratios, root(index into choices), choices}
+    ladder: [
+      { name: 'triad, root position', make: function () {
+          var q = pick(['maj','min']); var rs = TRIAD[q].slice();
+          return { play: function () { chord(rs); }, choices: rs.map(nameOf), right: 0 }; } },
+      { name: 'triad, inverted', make: function () {
+          var q = pick(['maj','min']), t = TRIAD[q], inv = pick([1,2]);
+          var rs = t.slice(inv).concat(t.slice(0, inv).map(function (r) { return r * 2; }));
+          var names = rs.map(nameOf);
+          return { play: function () { chord(rs); }, choices: names, right: names.indexOf(nameOf(t[0])) }; } },
+      { name: 'seventh chord, inverted', make: function () {
+          var q = pick(['dom7','min7','maj7']), t = TRIAD[q], inv = pick([1,2,3]);
+          var rs = t.slice(inv).concat(t.slice(0, inv).map(function (r) { return r * 2; }));
+          var names = rs.map(nameOf);
+          return { play: function () { chord(rs); }, choices: names, right: names.indexOf(nameOf(t[0])) }; } },
+      { name: 'fifth omitted, or the third doubled', make: function () {
+          var q = pick(['maj','min']), t = TRIAD[q];
+          var rs = pick([[t[0], t[1], t[1] * 2], [t[1], t[0] * 2, t[1] * 2], [t[1], t[2], t[0] * 2]]);
+          var names = rs.map(nameOf);
+          return { play: function () { chord(rs); }, choices: uniq(names), right: uniq(names).indexOf(nameOf(t[0])) }; } },
+      { name: 'sixth chord or seventh chord — the bass decides', make: function () {
+          // C E G A: added sixth on C, or A minor seventh. The same four pitch classes;
+          // whichever sits in the bass is the root, and that is the only clue given.
+          var asSixth = Math.random() < 0.5;
+          var upper = [1, R.M3, R.P5, R.M6];
+          var bass = asSixth ? 0.5 : R.M6 / 2;
+          var rs = [bass].concat(shuffle(upper.slice()).map(function (r) { return r * pick([1, 2]); }));
+          var choices = ['C', 'E', 'G', 'A'];
+          return { play: function () { chord(rs, { dur: 2.1 }); }, choices: choices,
+                   right: asSixth ? 0 : 3 }; } },
+      { name: 'quartal, cluster or tertian', make: function () {
+          var q = pick(['quartal','cluster','maj','min7']);
+          var rs = TRIAD[q].slice();
+          var names = uniq(rs.map(nameOf)).concat(['no root']);
+          return { play: function () { chord(rs); }, choices: names,
+                   right: (q === 'quartal' || q === 'cluster') ? names.length - 1 : 0 }; } }
+    ]
+  }
+});
+
+/* ---------- 2. Consonance and dissonance ---------- */
+LESSONS.push({
+  n: 2, tab: '2 · consonance',
+  title: 'Consonance and dissonance are historical, not acoustic',
+  ru: 'консонанс и диссонанс · исторические категории',
+  target: 'level 4 by 15 Oct',
+  body: function () {
+    return '' +
+    '<p class="lead">The fourth is the standing proof. In ninth-century organum it is <em>the</em> ' +
+    'consonance, the interval the whole texture is built from. In the classical system a fourth above ' +
+    'the bass is a dissonance and must resolve. In Debussy it is a colour and resolves nowhere. ' +
+    'The frequency ratio 4:3 never changed. The category did.</p>' +
+
+    '<p>Kholopov’s point is that <em class="term">consonance <span class="ru">(консонанс)</span></em> ' +
+    'and <em class="term">dissonance <span class="ru">(диссонанс)</span></em> are not properties of an ' +
+    'interval but positions in a system — exactly like the root in the previous chapter. The ear ' +
+    'hears roughness; the system decides what roughness means and what it obliges you to do next.</p>' +
+
+    '<h3>one interval, three systems</h3>' +
+    '<div class="ex"><div class="cap">the perfect fourth, 4:3</div>' +
+    exRow([
+      ['as organum', function () { seq([{r:[1,R.P4]},{r:[R.M2,R.M2*R.P4]},{r:[1,R.P4],dur:1.6}]); }],
+      ['above a classical bass', function () { seq([{r:[0.5,R.P4,R.M6]},{r:[0.5,R.M3,R.P5],dur:1.7}]); }],
+      ['as colour', function () { seq([{r:[1,R.P4,R.hm7]},{r:[R.M2,R.M2*R.P4,R.M2*R.hm7]},{r:[R.M3,R.M3*R.P4,R.M3*R.hm7],dur:1.6}]); }]
+    ], 'The middle one is the six-four: the fourth over the bass leans and then falls to the third. ' +
+       'The same interval in the first example carries the music and asks for nothing.') +
+    '</div>' +
+
+    '<h3>the tritone is two intervals, not one</h3>' +
+    '<p>On a piano this section is invisible; in just intonation it is audible. The augmented fourth ' +
+    'is 45/32 and the diminished fifth is 64/45 — they differ by about 19.5 cents, a fifth of a ' +
+    'semitone. Equal temperament fuses them and then theory has to explain, in words, a distinction ' +
+    'that the tuning used to make with sound.</p>' +
+    '<div class="ex"><div class="cap">F–B against B–F, then their resolutions</div>' +
+    exRow([
+      ['augmented fourth 45/32', function () { chord([1, R.A4], { dur: 2.3 }); }],
+      ['diminished fifth 64/45', function () { chord([1, R.d5], { dur: 2.3 }); }],
+      ['A4 expands outward', function () { seq([{r:[R.P4, R.P4*R.A4], dur:1.5},{r:[R.M3, 2], dur:1.9}]); }],   // F-B -> E-C'
+      ['d5 contracts inward', function () { seq([{r:[R.M7/2, R.M7/2*R.d5], dur:1.5},{r:[1, R.M3], dur:1.9}]); }]      // B-F -> C-E
+    ], 'The dissonance does not merely sound harsh — it has a direction. Kholopov: the interval carries ' +
+       'an obligation, and the obligation is what makes the system a system.') +
+    '</div>' +
+
+    '<blockquote>The task below is deliberately hard. You are asked to name the tritone from the sound ' +
+    'alone, with no resolution to give it away — a 19.5-cent judgement in a two-voice texture.</blockquote>';
+  },
+  task: {
+    id: 'tritone', prompt: 'Augmented fourth or diminished fifth?',
+    expect: 'Expected for you: 65–80%. This is a real discrimination task, not a formality — ' +
+            'the two intervals are 19.5 cents apart and there is no resolution to lean on. ' +
+            'Below 60% the level drops to longer notes and a reference fifth.',
+    ladder: [
+      { name: 'long notes, reference fifth first', make: function () {
+          var up = Math.random() < 0.5;
+          return { play: function () { chord([1, R.P5], { dur: 1.2 });
+                     setTimeout(function () { chord([1, up ? R.A4 : R.d5], { dur: 2.6 }); }, 1500); },
+                   choices: ['augmented 4th', 'diminished 5th'], right: up ? 0 : 1 }; } },
+      { name: 'long notes, no reference', make: function () {
+          var up = Math.random() < 0.5;
+          return { play: function () { chord([1, up ? R.A4 : R.d5], { dur: 2.6 }); },
+                   choices: ['augmented 4th', 'diminished 5th'], right: up ? 0 : 1 }; } },
+      { name: 'short, no reference', make: function () {
+          var up = Math.random() < 0.5;
+          return { play: function () { chord([1, up ? R.A4 : R.d5], { dur: 1.0 }); },
+                   choices: ['augmented 4th', 'diminished 5th'], right: up ? 0 : 1 }; } },
+      { name: 'short, transposed each time', make: function () {
+          var up = Math.random() < 0.5, b = pick([1, R.M2, R.M3, R.P4, R.P5, R.M6]);
+          return { play: function () { chord([1, up ? R.A4 : R.d5], { dur: 1.0, base: b }); },
+                   choices: ['augmented 4th', 'diminished 5th'], right: up ? 0 : 1 }; } },
+      { name: 'inside a four-voice chord', make: function () {
+          var up = Math.random() < 0.5, b = pick([1, R.M2, R.P4, R.P5]);
+          var rs = up ? [0.5, 1, R.A4, R.M3 * 2] : [0.5, 1, R.d5, R.m3 * 2];
+          return { play: function () { chord(rs, { dur: 1.6, base: b }); },
+                   choices: ['augmented 4th', 'diminished 5th'], right: up ? 0 : 1 }; } }
+    ]
+  }
+});
+
+/* ---------- 3. Function ---------- */
+LESSONS.push({
+  n: 3, tab: '3 · function',
+  title: 'Function is a position, not a name',
+  ru: 'функция · Т, S, D как значения в системе',
+  target: 'level 4 by 31 Oct',
+  body: function () {
+    return '' +
+    '<p class="lead">A C major triad is not a tonic. It is a tonic <em>in C</em>, a subdominant ' +
+    '<em>in G</em>, a dominant <em>in F</em>. The <em class="term">function ' +
+    '<span class="ru">(функция)</span></em> is the chord’s position in a system of gravitation — ' +
+    'and the system is established by context, before and after, never by the chord itself.</p>' +
+
+    '<p>This is the third time the same move has been made: root, consonance, function. Each time an ' +
+    'apparent property of the sound turns out to be a relation supplied by the system. Kholopov builds ' +
+    'the whole course on that move, which is why he can carry it, unchanged, into music that has no ' +
+    'tonic at all — the central element of chapter 11 is this same idea with the tonal furniture removed.</p>' +
+
+    '<h3>one triad, three functions</h3>' +
+    '<div class="ex"><div class="cap">the C major triad arrives last each time; only the road differs</div>' +
+    exRow([
+      ['as tonic (in C)', function () {
+        seq([{r:TRIAD.maj, base:R.P4}, {r:TRIAD.dom7, base:R.P5}, {r:TRIAD.maj, base:1, dur:2.0}]); }],
+      ['as subdominant (in G)', function () {   // G established, then the plagal step onto C
+        seq([{r:TRIAD.maj, base:R.P5}, {r:TRIAD.dom7, base:R.M2}, {r:TRIAD.maj, base:R.P5}, {r:TRIAD.maj, base:1, dur:2.4}]); }],
+      ['as dominant (in F)', function () {          // F established, then a half cadence resting on C
+        seq([{r:TRIAD.maj, base:R.P4}, {r:TRIAD.maj, base:R.m7}, {r:TRIAD.min, base:R.M2}, {r:TRIAD.maj, base:1, dur:2.4}]); }]
+    ], 'The triad is retuned to each key’s own tonic, so it is acoustically the same object in all ' +
+       'three — no comma gives the game away. What changes is only where it stands, and that changes ' +
+       'everything about how it feels to arrive there.') +
+    '</div>' +
+
+    '<h3>the three functions bare</h3>' +
+    '<div class="ex"><div class="cap">T, S, D in C — then the full cadence</div>' +
+    exRow([
+      ['T', function () { chord(TRIAD.maj, { dur: 1.8 }); }],
+      ['S', function () { chord(TRIAD.maj, { base: R.P4, dur: 1.8 }); }],
+      ['D', function () { chord(TRIAD.dom7, { base: R.P5, dur: 1.8 }); }],
+      ['T–S–D–T', function () { seq([{r:TRIAD.maj},{r:TRIAD.maj,base:R.P4},{r:TRIAD.dom7,base:R.P5},{r:TRIAD.maj,dur:2.1}]); }]
+    ], 'S leans away from T, D leans back toward it, and the tritone inside D is what does the leaning. ' +
+       'Take the seventh out and the pull halves — that is the previous chapter arriving inside this one.') +
+    '</div>';
+  },
+  task: {
+    id: 'func', prompt: 'What function does the last chord have?',
+    expect: 'Expected for you: 90%+ on a full cadence, which is why level 1 exists only as a baseline — ' +
+            'run it once and move up. The work is at levels 3–4, where the context is two chords or ' +
+            'chromatic. Target 80% at level 4.',
+    ladder: [
+      { name: 'full cadence — baseline, run once', make: function () { return funcItem(0, false); } },
+      { name: 'three chords of context', make: function () { return funcItem(3, false); } },
+      { name: 'two chords of context', make: function () { return funcItem(2, false); } },
+      { name: 'two chords, minor and borrowed', make: function () { return funcItem(2, true); } },
+      { name: 'one chord of context', make: function () { return funcItem(1, true); } }
+    ]
+  }
+});
+
+/* ---------- 4. Modality and tonality ---------- */
+LESSONS.push({
+  n: 4, tab: '4 · modality',
+  title: 'Modality and tonality are two systems, not two ages',
+  ru: 'модальность и тональность · центральное различение Холопова',
+  target: 'level 3 by 15 Nov',
+  body: function () {
+    return '' +
+    '<p class="lead">This distinction is Kholopov’s signature, and textbooks that skip it end up ' +
+    'calling everything before Bach "primitive tonality". <em class="term">Modality ' +
+    '<span class="ru">(модальность)</span></em> organises pitch as a <em>scale with a centre</em>: the ' +
+    'connections are melodic and linear, the centre is asserted by repetition and by the final, and ' +
+    'there is no obligatory gravitation. <em class="term">Tonality <span class="ru">(тональность)</span></em> ' +
+    'organises pitch as a <em>field of forces</em>: T, S and D are poles, the tritone is the engine, and ' +
+    'every chord is under an obligation.</p>' +
+
+    '<p>They are not stages of one road. Modality returns in full force in the twentieth century — ' +
+    'Debussy, Bartók, the modal jazz of the fifties — not as archaism but because it does something ' +
+    'tonality cannot: it lets harmony stand still and colour instead of pulling.</p>' +
+
+    '<h3>the same melody, twice</h3>' +
+    '<div class="ex"><div class="cap">a dorian progression, then the same degrees pulled into a key</div>' +
+    exRow([
+      ['modal', function () {
+        seq([{r:[1,R.m3,R.P5], dur:1.3},{r:[R.hm7/2,R.hm7/2*R.M3,R.hm7/2*R.P5], dur:1.3},
+             {r:[R.P4/2,R.P4/2*R.M3,R.P4/2*R.P5], dur:1.3},{r:[1,R.m3,R.P5], dur:2.1}]); }],
+      ['tonal', function () {
+        seq([{r:[1,R.m3,R.P5], dur:1.3},{r:[R.P4/2,R.P4/2*R.m3,R.P4/2*R.P5], dur:1.3},
+             {r:[R.P5/2,R.P5/2*R.M3,R.P5/2*R.P5,R.P5/2*R.hm7], dur:1.3},{r:[1,R.m3,R.P5], dur:2.1}]); }]
+    ], 'The modal version cadences by step, from the flat seventh — no leading tone anywhere, and the ' +
+       'flat seventh is what keeps the mode from turning into a minor key. The tonal version puts a ' +
+       'dominant seventh in the same place and the whole passage acquires a destination.') +
+    '</div>' +
+
+    '<h3>the leading tone as the border</h3>' +
+    '<div class="ex"><div class="cap">the same cadence with and without the raised seventh</div>' +
+    exRow([
+      ['flat seventh — mode holds', function () { seq([{r:[R.hm7/2, R.hm7/2*R.M3, R.hm7/2*R.P5], dur:1.5},{r:[1,R.m3,R.P5], dur:2.2}]); }],
+      ['raised seventh — key arrives', function () { seq([{r:[R.P5/2, R.P5/2*R.M3, R.P5/2*R.P5, R.P5/2*R.hm7], dur:1.5},{r:[1,R.m3,R.P5], dur:2.2}]); }]
+    ], 'One pitch moved a semitone and the system changed. That is the cleanest demonstration in the ' +
+       'course of what Kholopov means when he says the system is prior to the chord.') +
+    '</div>';
+  },
+  task: {
+    id: 'modal', prompt: 'Modal or tonal?',
+    expect: 'Expected for you: 85%+ at level 1 — take it as a baseline, not as practice. The interest ' +
+            'begins at level 3, where the modal cadence borrows a functional turn without quite ' +
+            'committing to it. Target 80% at level 3.',
+    ladder: [
+      { name: 'clear cadences', make: function () { return modalItem(0); } },
+      { name: 'no cadence, just a progression', make: function () { return modalItem(1); } },
+      { name: 'modal with a borrowed functional turn', make: function () { return modalItem(2); } }
+    ]
+  }
+});
+
+/* ============ task item builders ============ */
+function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+function uniq(a) { var o = []; for (var i = 0; i < a.length; i++) if (o.indexOf(a[i]) < 0) o.push(a[i]); return o; }
+
+// function-hearing: the target chord always arrives last; context length varies
+function funcItem(ctxLen, chromatic) {
+  var f = pick(['T', 'S', 'D']);
+  var key = pick([1, R.M2, R.M3, R.P4, R.P5]);       // the whole item is transposed
+  var target = f === 'T' ? { r: TRIAD.maj, b: 1 }
+             : f === 'S' ? { r: pick([TRIAD.maj, TRIAD.min]), b: R.P4 }
+             :             { r: pick([TRIAD.dom7, TRIAD.maj]), b: R.P5 };
+  var pre = [
+    { r: TRIAD.maj, b: 1 }, { r: TRIAD.min, b: R.M6 }, { r: TRIAD.maj, b: R.P4 },
+    { r: TRIAD.min, b: R.M2 }, { r: TRIAD.dom7, b: R.P5 }
+  ];
+  if (chromatic) pre = pre.concat([{ r: TRIAD.min, b: R.P4 }, { r: TRIAD.dim, b: R.M7 }]);
+  var steps = [];
+  if (ctxLen === 0) {                                  // the canonical cadence: T S D, then the target
+    var canon = [{ r: TRIAD.maj, b: 1 }, { r: TRIAD.maj, b: R.P4 }, { r: TRIAD.dom7, b: R.P5 }];
+    for (var j = 0; j < canon.length; j++)
+      if (canon[j].b !== target.b) steps.push({ r: canon[j].r, base: canon[j].b * key, dur: 1.05 });
+  }
+  for (var i = 0; i < ctxLen; i++) {
+    var c = pre[Math.floor(Math.random() * pre.length)], guard = 0;
+    while (i === ctxLen - 1 && c.b === target.b && guard++ < 8) c = pre[Math.floor(Math.random() * pre.length)];
+    steps.push({ r: c.r, base: c.b * key, dur: 1.05 });
+  }
+  steps.push({ r: target.r, base: target.b * key, dur: 2.2 });
+  return { play: function () { seq(steps); }, choices: ['T', 'S', 'D'], right: ['T','S','D'].indexOf(f) };
+}
+
+// modal vs tonal
+function modalItem(level) {
+  var tonal = Math.random() < 0.5;
+  var key = pick([1, R.M2, R.M3, R.P4]);
+  var m = R.m3, five = R.P5, four = R.P4, flat7 = R.hm7;
+  var steps;
+  if (level === 0) {
+    steps = tonal
+      ? [{r:[1,m,five]},{r:[four/2,four/2*m,four/2*five]},{r:[five/2,five/2*R.M3,five/2*five,five/2*flat7]},{r:[1,m,five],dur:2.1}]
+      : [{r:[1,m,five]},{r:[flat7/2,flat7/2*R.M3,flat7/2*five]},{r:[four/2,four/2*R.M3,four/2*five]},{r:[1,m,five],dur:2.1}];
+  } else if (level === 1) {
+    steps = tonal
+      ? [{r:[1,m,five]},{r:[five/2,five/2*R.M3,five/2*five,five/2*flat7]},{r:[R.m6/2,R.m6/2*R.M3,R.m6/2*five]},{r:[four/2,four/2*m,four/2*five],dur:1.9}]
+      : [{r:[1,m,five]},{r:[R.M2/2,R.M2/2*m,R.M2/2*five]},{r:[flat7/2,flat7/2*R.M3,flat7/2*five]},{r:[four/2,four/2*R.M3,four/2*five],dur:1.9}];
+  } else {
+    steps = tonal
+      ? [{r:[1,m,five]},{r:[flat7/2,flat7/2*R.M3,flat7/2*five]},{r:[five/2,five/2*R.M3,five/2*five]},{r:[1,m,five],dur:2.1}]
+      : [{r:[1,m,five]},{r:[four/2,four/2*R.M3,four/2*five]},{r:[flat7/2,flat7/2*R.M3,flat7/2*five]},{r:[1,m,five],dur:2.1}];
+  }
+  for (var i = 0; i < steps.length; i++) { steps[i].base = (steps[i].base || 1) * key; steps[i].dur = steps[i].dur || 1.25; }
+  return { play: function () { seq(steps); }, choices: ['modal', 'tonal'], right: tonal ? 1 : 0 };
+}
+
+/* ============ the exercise engine: a 3-down-1-up staircase ============ */
+// three right in a row climbs, one wrong drops — the classic rule that settles
+// near 79% correct, which is the band the verdicts ask for.
+var run = null;
+function startTask(L) {
+  var t = L.task;
+  var lv = st.level[t.id];
+  if (lv === undefined) { lv = Math.min(2, t.ladder.length - 1); st.level[t.id] = lv; save(); }
+  run = { L: L, t: t, lv: lv, up: 0, n: 0, hits: 0, item: null };
+  nextItem();
+}
+function nextItem() {
+  var t = run.t;
+  run.item = t.ladder[run.lv].make();
+  paintTask();
+  setTimeout(function () { run.item.play(); }, 260);
+}
+function paintTask(verdict, cls) {
+  var t = run.t, it = run.item, L = run.L;
+  var pct = run.n ? Math.round(100 * run.hits / run.n) : null;
+  var h = '<div class="task"><div class="gauge">' +
+    '<span>level <b>' + (run.lv + 1) + '/' + t.ladder.length + '</b> · ' + t.ladder[run.lv].name + '</span>' +
+    '<span>this run <b>' + (pct === null ? '—' : pct + '%') + '</b> of ' + run.n + '</span>' +
+    '<span>target <b>' + L.target + '</b></span></div>' +
+    '<p><b>' + t.prompt + '</b></p>' +
+    '<div class="qrow" id="qrow">';
+  for (var i = 0; i < it.choices.length; i++)
+    h += '<button class="ans" data-a="' + i + '">' + it.choices[i] + '</button>';
+  h += '</div><div class="qrow">' +
+    '<button class="ans" id="again">↻ play again</button>' +
+    '<button class="ans" id="quit">done for now</button></div>' +
+    '<div class="verdict ' + (cls || '') + '">' + (verdict || (it.hint || '&nbsp;')) + '</div>' +
+    '<div class="why" style="padding-top:10px">' + t.expect + '</div></div>';
+  document.getElementById('taskbox').innerHTML = h;
+}
+function answer(i) {
+  var it = run.item, ok = (i === it.right);
+  run.n++; if (ok) run.hits++;
+  var btns = document.querySelectorAll('#qrow .ans');
+  for (var k = 0; k < btns.length; k++) {
+    if (k === it.right) btns[k].classList.add('right');
+    else if (k === i) btns[k].classList.add('wrong');
+  }
+  if (ok) {
+    run.up++;
+    if (run.up >= 3 && run.lv < run.t.ladder.length - 1) { run.lv++; run.up = 0; st.level[run.t.id] = run.lv; save(); }
+  } else {
+    run.up = 0;
+    if (run.lv > 0) { run.lv--; st.level[run.t.id] = run.lv; save(); }
+  }
+  var msg = ok ? 'yes — ' + it.choices[it.right] : 'no — it was ' + it.choices[it.right];
+  paintTaskVerdict(msg, ok ? 'ok' : 'no');
+  setTimeout(nextItem, ok ? 900 : 1700);
+}
+function paintTaskVerdict(msg, cls) {
+  var v = document.querySelector('.verdict');
+  if (v) { v.textContent = msg; v.className = 'verdict ' + cls; }
+}
+
+/* ============ paint ============ */
+function paint(n) {
+  st.lesson = n; save();
+  var L = null;
+  for (var i = 0; i < LESSONS.length; i++) if (LESSONS[i].n === n) L = LESSONS[i];
+  if (!L) L = LESSONS[0];
+  EX = {}; exN = 0;
+  var body = L.body();
+  document.getElementById('lesson').innerHTML =
+    '<h2>' + L.n + '. ' + L.title + '<span class="ru">' + L.ru + '</span></h2>' +
+    body +
+    '<h3>the task</h3><div id="taskbox"></div>' +
+    '<div class="qrow"><button class="ans" id="mark">mark this chapter worked through</button></div>';
+  var bar = document.getElementById('lessonbar');
+  bar.innerHTML = LESSONS.map(function (x) {
+    return '<button class="lbtn' + (x.n === n ? ' on' : '') + (st.seen[x.n] ? ' done' : '') +
+           '" data-l="' + x.n + '">' + x.tab + '</button>';
+  }).join('');
+  startTask(L);
+  var done = 0; for (var k in st.seen) if (st.seen[k]) done++;
+  document.getElementById('progress').textContent = done + '/' + LESSONS.length + ' worked through';
+  window.scrollTo(0, 0);
+}
+
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  if (t.dataset && t.dataset.x && EX[t.dataset.x]) { EX[t.dataset.x](); return; }
+  if (t.dataset && t.dataset.l) { paint(parseInt(t.dataset.l, 10)); return; }
+  if (t.dataset && t.dataset.a !== undefined) { answer(parseInt(t.dataset.a, 10)); return; }
+  if (t.id === 'again') { run.item.play(); return; }
+  if (t.id === 'quit') { document.getElementById('taskbox').innerHTML =
+      '<div class="task"><p>Stopped at level <b>' + (run.lv + 1) + '</b> — it is kept. ' +
+      (run.n ? 'This run: ' + Math.round(100 * run.hits / run.n) + '% of ' + run.n + '.' : '') +
+      '</p><div class="qrow"><button class="ans" id="resume">pick it up again</button></div></div>'; return; }
+  if (t.id === 'resume') { startTask(LESSONS.filter(function (x) { return x.n === st.lesson; })[0]); return; }
+  if (t.id === 'mark') {
+    st.seen[st.lesson] = true; st.log.push({ d: new Date().toISOString().slice(0,10), n: st.lesson });
+    save(); toMachon(st.lesson); paint(st.lesson);
+  }
+});
+paint(st.lesson || 1);
+</script>
+</body>
+</html>
