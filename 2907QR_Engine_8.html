@@ -9950,7 +9950,7 @@ let _dualPPStatic={key:'',cv:null};
 let _vFormat='screen'; try{ _vFormat=localStorage.getItem('qr_video_format')||'screen'; }catch(e){}
 let _vertCanvas=null,_vertCtx=null,_vertActive=false,_vertLast=0;
 const _vertStatics={main:{key:'',cv:null},pp:{key:'',cv:null},dual:{key:'',cv:null}};
-function _vertDims(){ return _vFormat==='insta'?{w:1080,h:1920}:(_vFormat==='square'?{w:1080,h:1080}:null); }
+function _vertDims(){ return (_vFormat==='insta'||_vFormat==='tall')?{w:1080,h:1920}:(_vFormat==='square'?{w:1080,h:1080}:null); }   // solo has no columns — tall falls back to the whole 9:16
 function _ensureVertCanvas(){
   const d=_vertDims(); if(!d) return null;
   if(!_vertCanvas) _vertCanvas=document.createElement('canvas');
@@ -17741,7 +17741,7 @@ startRenderLoop();
     if(document.getElementById('engine-play')) return;
     const lbl=document.createElement('span'); lbl.id='td-label'; lbl.textContent='QR ENGINE';
     lbl.title='build 07.08c — the note-for-note palindrome, retro self-heal, honest score';
-    const _bst=document.createElement('span'); _bst.textContent='28.08c';
+    const _bst=document.createElement('span'); _bst.textContent='29.08a';
     _bst.style.cssText='font-size:9px;color:var(--muted,#667);margin-left:4px;letter-spacing:1px';
     _bst.title='build stamp — if this does not match what Claude just shipped, the tab is serving a stale copy (hard reload: Cmd+Shift+R)';
     const play=document.createElement('button'); play.id='engine-play'; play.className='primary';
@@ -18026,8 +18026,8 @@ startRenderLoop();
 
     // video format: screen as-is, or a parallel vertical/square re-composition
     const fmt=document.createElement('select'); fmt.id='tb-vid-fmt'; fmt.className='tb-btn'; fmt.style.cursor='pointer';
-    fmt.title='video format: ▭ the canvas as on screen · ▯ 9:16 1080×1920 (Insta Reels/Stories — the piece re-composed vertically, not cropped) · □ 1:1 1080×1080 (square post). Takes effect from the next take.';
-    [['screen','▭ 16:9'],['insta','▯ 9:16 insta'],['square','□ 1:1']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; fmt.appendChild(o); });
+    fmt.title='video format: ▭ the canvas as on screen · ▯ 9:16 1080×1920 (Insta Reels/Stories — the piece re-composed vertically, not cropped) · ║ 9:16 columns (a duet take: Markov the left column, Markova the right; a solo take fills the whole 9:16) · □ 1:1 1080×1080 (square post). Takes effect from the next take.';
+    [['screen','▭ 16:9'],['insta','▯ 9:16 insta'],['tall','║ 9:16 columns'],['square','□ 1:1']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; fmt.appendChild(o); });
     try{ fmt.value=_vFormat; }catch(e){}
     fmt.addEventListener('change',()=>{ try{ _vFormat=fmt.value; localStorage.setItem('qr_video_format',_vFormat); }catch(e){}
       // mid-take format change: restart the mirror geometry on the NEXT take; a running take keeps its stream
@@ -19314,6 +19314,20 @@ startRenderLoop();
       try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}
     }
     try{ if(typeof _fl==='function') _fl('form','the form ended — '+(why||'')+' · the silence after it belongs to it'); }catch(e){}
+    // (29.08, watched together: a 0:20 form came back an 84 s file) the form's
+    // point is the FILM's point too — the take promised to end where the form
+    // ends. The ⏺ form-film hook and the palindrome's tape-done keep their own
+    // stops (form-film is guarded away here; a take already stopped shows no ■).
+    try{
+      var _ffchk=document.getElementById('form-film');
+      if(!(_ffchk && _ffchk.checked)){
+        setTimeout(function(){
+          try{ var v=document.getElementById('tb-rec-vid');
+            if(v && (v.textContent||'').indexOf('■')>=0) v.click();
+          }catch(e){}
+        }, (grace>0?grace:0)*1000+600);   // the fermata breathes, then the point lands
+      }
+    }catch(e){}
     try{ _paint(); }catch(e){}
   }
   var _plainTimer=null;
@@ -20516,12 +20530,13 @@ startRenderLoop();
           // never cropped). Markov renders his slot here; Markova renders hers
           // INSIDE her engine and feeds it over the bridge. Full bleed, equal
           // halves, independent of any on-screen canvas or window size.
-          var _fmtMapTB={screen:'side',insta:'insta',square:'square'};
+          var _fmtMapTB={screen:'side',insta:'insta',tall:'tall',square:'square'};
           var _tbF=(document.getElementById('tb-vid-fmt')||{}).value;
           if(selDuoFmt && _fmtMapTB[_tbF]) selDuoFmt.value=_fmtMapTB[_tbF];
           var _fmt=(selDuoFmt&&selDuoFmt.value)||'side';
           var SW,SH,CW,CH,HX,HY,FX,FY;
           if(_fmt==='insta'){ CW=1080; CH=1920; SW=1080; SH=960; HX=0;HY=0; FX=0;FY=960; }
+          else if(_fmt==='tall'){ CW=1080; CH=1920; SW=540; SH=1920; HX=0;HY=0; FX=540;FY=0; }   // (28.08 author: «он занимает левую колонку, она правую») two tall columns, re-composed at 540×1920 each — never a crop
           else if(_fmt==='square'){ CW=1080; CH=1080; SW=1080; SH=540; HX=0;HY=0; FX=0;FY=540; }
           else { CW=1920; CH=1080; SW=960; SH=1080; HX=0;HY=0; FX=960;FY=0; }
           _recFlash('raising the frame’s AV bridge…');
@@ -20701,7 +20716,7 @@ startRenderLoop();
             var isMp4=/mp4/.test(mime||'');
             var blob=new Blob(_dChunks,{type:(mime||'video/webm').split(';')[0]});
             var d2=new Date(), pad=function(n){ return String(n).padStart(2,'0'); };
-            var _fx=(_comp&&selDuoFmt)?((selDuoFmt.value==='insta')?'-916':(selDuoFmt.value==='square')?'-11':''):'';
+            var _fx=(_comp&&selDuoFmt)?((selDuoFmt.value==='insta')?'-916':(selDuoFmt.value==='tall')?'-916c':(selDuoFmt.value==='square')?'-11':''):'';
             var name='qr-duet-'+d2.getFullYear()+pad(d2.getMonth()+1)+pad(d2.getDate())+'-'+pad(d2.getHours())+pad(d2.getMinutes())+pad(d2.getSeconds())+_fx+(isMp4?'.mp4':'.webm');
             window.__lastTakeBlob=blob; window.__lastTakeName=name;   // the take survives a dismissed dialog — until the NEXT take begins
             try{
@@ -20769,9 +20784,9 @@ startRenderLoop();
       // with one screen ABOVE the other, or a square stack — same idea as the
       // single-screen recorder's format select
       selDuoFmt=document.createElement('select');
-      selDuoFmt.title='duet video format: ▭ both screens side by side at native canvas resolution · ▯ 9:16 1080×1920 (Reels/Stories) — Markov ABOVE, Markova BELOW, each half covering 1080×960 · □ 1:1 1080×1080 square stack. Takes effect from the next take.';
+      selDuoFmt.title='duet video format: ▭ both screens side by side at native canvas resolution · ▯ 9:16 1080×1920 (Reels/Stories) — Markov ABOVE, Markova BELOW, each half covering 1080×960 · ║ 9:16 columns — Markov the LEFT column, Markova the RIGHT, each 540×1920 · □ 1:1 1080×1080 square stack. Takes effect from the next take.';
       selDuoFmt.style.cssText='margin-left:4px';
-      [['side','▭ 16:9'],['insta','▯ 9:16'],['square','□ 1:1']].forEach(function(o){
+      [['side','▭ 16:9'],['insta','▯ 9:16'],['tall','║ 9:16 columns'],['square','□ 1:1']].forEach(function(o){
         var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; selDuoFmt.appendChild(op);
       });
       try{ selDuoFmt.value=localStorage.getItem('qr_duet_video_format')||'side'; }catch(e){}
@@ -21169,7 +21184,7 @@ startRenderLoop();
     pbFilm.title='film the form — video starts with ◆ play form, the final point stops and saves the take (arms 9:16)';
     pbFilm.onclick=function(){ try{ var _ff=document.getElementById('form-film'); if(!_ff) return;
       _ff.checked=!_ff.checked; pbFilm.classList.toggle('active',_ff.checked);
-      if(_ff.checked){ var _fv=document.getElementById('tb-vid-fmt'); if(_fv && _fv.value!=='insta'){ _fv.value='insta'; _fv.dispatchEvent(new Event('change')); } } }catch(e){} };
+      if(_ff.checked){ var _fv=document.getElementById('tb-vid-fmt'); if(_fv && _fv.value!=='insta' && _fv.value!=='tall'){ _fv.value='insta'; _fv.dispatchEvent(new Event('change')); } } }catch(e){} };
     drow.appendChild(pbBoth); drow.appendChild(pbLead); drow.appendChild(pbPal); drow.appendChild(pbFilm); drow.appendChild(pbRatio);
     bar.appendChild(drow);
     var prow=document.createElement('div'); prow.className='pb-row';
@@ -21761,8 +21776,19 @@ body.face-manual #face-back { display: block; }
       sf.style.cssText='min-height:52px;padding:0 12px;background:#12161b;color:#9aa4b0;border:1px solid #262e38;border-radius:12px;font:13px "SF Mono",ui-monospace,monospace;cursor:pointer';
       sf.onclick=function(){ try{ window._qrSafeExport(); }catch(e){} };
       var n=document.createElement('div'); n.id='face-note';
+      // (28.08 author: «вертикальный режим записи — он левая колонка, она правая»)
+      // the tall mark beside film: lit — the take is 1080×1920, two tall columns;
+      // unlit — the wide 16:9 halves. The mark only chooses; film starts the take.
+      var tl=document.createElement('button'); tl.id='face-tall'; tl.textContent='║ 9:16';
+      tl.title='vertical take — Markov the left column, Markova the right, 1080×1920 (Reels). Unlit: wide 16:9, side by side.';
+      var _tlCss=function(on){ return 'font-size:11px;letter-spacing:.06em;min-height:36px;padding:4px 6px;background:transparent;border:0;cursor:pointer;'+(on?'color:#e8e4da;border-bottom:1px solid var(--accent,#6cf)':'color:#565e68'); };
+      var _tlOn=function(){ try{ var v=document.getElementById('tb-vid-fmt'); return !!(v&&v.value==='tall'); }catch(e){ return false; } };
+      tl.style.cssText=_tlCss(_tlOn());
+      tl.onclick=function(){ try{ var v=document.getElementById('tb-vid-fmt'); if(!v) return;
+        v.value=(v.value==='tall')?'screen':'tall'; v.dispatchEvent(new Event('change')); tl.style.cssText=_tlCss(_tlOn()); }catch(e){} };
+      if(!window._faceTallTick) window._faceTallTick=setInterval(function(){ try{ var b=document.getElementById('face-tall'); if(b) b.style.cssText=_tlCss(_tlOn()); }catch(e){} },900);
       var act=document.createElement('div'); act.id='face-act';
-      act.appendChild(len); act.appendChild(mk); act.appendChild(fr); act.appendChild(go); act.appendChild(sf);
+      act.appendChild(len); act.appendChild(mk); act.appendChild(fr); act.appendChild(tl); act.appendChild(go); act.appendChild(sf);
       body.appendChild(n); body.appendChild(gen); body.appendChild(frm); body.appendChild(act);
       showLen(); _facePaintRec();
     }
