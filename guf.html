@@ -130,6 +130,11 @@
     <input type="checkbox" id="music" checked style="accent-color:var(--gold)">
     <span><span class="he" style="font-size:14px">הַמַּרְקוֹבִים מְנַגְּנִים</span> · the Markovs improvise the music — their interval set for the rounds, the prayer for the stretches</span>
   </label>
+  <label class="picknote" style="display:flex;gap:10px;align-items:center">
+    <span style="white-space:nowrap"><span class="he" style="font-size:14px">עָצְמָה</span> · loudness</span>
+    <input type="range" id="mvol" min="0" max="100" value="60" style="flex:1;accent-color:var(--gold)">
+    <span id="mvolnum" class="lat" style="min-width:3.2em;text-align:right">60</span>
+  </label>
   <label class="picknote" style="display:flex;gap:8px;align-items:center;cursor:pointer">
     <input type="checkbox" id="pulse" style="accent-color:var(--gold)">
     <span><span class="he" style="font-size:14px">הַלֵּב מְנַצֵּחַ</span> · the heart conducts — Apple Watch → Pulsoid, and the Markovs' tempo follows your pulse at a rational multiple. First time asks for the token once.</span>
@@ -204,8 +209,11 @@
       u.lang = lang === 'he' ? 'he-IL' : 'en-US';
       u.rate = (rate || 0.95) * (FAST > 1 ? 1.3 : 1);
       if (eng.on) {
-        u.onstart = function () { engMaster(0.10); };       // the band leans back for the voice
-        u.onend = function () { if (eng.on) engMaster(0.26); };
+        u.onstart = function () { engMaster(mvolDuck()); };  // the band leans back for the voice
+        u.onend = function () { if (eng.on) engMaster(mvol()); };
+        // если голос оборвётся и onend не придёт, громкость всё равно вернётся
+        setTimeout(function () { if (eng.on && !speechSynthesis.speaking) engMaster(mvol()); },
+                   Math.max(2500, text.length * 110));
       }
       speechSynthesis.speak(u);
     } catch (e) {}
@@ -219,6 +227,15 @@
   // file is absent — a local copy without the engine — everything degrades to
   // silence without a word of complaint.
   var eng = { win: null, ready: false, on: false, room: null };
+  // Громкость оркестра — его рука, не моя. 0.26 держалось «под голос» и
+  // оказалось втрое тише того, как движок звучит сам (author, 29.08: «не играет музыка»).
+  var MVOL_KEY = 'guf-mvol-v1';
+  function mvol() {
+    var el = document.getElementById('mvol');
+    var v = el ? parseInt(el.value, 10) : 60;
+    return Math.max(0, Math.min(100, isNaN(v) ? 60 : v)) / 100;
+  }
+  function mvolDuck() { return Math.max(0.06, mvol() * 0.45); }   // под голосом, но не в ноль
   (function armPulseBox() {
     try { if (localStorage.getItem('qrhr.token')) { var pb = document.getElementById('pulse'); if (pb) pb.checked = true; } } catch (e) {}
   })();
@@ -263,7 +280,7 @@
         if (b && !/stop|■/i.test(b.textContent)) b.click();
         var a = eng.win.document.getElementById('ai-auto');
         if (a && !/stop/i.test(a.textContent)) a.click();   // the improviser breathes scene to scene
-        engMaster(0.26);                                    // under the voice, over the silence
+        engMaster(mvol());                                  // столько, сколько он поставил
       } catch (e) {}
     }, 250);
     // the heart's door — the engine's own pulse-watch (author, 24.07): Apple Watch
@@ -964,6 +981,17 @@
     }
   }, 200);
   // a test hand: draw one exercise at one phase, outside the session
+  (function volKnob() {
+    var el = document.getElementById('mvol'), num = document.getElementById('mvolnum');
+    if (!el) return;
+    try { var s = localStorage.getItem(MVOL_KEY); if (s !== null) el.value = s; } catch (e) {}
+    if (num) num.textContent = el.value;
+    el.addEventListener('input', function () {
+      if (num) num.textContent = el.value;
+      try { localStorage.setItem(MVOL_KEY, el.value); } catch (e) {}
+      if (eng.on) engMaster(mvol());       // слышно сразу, пока тянешь
+    });
+  })();
   window.__eng = eng;
   window.__gufDraw = function (key, t) {
     var ex = EX[key]; if (!ex) return 'no ' + key;
