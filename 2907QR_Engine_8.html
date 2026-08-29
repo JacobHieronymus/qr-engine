@@ -17741,7 +17741,7 @@ startRenderLoop();
     if(document.getElementById('engine-play')) return;
     const lbl=document.createElement('span'); lbl.id='td-label'; lbl.textContent='QR ENGINE';
     lbl.title='build 07.08c — the note-for-note palindrome, retro self-heal, honest score';
-    const _bst=document.createElement('span'); _bst.textContent='29.08a';
+    const _bst=document.createElement('span'); _bst.textContent='29.08b';
     _bst.style.cssText='font-size:9px;color:var(--muted,#667);margin-left:4px;letter-spacing:1px';
     _bst.title='build stamp — if this does not match what Claude just shipped, the tab is serving a stale copy (hard reload: Cmd+Shift+R)';
     const play=document.createElement('button'); play.id='engine-play'; play.className='primary';
@@ -19307,7 +19307,11 @@ startRenderLoop();
         _parkT=setTimeout(function(){
           _parkT=null;
           try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}
-          try{ g.cancelScheduledValues(ctx.currentTime); g.setValueAtTime(v, ctx.currentTime); }catch(e){}   // the lever comes back for the next piece
+          // (29.08 author: «последний аккорд не должен выскочить отдельным ударом при
+          // возвращении фейдеров») the lever comes back for the next piece — but only
+          // after the pause has taken hold and the tail has died under the closed
+          // fader, and as a ramp, never a jump.
+          setTimeout(function(){ try{ g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(v, ctx.currentTime, 0.25); }catch(e){} }, 900);
         }, grace*1000);
       }catch(e){ try{ if(state.running && !state.paused) pauseAudio(); }catch(e2){} }
     } else {
@@ -20040,7 +20044,7 @@ startRenderLoop();
         if(ctx&&qrBus&&qrBus.tuneFloors){ try{ qrBus.tuneFloors(); }catch(e){} }
       }catch(e){}
     }
-    else if(m.t==='fade'){ try{ if(typeof ctx!=='undefined' && ctx && masterGain){ var _fg=masterGain.gain, _fv=(state.vol&&state.vol.master)||_fg.value||0.5; _fg.cancelScheduledValues(ctx.currentTime); _fg.setTargetAtTime(0.0001, ctx.currentTime, (+m.secs||3.2)/3.5); setTimeout(function(){ try{ _fg.cancelScheduledValues(ctx.currentTime); _fg.setValueAtTime(_fv, ctx.currentTime); }catch(e){} }, ((+m.secs||3.2)+0.4)*1000); } }catch(e){} }   // her half dies away with his — the wrapped pause then rests both
+    else if(m.t==='fade'){ try{ if(typeof ctx!=='undefined' && ctx && masterGain){ var _fg=masterGain.gain, _fv=(state.vol&&state.vol.master)||_fg.value||0.5; _fg.cancelScheduledValues(ctx.currentTime); _fg.setTargetAtTime(0.0001, ctx.currentTime, (+m.secs||3.2)/3.5); setTimeout(function(){ try{ _fg.cancelScheduledValues(ctx.currentTime); _fg.setTargetAtTime(_fv, ctx.currentTime, 0.25); }catch(e){} }, ((+m.secs||3.2)+1.6)*1000); } }catch(e){} }   // her half dies away with his — the wrapped pause rests both, and her lever returns as a ramp well after it
     else if(m.t==='sdist'){ try{ window._spaceHandAt=Date.now(); if(window._duoSpaceSet) window._duoSpaceSet(+m.v, true); if(window._duoSpaceUI) window._duoSpaceUI(+m.v); }catch(e){} }   // one hand, both windows
     else if(m.t==='bh'){ try{ if(m.o && m.o.act){ window._breathHint=m.o;
       try{ state._lyrPhase=m.o.stage||null; }catch(_){}
@@ -21382,6 +21386,8 @@ startRenderLoop();
     var _saOrig=window.startAudio, _paOrig=window.pauseAudio;
     if(typeof _saOrig==='function') window.startAudio=function(){ var r=_saOrig.apply(this,arguments);
       try{ if(!_xpApplying && state.duo.on && state.duo.peer) send({t:'xport', on:true}); }catch(e){}
+      try{ if(typeof ctx!=='undefined' && ctx && ctx.state!=='running') ctx.resume(); }catch(e){}   // (29.08) a cold context wakes with the transport — the take must not run on a frozen clock
+      try{ if(IS_LEADER && _mkFrameEl && _mkFrameEl.contentWindow && _mkFrameEl.contentWindow.__qrWake) _mkFrameEl.contentWindow.__qrWake(); }catch(e){}   // his gesture reaches across while the hand is still down
       try{ if(window._duoRecArm && state.running && !state.paused){ window._duoRecArm=false;
         setTimeout(function(){ try{ var _va=document.getElementById('tb-rec-vid'); if(_va) _va.style.color='';
           if(typeof btnRec!=='undefined' && btnRec && (typeof _dRec==='undefined'||!_dRec)) btnRec.onclick({stopPropagation:function(){}}); }catch(e){} },600); } }catch(e){}
@@ -21390,6 +21396,7 @@ startRenderLoop();
       try{ if(!_xpApplying && state.duo.on && state.duo.peer) send({t:'xport', on:(state.running&&!state.paused)}); }catch(e){}
       return r; };
   }catch(e){}
+  try{ global.__qrWake=function(){ try{ if(typeof ctx!=='undefined' && ctx && ctx.state!=='running') ctx.resume(); }catch(e){} }; }catch(e){}   // (29.08) either window can be woken by the other's gesture — same origin, same family
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_boot); else _boot();
 
   global.QRDuo={ send:send, broadcast:function(){ broadcastScene(true); }, role:ROLE, state:function(){ return state.duo; } };
