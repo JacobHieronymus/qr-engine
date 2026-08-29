@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kholopov · harmony course</title>
+<title>Гармония · курс по Холопову</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -66,6 +66,13 @@
   .page { display:grid; grid-template-columns:minmax(0,1fr) minmax(430px,600px);
     gap:52px; align-items:start; padding-top:6px; }
   .read { max-width:46em; }
+  .paneswitch { display:flex; gap:7px; align-items:center; flex-wrap:wrap; padding:0 0 10px; }
+  .panenote { font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-soft); }
+  #bookpane iframe { width:100%; height:78vh; min-height:520px; border:1px solid var(--line);
+    border-radius:5px; background:var(--card); }
+  #bookpane .src { font-size:13.5px; color:var(--ink-soft); padding-top:8px; }
+  #khbar .lbtn { font-size:12px; padding:6px 10px; }
+  #khbar .lbtn.has::before { content:"♪ "; color:var(--gold-strong); }
   .stand { position:sticky; top:18px; }
   @media (max-width:1060px) {
     .page { grid-template-columns:1fr; gap:24px; }
@@ -116,6 +123,7 @@
   .btn.wrong { border-color:var(--bad); color:var(--bad); }
   .board .note { font-size:15px; color:var(--ink-soft); padding-top:10px; }
 
+  .hidden { display:none !important; }
   .task { margin-top:18px; border:1px solid var(--line); border-radius:6px; padding:16px 18px; }
   .task .gauge { display:flex; gap:14px; flex-wrap:wrap; font-family:"IBM Plex Mono",monospace;
     font-size:11.5px; color:var(--ink-soft); border-bottom:1px solid var(--line-faint);
@@ -138,34 +146,38 @@
 <div class="shell">
 <header>
   <div class="masthead">
-    <a href="machon.html">&larr; machon</a>
+    <a href="machon.html">&larr; махон</a>
     <span id="progress">—</span>
   </div>
-  <h1>Harmony — a theoretical course</h1>
-  <div class="standfirst">after Yu. N. Kholopov · the exposition on the left, the stand on the right —
-    everything sounds in just intonation, and the note names are where the ratios come from</div>
+  <h1>Гармония — теоретический курс</h1>
+  <div class="standfirst">Главы идут по Ю. Н. Холопову, «Гармония. Теоретический курс» (СПб.: Лань, 2003):
+    рядом с каждой темой стоит номер его главы и страница. Изложение здесь моё, книгу читай в своём экземпляре.
+    Всё звучащее — в чистом строе, и высоты читаются из написания нот.</div>
 </header>
 
-<div class="lessonbar" id="lessonbar"></div>
+<div class="lessonbar" id="khbar"></div>
+<div class="lessonbar" id="lessonbar" style="border:none;padding-top:4px"></div>
 
 <div class="page">
-  <div class="read" id="lesson"></div>
+  <div class="read">
+    <div id="lesson"></div>
+  </div>
   <div class="stand">
     <div class="board">
-      <div class="head"><span id="boardname">the stand</span><span id="boardsub"></span></div>
+      <div class="head"><span id="boardname">пюпитр</span><span id="boardsub"></span></div>
       <div class="score" id="score"></div>
       <div class="row">
-        <button class="btn primary" id="replay">▶ play</button>
-        <button class="btn" id="slower">slower</button>
+        <button class="btn primary" id="replay">▶ играть</button>
+        <button class="btn" id="slower">медленнее</button>
       </div>
-      <div class="note" id="boardnote">Click any example on the left — it is written out here and sounds.</div>
+      <div class="note" id="boardnote">Нажми любой пример слева — он выпишется здесь и прозвучит.</div>
     </div>
     <div id="taskbox"></div>
   </div>
 </div>
 
 <div class="roadmap">
-  <h3>the chapters ahead</h3>
+  <h3>что дальше</h3>
   <ul>
     <li>5 · The tonal system as a whole — degrees, the circle, the key as a field</li>
     <li>6 · Voice leading: what the four voices are actually doing</li>
@@ -451,7 +463,7 @@ function drawScore(piece, opts) {
 var cur = { piece: null, name: '', sub: '', note: '' };
 function stand(piece, name, sub, note, quiet) {
   cur = { piece: piece, name: name || '', sub: sub || '', note: note || '' };
-  document.getElementById('boardname').textContent = cur.name || 'the stand';
+  document.getElementById('boardname').textContent = cur.name || 'пюпитр';
   document.getElementById('boardsub').textContent = cur.sub;
   document.getElementById('score').innerHTML = piece ? drawScore(piece, { alt: name }) : '';
   document.getElementById('boardnote').textContent = cur.note;
@@ -459,7 +471,7 @@ function stand(piece, name, sub, note, quiet) {
 }
 function blankStand(note) {
   cur = { piece: null, name: '', sub: '', note: note || '' };
-  document.getElementById('boardname').textContent = 'the stand';
+  document.getElementById('boardname').textContent = 'пюпитр';
   document.getElementById('boardsub').textContent = '';
   document.getElementById('score').innerHTML = '';
   document.getElementById('boardnote').textContent = cur.note;
@@ -486,71 +498,56 @@ function group(cap, items, why) {
 
 /* ---------- 1 ---------- */
 LESSONS.push({
-  n: 1, tab: '1 · chord', title: 'Sonority and chord',
-  ru: 'созвучие и аккорд · вводный раздел',
-  target: 'level 5 by 30 Sep',
+  n: 1, tab: '1 · аккорд', title: 'Созвучие и аккорд',
+  ru: 'к главе 4 Холопова «Аккорд», с. 46',
+  target: 'ступень 5 к 30 сентября',
   body: function () {
     return '' +
-    '<p class="lead">Kholopov opens not with chords but with the system that reads them. ' +
-    'A <em class="term">sonority <span class="ru">(созвучие)</span></em> is any simultaneity — ' +
-    'pitches sounding together, nothing more claimed. A <em class="term">chord ' +
-    '<span class="ru">(аккорд)</span></em> is a sonority the system reads as a structure: it has a ' +
-    '<em class="term">root <span class="ru">(основной тон)</span></em>, and every other pitch holds ' +
-    'a position relative to it.</p>' +
-    '<p>The distinction is not acoustic. The same pitches are a chord, or merely a sonority, ' +
-    'depending on whether a reading with a root is available and confirmed by what surrounds it. ' +
-    'This is why the system comes before the object: harmony is the set of relations, and the chord ' +
-    'is what those relations make of a handful of frequencies.</p>' +
-
-    '<h3>the same chord, four spacings</h3>' +
-    group('C major · one chord, four sonorities', [
-      ['close', one(['C4','E4','G4'])],
-      ['open', one(['C4','G4','E5'])],
-      ['third on top', one(['C4','G4','C5','E5'])],
-      ['low and thick', one(['C3','C4','E4','G4'])]
-    ], 'Four different sounds. One chord — the root does not move, so the reading does not change. ' +
-       'The distance between "different sound" and "different harmony" is the whole subject.') +
-
-    '<h3>a sonority the thirds cannot read</h3>' +
-    group('tertian · quartal · cluster', [
-      ['C E G', one(['C4','E4','G4'])],
-      ['C F B♭', one(['C4','F4','Bb4'])],
-      ['C D E♭', one(['C4','D4','Eb4'])]
-    ], 'The quartal one has no root in the tertian sense — stack it any way you like and no pitch ' +
-       'claims priority. In the twentieth century that is not a defect but the point.') +
-
-    '<h3>the ambiguity that will not go away</h3>' +
-    group('C E G A — added sixth, or A minor seventh?', [
-      ['bass on C', one(['C3','C4','E4','G4','A4'], 2.4), 'read as C6', 'The bass says C: an added sixth on the tonic.'],
-      ['bass on A', one(['A2','C4','E4','G4','A4'], 2.4), 'read as Am7', 'The bass says A: a minor seventh chord in inversion.'],
-      ['no bass at all', one(['C4','E4','G4','A4'], 2.4), 'unread', 'Four pitches, two readings, nothing to decide between them yet.']
-    ], 'The same four pitch classes each time. The bass decides, and where there is no bass the ear ' +
-       'waits for what comes next. The root is not a property of the sound — it is a reading, and the ' +
-       'reading is supplied from outside the sonority.') +
-
-    '<blockquote>The task asks you for the interpretation, not for the notes — you can already hear ' +
-    'the notes. The staff stays empty until you have answered.</blockquote>';
+    '<p class="lead">Курс начинается не с аккорда, а с системы, которая аккорд прочитывает. <em class="term">Созвучие</em> — любая одновременность: тоны, взятые вместе, и ничего сверх этого не утверждается. <em class="term">Аккорд</em> — созвучие, которое система читает как структуру: в нём есть <em class="term">основной тон</em>, и каждый остальной звук занимает позицию по отношению к нему. Различение это не педантизм: тем же ходом дальше строятся консонанс, функция и тональность.</p>' +
+    '<p>Различение не акустическое. Одни и те же высоты будут аккордом или останутся созвучием в зависимости от того, доступно ли прочтение с основным тоном и подтверждает ли его окружение. Основной тон не совпадает ни с нижним звуком, ни с самым громким: это позиция в структуре, которую созвучию <b>назначают</b>. Обертоновое обоснование основного тона — одна из теорий этой позиции, а не сама позиция. Отсюда и порядок изложения — система прежде объекта.</p>' +
+    '<h3>один аккорд, четыре расположения</h3>' +
+    group('до мажор: одно прочтение, четыре звучания', [
+      ['тесное', one(['C4','E4','G4'])],
+      ['широкое', one(['C4','G4','E5'])],
+      ['терция сверху', one(['C4','G4','C5','E5'])],
+      ['низко и плотно', one(['C3','C4','E4','G4'])]
+    ], 'Меняется фонизм — плотность, регистр, положение терции, удвоения. Прочтение не меняется: основной тон стоит на месте. Слушать здесь надо именно зазор между «звучит иначе» и «это другая гармония»; второго акустически нет, там нечего измерять.') +
+    '<p>Терцовое строение — не закон природы, а исторически сложившийся способ, и потому конечный. Пока созвучие раскладывается по терциям, прочтение с основным тоном напрашивается само; как только строение другое — квартовое, секундовое, смешанное — та же процедура возвращает пустой результат. Холопов на этом не останавливается и не выносит такие созвучия за пределы теории: понятие аккорда у него шире терцовой модели, и гармония XX века получает собственные типы строения, а не диагноз.</p>' +
+    '<h3>созвучие, которое терции не читают</h3>' +
+    group('терцовое · квартовое · секундовый кластер', [
+      ['до–ми–соль', one(['C4','E4','G4'])],
+      ['до–фа–си♭', one(['C4','F4','Bb4'])],
+      ['до–ре–ми♭', one(['C4','D4','Eb4'])]
+    ], 'В квартовом строение приоритета не даёт: непрерывной терцовой цепи не возникает ни при какой перестановке. Если центр тяжести здесь и появится, то не из состава, а из баса и соседства — поставьте до внизу и дайте разрешение, и созвучие прочтётся от до. Проверять надо не «резче или мягче», а откуда берётся центр тяжести и берётся ли он вообще. В кластере его нет по другой причине — секундовая плотность гасит саму раздельность тонов. Проверять надо не «резче или мягче», а есть ли центр тяжести. В кластере его нет по другой причине — секундовая плотность гасит саму раздельность тонов.') +
+    '<p>Если прочтение назначается — то чем именно. Тремя вещами: басом, соседством (что было до и что будет после) и метром, то есть тем, что попало на сильное время. Бас — самый грубый и самый надёжный из трёх: он расставляет приоритет раньше, чем ухо успевает перебрать состав. Уберите бас — и созвучие повисает непрочитанным, причём это не дефект примера, а его содержание.</p>' +
+    '<h3>двусмысленность, которая не рассасывается</h3>' +
+    group('до–ми–соль–ля: тоника с секстой или септаккорд от ля?', [
+      ['бас на до', one(['C3','C4','E4','G4','A4'], 2.4), 'read as C6', 'The bass says C: an added sixth on the tonic.'],
+      ['бас на ля', one(['A2','C4','E4','G4','A4'], 2.4), 'read as Am7', 'The bass says A: a minor seventh chord in inversion.'],
+      ['без баса', one(['C4','E4','G4','A4'], 2.4), 'unread', 'Four pitches, two readings, nothing to decide between them yet.']
+    ], 'Классы высот все три раза одни и те же. Бас решает; там, где баса нет, ухо ждёт продолжения, и честный ответ — «ещё не прочитано». Основной тон поставляется извне созвучия, и третий пример показывает, что бывает, когда поставлять его нечему.') +
+    '<p>Один и тот же ход — то, что казалось свойством звучания, оказывается отношением — курс проделывает трижды: с основным тоном, с <em class="term">консонансом</em> и <em class="term">диссонансом</em>, с <em class="term">функцией</em>. Дальше он выносится и за пределы тональности: если центр — позиция, а не звук, занять её может что угодно, вплоть до диссонирующего созвучия; у Холопова это <em class="term">центральный элемент</em>, и музыка без <em class="term">тоники</em> перестаёт быть исключением из теории. Для слуха вывод один: спрашивать не «что звучит», а «как это прочитано и чем прочтение обеспечено».</p>' +
+    '<blockquote>Задание спрашивает прочтение, а не состав: состав слышен и так. Нотный стан остаётся пустым до ответа — сначала имя, потом ноты.</blockquote>';
   },
   task: {
-    id: 'root', prompt: 'Which pitch is the root?',
-    expect: 'Expected for you: near 100% at levels 1–2, which is why the ladder starts at 3; ' +
-            'around 80% at 4–5. Sitting above 90% for a whole run means the ladder is too short.',
+    id: 'root', prompt: 'Какой звук — основной тон?',
+    expect: 'Ожидаемое для тебя: около 100% на 1–2 ступенях, поэтому лестница стартует с третьей; около 80% на 4–5. Держаться выше 90% весь прогон значит, что лестница коротка сверху.',
     ladder: [
-      { name: 'triad, root position', make: function () {
+      { name: 'трезвучие в основном виде', make: function () {
           var root = pick(['C4','D4','Eb4','F4','G4','A4','Bb3']), q = pick(['maj','min']);
           var specs = build(root, q);
           return item(specs, specs.map(pcOf), 0, q + ' triad, root position'); } },
-      { name: 'triad, inverted', make: function () {
+      { name: 'трезвучие в обращении', make: function () {
           var root = pick(['C4','D4','Eb4','F4','G3','A3','Bb3']), q = pick(['maj','min']);
           var t = build(root, q), specs = invert(t, pick([1, 2]));
           return item(specs, specs.map(pcOf), specs.map(pcOf).indexOf(pcOf(root)),
                       q + ' triad, inverted', root); } },
-      { name: 'seventh chord, inverted', make: function () {
+      { name: 'септаккорд в обращении', make: function () {
           var root = pick(['C4','D4','Eb4','F3','G3','A3','Bb3']), q = pick(['dom7','min7','maj7']);
           var t = build(root, q), specs = invert(t, pick([1, 2, 3]));
           return item(specs, specs.map(pcOf), specs.map(pcOf).indexOf(pcOf(root)),
                       q + ', inverted', root); } },
-      { name: 'fifth omitted, or the third doubled', make: function () {
+      { name: 'без квинты или с удвоенной терцией', make: function () {
           var root = pick(['C4','D4','Eb4','F4','G3','A3']), q = pick(['maj','min']);
           var t = build(root, q);
           var specs = pick([[t[0], t[1], up(t[1], 'P8')],
@@ -558,16 +555,16 @@ LESSONS.push({
                             [t[1], t[2], up(t[0], 'P8')]]);
           var ch = uniq(specs.map(pcOf));
           return item(specs, ch, ch.indexOf(pcOf(root)), 'incomplete ' + q + ' triad', root); } },
-      { name: 'sixth chord or seventh chord — the bass decides', make: function () {
+      { name: 'секста или септима — решает бас', make: function () {
           var asSixth = Math.random() < 0.5;
           var upper = shuffle(['C4','E4','G4','A4'].slice());
           var specs = [asSixth ? 'C3' : 'A2'].concat(upper);
           return item(specs, ['C','E','G','A'], asSixth ? 0 : 3,
                       asSixth ? 'C6 — added sixth' : 'Am7 in inversion',
                       asSixth ? 'C3' : 'A2'); } },
-      { name: 'quartal, cluster or tertian', make: function () {
+      { name: 'квартовое, кластер или терцовое', make: function () {
           var root = pick(['C4','D4','Eb4','F4','G3']), q = pick(['quartal','cluster','maj','min7']);
-          var specs = build(root, q), ch = uniq(specs.map(pcOf)).concat(['no root']);
+          var specs = build(root, q), ch = uniq(specs.map(pcOf)).concat(['нет основного тона']);
           var rooted = (q !== 'quartal' && q !== 'cluster');
           return item(specs, ch, rooted ? ch.indexOf(pcOf(root)) : ch.length - 1,
                       rooted ? q : q + ' — no tertian root', root); } }
@@ -577,174 +574,136 @@ LESSONS.push({
 
 /* ---------- 2 ---------- */
 LESSONS.push({
-  n: 2, tab: '2 · consonance', title: 'Consonance and dissonance are historical, not acoustic',
-  ru: 'консонанс и диссонанс · исторические категории',
-  target: 'level 4 by 15 Oct',
+  n: 2, tab: '2 · консонанс', title: 'Консонанс и диссонанс — категории исторические, а не акустические',
+  ru: 'к главе 2 Холопова «Консонанс и диссонанс», с. 15',
+  target: 'ступень 4 к 15 октября',
   body: function () {
     return '' +
-    '<p class="lead">The fourth is the standing proof. In ninth-century organum it is <em>the</em> ' +
-    'consonance, the interval the texture is built from. In the classical system a fourth above the ' +
-    'bass is a dissonance and must resolve. In Debussy it is a colour and resolves nowhere. The ratio ' +
-    '4:3 never changed; the category did.</p>' +
-    '<p><em class="term">Consonance <span class="ru">(консонанс)</span></em> and ' +
-    '<em class="term">dissonance <span class="ru">(диссонанс)</span></em> are not properties of an ' +
-    'interval but positions in a system — exactly like the root in the previous chapter. The ear hears ' +
-    'roughness; the system decides what the roughness means and what it obliges you to do next.</p>' +
-
-    '<h3>one interval, three systems</h3>' +
-    group('the perfect fourth, 4:3', [
-      ['as organum', [P(['C4','F4'],1.3), P(['D4','G4'],1.3), P(['C4','F4'],2.0)],
+    '<p class="lead">Кварта — постоянная улика. В органуме IX века она <b>и есть</b> консонанс: фактура построена из неё, и ничего сверх себя она не требует. В классической системе кварта над басом — диссонанс, обязанный разрешиться. У Дебюсси она краска и не разрешается никуда. Отношение 4:3 не менялось ни разу; менялась категория.</p>' +
+    '<p><em class="term">Консонанс</em> и <em class="term">диссонанс</em> — не свойства интервала, а позиции в системе, ровно как <em class="term">основной тон</em> в предыдущей главе. Ухо слышит шероховатость; что эта шероховатость значит и к чему обязывает — решает система. Холопов проводит это различие последовательно: консонантность у него категория историческая, принадлежащая норме эпохи, а не физике колебаний. Акустика даёт материал, истолкование даёт система.</p>' +
+    '<h3>Один интервал, три системы</h3>' +
+    group('чистая кварта, 4:3', [
+      ['как органум', [P(['C4','F4'],1.3), P(['D4','G4'],1.3), P(['C4','F4'],2.0)],
         'parallel organum', 'The fourth carries the music and asks for nothing.'],
-      ['above a classical bass', [P(['C3','F4','A4'],1.5), P(['C3','E4','G4'],2.1)],
+      ['над классическим басом', [P(['C3','F4','A4'],1.5), P(['C3','E4','G4'],2.1)],
         'cadential six-four', 'The fourth over the bass leans, then falls to the third.'],
-      ['as colour', [P(['C4','F4','Bb4'],1.2), P(['D4','G4','C5'],1.2), P(['E4','A4','D5'],2.0)],
+      ['как краска', [P(['C4','F4','Bb4'],1.2), P(['D4','G4','C5'],1.2), P(['E4','A4','D5'],2.0)],
         'planing fourths', 'Nothing resolves; the sonority is used for itself.']
-    ], 'The middle one is the six-four. The same interval in the first example is the ground the ' +
-       'music stands on.') +
-
-    '<h3>the tritone is two intervals, not one</h3>' +
-    '<p>On the staff the difference is plain; in sound it depends on the tuning, and that dependence is ' +
-    'itself the lesson. In the 5-limit tuning used here the augmented fourth measures 45/32 and the ' +
-    'diminished fifth 64/45, about 19.5 cents apart. In Pythagorean tuning the relation <em>reverses</em>: ' +
-    'there the augmented fourth is the wider of the two. Equal temperament fuses them outright. So the ' +
-    'size is a property of a tuning system, never of the interval — what identifies an augmented fourth ' +
-    'is where it is obliged to go. Sounded bare, with no context, the question "which tritone is this" ' +
-    'has no answer, and saying so is the correct answer.</p>' +
-    group('F–B against B–F, and where each one goes', [
-      ['augmented fourth 45/32', one(['F4','B4'], 2.6), 'F–B', 'The upper note is high: 45/32 above F.'],
-      ['diminished fifth 64/45', one(['B3','F4'], 2.6), 'B–F', 'The upper note is low: 64/45 above B.'],
-      ['A4 expands outward', [P(['F4','B4'],1.6), P(['E4','C5'],2.2)], 'F–B → E–C', 'Outward, to a minor sixth.'],
-      ['d5 contracts inward', [P(['B3','F4'],1.6), P(['C4','E4'],2.2)], 'B–F → C–E', 'Inward, to a major third.']
-    ], 'The dissonance does not merely sound harsh — it has a direction. The interval carries an ' +
-       'obligation, and the obligation is what makes the system a system.') +
-
-    '<h3>the same four pitches, two obligations</h3>' +
-    group('A♭–C–E♭–G♭ against A♭–C–E♭–F♯', [
-      ['dominant seventh → D♭', [P(['Ab2','C4','Eb4','Gb4'],1.7,'Ab2'), P(['Db3','Db4','F4','Ab4'],2.3,'Db3')],
+    ], 'Средний пример — кадансовый квартсекстаккорд: кварта над басом тянет и падает в терцию. В первом та же кварта — опора, на которой стоит фактура; в третьем она движется параллельно и не разрешается. Слушать надо не резкость, а одно: требует ли созвучие продолжения и предписано ли это продолжение.') +
+    '<p>Классическая норма определяет диссонанс не резкостью, а долгом. Кадансовый квартсекстаккорд не шероховатее того трезвучия, в которое он падает; он диссонанс потому, что кварта над басом требует продолжения, и продолжение предписано — вниз, в терцию. Та же кварта между верхними голосами не несёт никакого долга. Отсюда следствие, которое стоит проверять слухом, а не памятью: Отсюда следствие, которое стоит проверять слухом, а не памятью: у кварты диссонантность в классической системе есть отношение к басу, а не собственное качество созвучия. Секунда, септима и тритон диссонируют в любом голосе; кварта — только над басом, и потому она и есть чистый случай, где категорию назначает система..</p>' +
+    '<p>Тритон в этой логике — не один интервал, а два. На рояле различие невидимо, в чистом строе слышно, а в нотации просто написано. Увеличенная кварта — 45/32, уменьшённая квинта — 64/45; между ними диасхизма 2048/2025, около 19,5 цента, пятая часть полутона. Равномерная темперация их слила, и с тех пор теория объясняет словами то различие, которое строй делал звуком.</p>' +
+    '<h3>Тритон — два интервала, а не один</h3>' +
+    group('фа–си против си–фа, и куда идёт каждое', [
+      ['ув. кварта 45/32', one(['F4','B4'], 2.6), 'F–B', 'The upper note is high: 45/32 above F.'],
+      ['ум. квинта 64/45', one(['B3','F4'], 2.6), 'B–F', 'The upper note is low: 64/45 above B.'],
+      ['ув.4 расходится наружу', [P(['F4','B4'],1.6), P(['E4','C5'],2.2)], 'F–B → E–C', 'Outward, to a minor sixth.'],
+      ['ум.5 сходится внутрь', [P(['B3','F4'],1.6), P(['C4','E4'],2.2)], 'B–F → C–E', 'Inward, to a major third.']
+    ], 'Первые два примера — диасхизма в голом виде, около 19,5 цента разницы в верхнем тоне при одинаковой на слух ширине. Дальше слушать не интервал, а его направление: ув. 4 расходится в малую сексту, ум. 5 сходится в большую терцию. Название интервала — это запись его долга, а не мера его резкости.') +
+    '<p>Разница не в ширине, а в направлении. Увеличенная кварта расходится наружу, в малую сексту; уменьшённая квинта сходится внутрь, в большую терцию. В доминантсептаккорде это видно поимённо: <em class="term">вводный тон</em> обязан вверх на полутон, септима — вниз на секунду, а написание интервала лишь фиксирует, кто из двоих оказался внизу. Диссонанс здесь не окраска, а вектор: интервал несёт обязательство, и обязательство делает систему системой.</p>' +
+    '<p>Отсюда рабочее правило на весь курс. Вопрос «консонанс это или диссонанс» без указания системы пуст. Вопрос «что этот интервал обязан сделать здесь» содержателен, и ответ каждый раз конкретен: в органуме — ничего, в классической тональности — шаг, предписанный нормой, у Дебюсси — снова ничего, но уже по другой причине.</p>' +
+    '<h3>Тритон — два интервала, а не один</h3>' +
+    group('ля♭–до–ми♭–соль♭ против ля♭–до–ми♭–фа♯', [
+      ['доминантсептаккорд → ре♭', [P(['Ab2','C4','Eb4','Gb4'],1.7,'Ab2'), P(['Db3','Db4','F4','Ab4'],2.3,'Db3')],
         'A♭7 – D♭', 'The seventh falls: the chord is a dominant and goes down a fifth.'],
-      ['augmented sixth → G', [P(['Ab2','C4','Eb4','F#4'],1.7,'Ab2'), P(['G2','D4','G4','B4'],2.3,'G2')],
+      ['увеличенная секста → соль', [P(['Ab2','C4','Eb4','F#4'],1.7,'Ab2'), P(['G2','D4','G4','B4'],2.3,'G2')],
         'Ger⁺⁶ – V in C minor', 'The sixth expands outward to the octave: the chord is a dominant preparation.'],
-      ['the sonority alone', one(['Ab2','C4','Eb4','Gb4'], 2.4), 'undecidable',
+      ['одно созвучие', one(['Ab2','C4','Eb4','Gb4'], 2.4), 'undecidable',
         'Nothing here decides it. On a piano the two are one sound; the difference lives in what follows.']
-    ], 'The same keys on a piano, two different chords — and no property of the sonority tells you which. ' +
-       'This is the chapter\'s thesis at its sharpest: the identity of a dissonance is its obligation.') +
-
-    '<blockquote>The task therefore never asks you to name a tritone in the void. It gives you as much ' +
-    'context as it gives, and sometimes the honest answer is that there is not enough.</blockquote>';
+    ], 'Первые два примера — диасхизма в голом виде, около 19,5 цента разницы в верхнем тоне при одинаковой на слух ширине. Дальше слушать не интервал, а его направление: ув. 4 расходится в малую сексту, ум. 5 сходится в большую терцию. Название интервала — это запись его долга, а не мера его резкости.') +
+    '<blockquote>Задача поставлена намеренно трудно, но трудность не в центах. Тритон по одному звучанию не называется вовсе: 45/32 и 64/45 — величины строя, а не интервала, и в пифагоровом строе отношение переворачивается — там шире увеличенная кварта. Ширина опознаёт настройку, долг опознаёт интервал, и спрашивать поэтому надо одно: куда этот голос обязан пойти. Семьдесят процентов в «Законе или нарушении» весят больше, чем девяносто пять в задаче на узнавание аккорда.</blockquote>';
   },
   task: {
-    id: 'tritone', prompt: 'What is this chord, and where must it go?',
-    expect: 'Expected for you: 85%+ when the resolution is given — level 1 is a baseline, run it once. ' +
-            'The work is at levels 3–4, where the key must be held in the ear without the resolution, ' +
-            'and where "undecidable" is sometimes the right answer. Target 80% at level 4.',
+    id: 'tritone', prompt: 'Что это за аккорд и куда он обязан пойти?',
+    expect: 'Ожидаемое для тебя: 85%+ когда разрешение дано — первая ступень это замер, пройди её один раз. Работа на 3–4 ступенях, где тональность надо держать в ухе без разрешения и где «неопределимо» иногда верный ответ. Цель — 80% на четвёртой.',
     ladder: [
-      { name: 'context, chord, resolution', make: function () { return sixItem(2, true); } },
-      { name: 'context, chord — no resolution', make: function () { return sixItem(2, false); } },
-      { name: 'one chord of context', make: function () { return sixItem(1, false); } },
-      { name: 'sometimes there is no context at all', make: function () { return sixItem(-1, false); } }
+      { name: 'контекст, аккорд, разрешение', make: function () { return sixItem(2, true); } },
+      { name: 'контекст и аккорд, разрешения нет', make: function () { return sixItem(2, false); } },
+      { name: 'один аккорд контекста', make: function () { return sixItem(1, false); } },
+      { name: 'иногда контекста нет вовсе', make: function () { return sixItem(-1, false); } }
     ]
   }
 });
 
 /* ---------- 3 ---------- */
 LESSONS.push({
-  n: 3, tab: '3 · function', title: 'Function is a position, not a name',
-  ru: 'функция · Т, S, D как значения в системе',
-  target: 'level 4 by 31 Oct',
+  n: 3, tab: '3 · функция', title: 'Функция — это место, а не имя',
+  ru: 'к главе 11 Холопова «Теория функций», с. 261',
+  target: 'ступень 4 к 31 октября',
   body: function () {
     return '' +
-    '<p class="lead">A C major triad is not a tonic. It is a tonic <em>in C</em>, a subdominant ' +
-    '<em>in G</em>, a dominant <em>in F</em>. The <em class="term">function ' +
-    '<span class="ru">(функция)</span></em> is the chord’s position in a system of gravitation, and ' +
-    'the system is established by context — never by the chord itself.</p>' +
-    '<p>This is the third time the same move is made: root, consonance, function. Each time an apparent ' +
-    'property of the sound turns out to be a relation supplied by the system. Kholopov builds the whole ' +
-    'course on that move, which is why he can carry it unchanged into music with no tonic at all — the ' +
-    'central element of chapter 11 is this same idea with the tonal furniture removed.</p>' +
-
-    '<h3>one triad, three functions</h3>' +
-    group('the C major triad arrives last in all three', [
-      ['as tonic (in C)', [P(['F3','C4','F4','A4'],1.2), P(['G3','B3','D4','F4'],1.2), P(['C3','C4','E4','G4'],2.4)],
+    '<p class="lead">До-мажорное трезвучие само по себе не <em class="term">тоника</em>. Оно тоника в C, <em class="term">субдоминанта</em> в G, <em class="term">доминанта</em> в F — и все три раза это акустически один и тот же объект. <em class="term">Функция</em> есть не свойство созвучия, а его место в поле тяготений; поле задаёт контекст, сам аккорд не задаёт его никогда.</p>' +
+    '<p>Ход делается третий раз подряд. Основной тон, консонанс, функция: каждый раз то, что кажется свойством звучания, оказывается отношением, которое подставляет система. У Холопова на этом держится весь курс — и потому понятие функции у него переживает распад мажора-минора: функция для него значение элемента в системе, а не одна из трёх этикеток классической гармонии. Центральный элемент в музыке без тоники — та же мысль с убранной тональной обстановкой.</p>' +
+    '<p>Функцию стоит держать отдельно от <em class="term">ступени</em>. Ступень — счётная позиция в звукоряде, она ни о каком тяготении не знает; функция — значение в системе тяготений, и в классической тональности значений три: устой и два способа от него отойти, квинтой вниз и квинтой вверх. Шестая ступень остаётся шестой всегда, но работает то как замена тоники, то как субдоминантовая опора — номер не меняется, функция меняется. Обе шкалы нужны разом: ступенная описывает состав, функциональная — тягу, и подмена одной другой означает ответ не на тот вопрос.</p>' +
+    '<h3>одно трезвучие — три функции</h3>' +
+    group('трезвучие до мажора приходит последним во всех трёх', [
+      ['как тоника (в до)', [P(['F3','C4','F4','A4'],1.2), P(['G3','B3','D4','F4'],1.2), P(['C3','C4','E4','G4'],2.4)],
         'F – G7 – C', 'A full cadence: the C triad is the destination.'],
-      ['as subdominant (in G)', [P(['G3','B3','D4','G4'],1.1), P(['D3','A3','D4','F#4'],1.1), P(['G3','B3','D4','G4'],1.1), P(['C3','C4','E4','G4'],2.4)],
+      ['как субдоминанта (в соль)', [P(['G3','B3','D4','G4'],1.1), P(['D3','A3','D4','F#4'],1.1), P(['G3','B3','D4','G4'],1.1), P(['C3','C4','E4','G4'],2.4)],
         'G – D – G – C', 'G is the key; the last step is plagal, and C is the subdominant.'],
-      ['as dominant (in F)', [P(['F3','C4','F4','A4'],1.1), P(['Bb2','Bb3','D4','F4'],1.1), P(['D3','A3','D4','F4'],1.1), P(['C3','C4','E4','G4'],2.4)],
+      ['как доминанта (в фа)', [P(['F3','C4','F4','A4'],1.1), P(['Bb2','Bb3','D4','F4'],1.1), P(['D3','A3','D4','F4'],1.1), P(['C3','C4','E4','G4'],2.4)],
         'F – B♭ – Dm – C', 'F is the key; the phrase rests on the dominant, unfinished.']
-    ], 'The triad is retuned to each key’s own tonic, so it is acoustically the same object all three ' +
-       'times — no comma gives the game away. Only its position changes, and that changes everything ' +
-       'about how it feels to arrive there.') +
-
-    '<h3>the three functions bare</h3>' +
-    group('T, S, D in C — then the cadence', [
+    ], 'Трезвучие каждый раз настроено в тонику своей тональности, то есть акустически это один и тот же объект — никакая комма подмену не выдаёт. Слушать надо не аккорд, а чем оказывается приход в него: в первом случае закрытие, во втором — уход в субдоминанту: шаг сделан от центра, а не к нему, фраза остаётся открытой, но без доминантового нажима, в третьем остановка на полпути, требующая продолжения.') +
+    '<p>Тоника — единственная функция без обязательства, и это её определение, а не порядковый номер. Субдоминанта уводит, доминанта возвращает, и асимметрия здесь не риторическая: тянет не аккорд целиком, а тритон внутри него — вводный тон и четвёртая ступень, сходящиеся в терцию тоники. Убрать септиму — и тритона в аккорде не остаётся вовсе: тяга держится на одном вводном тоне, и доминанта становится трезвучием, которое ещё нужно подтверждать басом. Предыдущая глава оказывается внутри этой: диссонанс не краска, а обязательство, а функция — форма, в которой обязательство записано.</p>' +
+    '<h3>три функции по отдельности</h3>' +
+    group('T, S, D в до мажоре — и каданс', [
       ['T', one(['C3','C4','E4','G4'], 2.0)],
       ['S', one(['F3','C4','F4','A4'], 2.0)],
       ['D', one(['G3','B3','D4','F4'], 2.0)],
       ['T–S–D–T', [P(['C3','C4','E4','G4'],1.2), P(['F3','C4','F4','A4'],1.2), P(['G3','B3','D4','F4'],1.2), P(['C3','C4','E4','G4'],2.4)]]
-    ], 'S leans away from T, D leans back toward it, and the tritone inside D does the leaning. Take ' +
-       'the seventh out and the pull halves — the previous chapter arriving inside this one.') +
-
-    '<blockquote>In the task the staff stays empty until you answer: the ear first, the notes as the ' +
-    'confirmation.</blockquote>';
+    ], 'Первые три кнопки — функции без контекста, то есть строго говоря ещё не функции: пока не прозвучал оборот, это три трезвучия, одно с септимой. Четвёртая кнопка их и создаёт. В ней слушать тритон доминанты — он один делает всю работу возвращения.') +
+    '<p>Переназначение — не редкость и не приём: на нём работает <em class="term">отклонение</em>. Аккорд, взятый как тоника, через такт оказывается субдоминантой новой тональности, и в самом аккорде для этого не происходит ничего — меняется то, что после него. Отсюда следует, что функция слышится во времени, а не в момент: пока фраза не договорена, функциональное чтение остаётся открытым, и <em class="term">каданс</em> нужен ровно затем, чтобы его закрыть.</p>' +
+    '<p>Практический вывод один и неприятный: гармонию нельзя проверять поаккордно. Отдельно взятый аккорд функции не имеет, а слух, натренированный опознавать созвучия мгновенно и точно, промахивается по функции систематически — он отвечает на вопрос «какой это аккорд», когда спрошено «чем он здесь работает». Упражнения главы устроены так, чтобы первый, аккордовый ответ не срабатывал.</p>' +
+    '<blockquote>Нотный стан в задаче остаётся пустым до ответа: сначала слух, ноты — подтверждение, а не подсказка. Три кнопки Т, S, D выглядят проще, чем есть: на одном аккорде правильного ответа не существует, и задача даёт контекст ровно в том объёме, в каком он появляется.</blockquote>';
   },
   task: {
-    id: 'func', prompt: 'What function does the last chord have?',
-    expect: 'Expected for you: 90%+ on a full cadence — level 1 is a baseline, run it once and climb. ' +
-            'The work is at levels 3–4, where the context is two chords or chromatic. Target 80% at 4.',
+    id: 'func', prompt: 'Какая функция у последнего аккорда?',
+    expect: 'Ожидаемое для тебя: 90%+ на полном кадансе — первая ступень это замер, пройди её один раз. Работа на 3–4 ступенях, где контекста два аккорда или он хроматический. Цель — 80% на четвёртой.',
     ladder: [
-      { name: 'full cadence — baseline, run once', make: function () { return funcItem(0, false); } },
-      { name: 'three chords of context', make: function () { return funcItem(3, false); } },
-      { name: 'two chords of context', make: function () { return funcItem(2, false); } },
-      { name: 'two chords, minor and borrowed', make: function () { return funcItem(2, true); } },
-      { name: 'one chord of context', make: function () { return funcItem(1, true); } }
+      { name: 'полный каданс — замер, один раз', make: function () { return funcItem(0, false); } },
+      { name: 'три аккорда контекста', make: function () { return funcItem(3, false); } },
+      { name: 'два аккорда контекста', make: function () { return funcItem(2, false); } },
+      { name: 'два аккорда, минор и заимствования', make: function () { return funcItem(2, true); } },
+      { name: 'один аккорд контекста', make: function () { return funcItem(1, true); } }
     ]
   }
 });
 
 /* ---------- 4 ---------- */
 LESSONS.push({
-  n: 4, tab: '4 · modality', title: 'Modality and tonality are two systems, not two ages',
-  ru: 'модальность и тональность · центральное различение Холопова',
-  target: 'level 3 by 15 Nov',
+  n: 4, tab: '4 · модальность', title: 'Модальность и тональность — две системы, а не две эпохи',
+  ru: 'к главе 9 Холопова «Лады модального типа», с. 175',
+  target: 'ступень 3 к 15 ноября',
   body: function () {
     return '' +
-    '<p class="lead">Textbooks that skip this distinction end up calling everything before Bach ' +
-    '"primitive tonality". <em class="term">Modality <span class="ru">(модальность)</span></em> ' +
-    'organises pitch as a <em>scale with a centre</em>: the connections are melodic and linear, the ' +
-    'centre is asserted by repetition and by the final, and nothing is obliged to gravitate. ' +
-    '<em class="term">Tonality <span class="ru">(тональность)</span></em> organises pitch as a ' +
-    '<em>field of forces</em>: T, S and D are poles, the tritone is the engine, and every chord is ' +
-    'under an obligation.</p>' +
-    '<p>They are not stages of one road. Modality returns in full force in the twentieth century — ' +
-    'Debussy, Bartók, the modal jazz of the fifties — not as archaism but because it does something ' +
-    'tonality cannot: it lets harmony stand still and colour instead of pull.</p>' +
-
-    '<h3>the same degrees, twice</h3>' +
-    group('C dorian, then the same steps pulled into a key', [
-      ['modal', [P(['C3','C4','Eb4','G4'],1.3), P(['Bb2','Bb3','D4','F4'],1.3), P(['F3','C4','F4','A4'],1.3), P(['C3','C4','Eb4','G4'],2.3)],
+    '<p class="lead">Учебник, пропускающий это различение, называет всё, что до Баха, примитивной тональностью и на этом успокаивается. <em class="term">Модальность</em> организует высоту как звукоряд с центром: связи мелодико-линеарные, центр держится возвращением, длительностью и финалисом, и ни один тон никуда не обязан. <em class="term">Тональность</em> организует высоту как силовое поле: тоника, субдоминанта и доминанта — полюса, тритон внутри доминанты — механизм, и каждый аккорд обязан.</p>' +
+    '<p>Это не две ступени одной дороги. У Холопова <em class="term">лад</em> — родовое понятие, а модальность и тональность — два его вида: два принципа организации высоты, а не ранний и зрелый возраст одного. Отсюда и его отношение к XX веку: у Дебюсси и Бартока модальность возвращается как самостоятельная техника, а не как стилизация под старину. Тот же принцип — уже за пределами его материала — слышен и в модальном джазе пятидесятых. Она умеет то, чего тональность не умеет: держать гармонию на месте и окрашивать вместо того, чтобы тянуть.</p>' +
+    '<h3>те же ступени — дважды</h3>' +
+    group('до дорийский, затем те же ступени, втянутые в тональность', [
+      ['модально', [P(['C3','C4','Eb4','G4'],1.3), P(['Bb2','Bb3','D4','F4'],1.3), P(['F3','C4','F4','A4'],1.3), P(['C3','C4','Eb4','G4'],2.3)],
         'i – ♭VII – IV – i', 'No leading tone anywhere; the natural sixth is the dorian signature.'],
-      ['tonal', [P(['C3','C4','Eb4','G4'],1.3), P(['F3','C4','F4','Ab4'],1.3), P(['G3','B3','D4','F4'],1.3), P(['C3','C4','Eb4','G4'],2.3)],
+      ['тонально', [P(['C3','C4','Eb4','G4'],1.3), P(['F3','C4','F4','Ab4'],1.3), P(['G3','B3','D4','F4'],1.3), P(['C3','C4','Eb4','G4'],2.3)],
         'i – iv – V7 – i', 'A flat sixth and a raised seventh: the key has taken over.']
-    ], 'The modal version cadences by step from the flat seventh. The tonal version puts a dominant ' +
-       'seventh in the same place, and the passage acquires a destination.') +
-
-    '<h3>the leading tone as the border</h3>' +
-    group('one pitch decides which system you are in', [
-      ['flat seventh — the mode holds', [P(['Bb2','Bb3','D4','F4'],1.6), P(['C3','C4','Eb4','G4'],2.4)],
+    ], 'Слушать предпоследнее созвучие. В модальном варианте вводного тона нет нигде, натуральная секста — дорийская подпись, замыкание идёт ходом ступеней. В тональном повышенная VII ставит на то же место доминантсептаккорд — тритон с IV внутри него, — и у оборота появляется цель; низкая VI только снимает дорийскую окраску. Набор ступеней почти тот же — разная мера принуждения.') +
+    '<p>Функция в том смысле, в каком она введена главой раньше — позиция в централизованном тяготении, обязательство, — в модальном ладу не работает. Работают устои и неустои, финалис и побочные опоры, характерные ступени, по которым лад опознаётся. Аккорд здесь — вертикальный срез звукоряда; его смысл задан местом в движении голосов, а не тем, куда он должен разрешиться. Поэтому модальная гармония выносит долгое стояние, параллелизмы и любой порядок ступеней: порядок — композиторский выбор, а не следствие.</p>' +
+    '<p>В тональности порядок как раз следствие. Тритон между IV и VII ступенями, живущий внутри доминантсептаккорда, связывает субдоминантовую сферу с доминантовой; вводный тон обязан разрешиться; у оборота появляется не продолжение, а конец. Из этой же обязательности растёт всё, чего у лада нет: <em class="term">отклонение</em>, модуляция, прерванный каданс. Все они рассчитаны на то, что слушатель ждёт определённого продолжения. Обмануть можно только ожидание — там, где ожидания нет, нет и обмана.</p>' +
+    '<p>Практически граница проходит по одной ступени, и слушать надо именно её. Низкая VII — ступень: сходит вниз, движение есть, принуждения нет. Повышенная VII — <em class="term">вводный тон</em>: тянет вверх и образует тритон с IV, то есть вносит доминанту в собственном смысле. На стане это <b>один знак при ноте</b>; в системе это смена всего.</p>' +
+    '<h3>вводный тон как граница</h3>' +
+    group('один звук решает, в какой ты системе', [
+      ['низкая VII — лад держится', [P(['Bb2','Bb3','D4','F4'],1.6), P(['C3','C4','Eb4','G4'],2.4)],
         '♭VII – i', 'B♭ steps down. No pull, only motion.'],
-      ['raised seventh — the key arrives', [P(['G3','B3','D4','F4'],1.6), P(['C3','C4','Eb4','G4'],2.4)],
+      ['повышенная VII — тональность пришла', [P(['G3','B3','D4','F4'],1.6), P(['C3','C4','Eb4','G4'],2.4)],
         'V7 – i', 'B♮ pulls up to C. The whole system changed with one semitone.']
-    ], 'The cleanest demonstration in the course of what it means to say the system is prior to the ' +
-       'chord — and on the staff it is a single accidental.') ;
+    ], 'Си-бемоль сходит вниз: это ступень, движение без тяготения. Си-бекар тянет вверх и даёт тритон с фа: это вводный тон, и с ним в оборот входит доминанта. Между двумя примерами — один знак при ноте и смена всей системы. Чище этого места в курсе не показать, что система предшествует аккорду.') +
+    '<p>Смешение — норма, а не исключение: гармония XIX века полна ладовых оборотов внутри тональности, модальные пласты XX века сплошь пользуются тональной вертикалью. Различение нужно не для того, чтобы наклеить на пьесу один из двух ярлыков, а чтобы слышать, какой принцип в данную минуту несёт форму. Если гармония держит время — она модальна; если отсчитывает его и приводит к концу — тональна. Ухо решает это раньше, чем глаз найдёт знак при ноте.</p>' +
+    '<blockquote>В задании спрашивают не аккорды, а систему. Разница между двумя ответами — часто один полутон в среднем голосе; если ухо ловит её только тогда, когда открылись ноты, ответ был угадан, а не услышан.</blockquote>';
   },
   task: {
-    id: 'modal', prompt: 'Modal or tonal?',
-    expect: 'Expected for you: 85%+ at level 1 — a baseline, not practice. The interest begins at ' +
-            'level 3, where the modal turn borrows a functional colour without committing to it. ' +
-            'Target 80% at level 3.',
+    id: 'modal', prompt: 'Модально или тонально?',
+    expect: 'Ожидаемое для тебя: 85%+ на первой ступени — это замер, а не упражнение. Интересное начинается с третьей, где модальный оборот занимает функциональную краску, не переходя в тональность. Цель — 80% на третьей.',
     ladder: [
-      { name: 'clear cadences', make: function () { return modalItem(0); } },
-      { name: 'no cadence, just a progression', make: function () { return modalItem(1); } },
-      { name: 'a borrowed functional turn', make: function () { return modalItem(2); } }
+      { name: 'ясные кадансы', make: function () { return modalItem(0); } },
+      { name: 'без каданса, только оборот', make: function () { return modalItem(1); } },
+      { name: 'заимствованный функциональный оборот', make: function () { return modalItem(2); } }
     ]
   }
 });
@@ -793,7 +752,7 @@ function sixItem(ctxLen, withResolution) {
   if (withResolution) piece.push(P(res, 2.4, resRoot));
   var right = !decided && !withResolution ? 2 : (isGer ? 1 : 0);
   return { piece: piece,
-           choices: ['dominant 7th → down a fifth', 'augmented 6th → outward to the dominant', 'undecidable'],
+           choices: ['доминантсептаккорд → вниз на квинту', 'увеличенная секста → наружу к доминанте', 'неопределимо'],
            right: right,
            label: (!decided && !withResolution) ? 'no context — the question has no answer'
                  : (isGer ? 'Ger⁺⁶ on ' + pcOf(R) + ' in ' + pcOf(tonic) + ' minor'
@@ -845,7 +804,7 @@ function modalItem(level) {
   var piece = transposePiece(steps.map(function (c, i) {
     return P(c, i === steps.length - 1 ? 2.3 : 1.25, c[0]);
   }), iv);
-  return { piece: piece, choices: ['modal', 'tonal'], right: tonal ? 1 : 0,
+  return { piece: piece, choices: ['модально', 'тонально'], right: tonal ? 1 : 0,
            label: (tonal ? 'tonal' : 'modal') + ' · centre ' + k[1] };
 }
 
@@ -885,21 +844,21 @@ function startTask(L) {
 function nextItem() {
   run.item = run.t.ladder[run.lv].make();
   paintTask();
-  blankStand('Answer by ear — the notes appear once you have.');
+  blankStand('Отвечай на слух — ноты появятся после ответа.');
   setTimeout(function () { sound(run.item.piece); }, 240);
 }
 function paintTask(verdict, cls) {
   var t = run.t, it = run.item, L = run.L;
   var pct = run.n ? Math.round(100 * run.hits / run.n) : null;
   var h = '<div class="task"><div class="gauge">' +
-    '<span>level <b>' + (run.lv + 1) + '/' + t.ladder.length + '</b> · ' + t.ladder[run.lv].name + '</span>' +
-    '<span>this run <b>' + (pct === null ? '—' : pct + '%') + '</b> of ' + run.n + '</span>' +
-    '<span>target <b>' + L.target + '</b></span></div>' +
+    '<span>ступень <b>' + (run.lv + 1) + '/' + t.ladder.length + '</b> · ' + t.ladder[run.lv].name + '</span>' +
+    '<span>этот заход <b>' + (pct === null ? '—' : pct + '%') + '</b> из ' + run.n + '</span>' +
+    '<span>цель <b>' + L.target + '</b></span></div>' +
     '<div class="q">' + t.prompt + '</div><div class="row" id="qrow">';
   for (var i = 0; i < it.choices.length; i++)
     h += '<button class="btn" data-a="' + i + '">' + it.choices[i] + '</button>';
-  h += '</div><div class="row"><button class="btn" id="hear">↻ hear it again</button>' +
-    '<button class="btn" id="quit">done for now</button></div>' +
+  h += '</div><div class="row"><button class="btn" id="hear">↻ ещё раз</button>' +
+    '<button class="btn" id="quit">на сегодня хватит</button></div>' +
     '<div class="verdict ' + (cls || '') + '">' + (verdict || '&nbsp;') + '</div>' +
     '<div class="expect">' + t.expect + '</div></div>';
   document.getElementById('taskbox').innerHTML = h;
@@ -919,11 +878,52 @@ function answer(i) {
     run.up = 0;
     if (run.lv > 0) { run.lv--; st.level[run.t.id] = run.lv; save(); }
   }
-  stand(it.piece, it.label, ok ? 'correct' : 'the answer', 'This is what sounded.', true);
+  stand(it.piece, it.label, ok ? 'верно' : 'ответ', 'Вот что прозвучало.', true);
   var v = document.querySelector('.verdict');
-  if (v) { v.textContent = ok ? 'yes — ' + it.choices[it.right] : 'no — it was ' + it.choices[it.right];
+  if (v) { v.textContent = ok ? 'да — ' + it.choices[it.right] : 'нет — было: ' + it.choices[it.right];
            v.className = 'verdict ' + (ok ? 'ok' : 'no'); }
   setTimeout(nextItem, ok ? 1500 : 2600);
+}
+
+/* ============================================================
+   7b · Холопов: настоящие главы книги. Номера страниц печатные;
+   разворот в скане считается как pdf = (страница + 2) / 2 — проверено
+   по началу главы 4 «Аккорд», с. 46, лист 24.
+   ============================================================ */
+var KH = [
+  { n:1,  t:'Гармония',                                      p:8,   m:null },
+  { n:2,  t:'Консонанс и диссонанс',                         p:15,  m:2 },
+  { n:3,  t:'Лад',                                           p:32,  m:null },
+  { n:4,  t:'Аккорд',                                        p:46,  m:1 },
+  { n:5,  t:'Неаккордовые звуки',                            p:0,   m:null },
+  { n:6,  t:'Органный пункт',                                p:0,   m:null },
+  { n:7,  t:'Голосоведение',                                 p:0,   m:null },
+  { n:8,  t:'Роды интервальных систем',                      p:0,   m:null },
+  { n:9,  t:'Лады модального типа',                          p:175, m:4 },
+  { n:10, t:'Тональность',                                   p:235, m:4 },
+  { n:11, t:'Теория функций',                                p:261, m:3 },
+  { n:12, t:'Гармония и формообразование',                   p:0,   m:null },
+  { n:0,  t:'Таблица интервалов (прил. 3)',                  p:535, m:null }
+];
+var pane = 'text', khCur = 4;
+function showPane() {}
+function khStub(k) {
+  document.getElementById('lesson').innerHTML =
+    '<h2>' + (k.n ? 'Глава ' + k.n + '. ' : '') + k.t +
+    '<span class="ru">Холопов' + (k.p ? ', с. ' + k.p : '') + '</span></h2>' +
+    '<p class="lead">Материал к этой главе ещё не построен: звучащих примеров и задания здесь пока нет.</p>' +
+    '<p>Построены четыре: <b>аккорд</b> (его глава 4), <b>консонанс и диссонанс</b> (глава 2), ' +
+    '<b>теория функций</b> (глава 11) и <b>модальность против тональности</b> (главы 9–10). ' +
+    'Они в полосе ниже. Порядок, в котором строить остальные, — твой: скажи, какая нужна раньше.</p>';
+  if (typeof run !== 'undefined' && run) document.getElementById('taskbox').innerHTML = '';
+  blankStand('Здесь появится нотный стан, когда для главы будет материал.');
+}
+function paintKh() {
+  document.getElementById('khbar').innerHTML = KH.map(function (k) {
+    return '<button class="lbtn' + (k.n === khCur ? ' on' : '') + (k.m ? ' has' : '') +
+      '" data-kh="' + k.n + '" title="' + (k.p ? 'с. ' + k.p : 'страница неизвестна') + '">' +
+      (k.n ? k.n + '. ' : '') + k.t + '</button>';
+  }).join('');
 }
 
 /* ============================================================
@@ -935,15 +935,18 @@ function paint(n) {
   EXS = {}; exN = 0;
   document.getElementById('lesson').innerHTML =
     '<h2>' + L.n + '. ' + L.title + '<span class="ru">' + L.ru + '</span></h2>' + L.body() +
-    '<div class="exgroup" style="margin-top:22px"><div class="cap">when the chapter is worked through</div>' +
-    '<div class="plays"><button class="play" id="mark">mark it, and log the minutes</button></div></div>';
+    '<div class="exgroup" style="margin-top:22px"><div class="cap">когда глава проработана</div>' +
+    '<div class="plays"><button class="play" id="mark">отметить главу и записать минуты</button></div></div>';
   document.getElementById('lessonbar').innerHTML = LESSONS.map(function (x) {
     return '<button class="lbtn' + (x.n === n ? ' on' : '') + (st.seen[x.n] ? ' done' : '') +
            '" data-l="' + x.n + '">' + x.tab + '</button>';
   }).join('');
   startTask(L);
+  var back = { 1:[4], 2:[2], 3:[11], 4:[9, 10] };   // ch.10 shares its material with ch.9
+  if (back[n] && back[n].indexOf(khCur) < 0) khCur = back[n][0];
+  paintKh();
   var done = 0; for (var k in st.seen) if (st.seen[k]) done++;
-  document.getElementById('progress').textContent = done + '/' + LESSONS.length + ' worked through';
+  document.getElementById('progress').textContent = 'проработано ' + done + ' из ' + LESSONS.length;
   window.scrollTo(0, 0);
 }
 
@@ -958,20 +961,27 @@ document.addEventListener('click', function (e) {
     return;
   }
   if (t.dataset && t.dataset.l) { paint(parseInt(t.dataset.l, 10)); return; }
+  if (t.dataset && t.dataset.kh) {
+    khCur = parseInt(t.dataset.kh, 10);
+    var k = KH.filter(function (x) { return x.n === khCur; })[0];
+    paintKh();
+    if (k && k.m) paint(k.m); else khStub(k);
+    return;
+  }
   if (t.dataset && t.dataset.a !== undefined) { answer(parseInt(t.dataset.a, 10)); return; }
   if (t.id === 'hear') { sound(run.item.piece); return; }
   if (t.id === 'replay') { if (cur.piece) sound(cur.piece); else if (run && run.item) sound(run.item.piece); return; }
-  if (t.id === 'slower') {
+  if (t.id === 'медленнее') {
     RATE = RATE > 1.4 ? 1 : RATE + 0.35;
-    t.textContent = RATE > 1 ? 'slower ×' + RATE.toFixed(2) : 'slower';
+    t.textContent = RATE > 1 ? 'slower ×' + RATE.toFixed(2) : 'медленнее';
     if (cur.piece) sound(cur.piece); else if (run && run.item) sound(run.item.piece);
     return;
   }
   if (t.id === 'quit') {
     document.getElementById('taskbox').innerHTML = '<div class="task"><p>Stopped at level <b>' +
-      (run.lv + 1) + '</b> — it is kept. ' +
-      (run.n ? 'This run: ' + Math.round(100 * run.hits / run.n) + '% of ' + run.n + '.' : '') +
-      '</p><div class="row"><button class="btn" id="resume">pick it up again</button></div></div>';
+      (run.lv + 1) + '</b> — она сохранена. ' +
+      (run.n ? 'Этот заход: ' + Math.round(100 * run.hits / run.n) + '% из ' + run.n + '.' : '') +
+      '</p><div class="row"><button class="btn" id="resume">продолжить</button></div></div>';
     return;
   }
   if (t.id === 'resume') { startTask(LESSONS.filter(function (x) { return x.n === st.lesson; })[0]); return; }
