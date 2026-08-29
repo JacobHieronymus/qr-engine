@@ -255,6 +255,7 @@
   function bandStart(firstRoom) {
     if (!eng.ready) return;
     eng.on = true; eng.room = firstRoom;
+    try { if (eng.win.__qrWake) eng.win.__qrWake(); } catch (e) {}   // 29.08b: the engine's own wake door — a cold iframe ctx is born suspended
     engClick(firstRoom === 'stretch' ? 'act-meditate' : 'act-workout');
     setTimeout(function () {
       try {
