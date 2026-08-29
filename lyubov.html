@@ -136,14 +136,38 @@ function go() {
     setTimeout(function () {
       steps.push(click('form-go'));                  // ◆ и начали — двое, не один
       veil.classList.add('gone');
-      document.getElementById('note').textContent =
-        'снимаю · ' + b + ' ударов · форма остановит запись сама';
-      setTimeout(function () {
-        document.getElementById('note').textContent =
-          'готово — файл сохранён движком. Можно закрывать.';
-      }, 64000);
+      watchCamera(b);
     }, 420);
   }, 520);
+}
+
+/* Камера отчитывается вслух. Сессия прошлой ночи сохранилась, а плёнка нет —
+   и по молчанию было не понять, кто виноват. Теперь видно на экране. */
+function watchCamera(b) {
+  var note = document.getElementById('note'), t0 = Date.now(), sawRec = false;
+  var iv = setInterval(function () {
+    var s = Math.round((Date.now() - t0) / 1000);
+    var v = E('tb-rec-vid'), st = 'нет кнопки';
+    var frames = '', kind = '';
+    try {
+      if (v) {
+        var rec = v._isRec && v._isRec();
+        if (rec) { sawRec = true; st = 'пишет'; }
+        else st = sawRec ? 'остановлена' : 'НЕ ПОШЛА';
+        kind = ' · ' + ((E('tb-vid-fmt') || {}).value || '?');
+      }
+      var mk = E('markova-btn');
+      if (mk) kind += ' · Маркова ' + (mk.className.indexOf('active') >= 0 ? 'здесь' : 'СПИТ');
+      frames = ' · p=' + eng.win.eval('state.p') + ' · ' + eng.win.eval('state.bpm') + ' уд';
+    } catch (e) { st = 'не спросить: ' + e.message.slice(0, 24); }
+    note.textContent = s + ' с · камера: ' + st + kind + frames + ' · ' + b + ' твоих';
+    if (s > 70) {
+      clearInterval(iv);
+      note.textContent = sawRec
+        ? 'снято. Если файла нет — скажи, и я посмотрю, куда он делся.'
+        : 'КАМЕРА НЕ ПОШЛА ВОВСЕ. Музыка была, плёнки нет — скажи мне это.';
+    }
+  }, 1000);
 }
 
 ['pointerdown'].forEach(function (ev) {
