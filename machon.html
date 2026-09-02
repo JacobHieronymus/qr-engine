@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מָכוֹן · machon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Prata&family=Frank+Ruhl+Libre:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* the operational companion of the wish map (28.08.2026): same paper, same inks.
+     The map ranks the levels; this page turns the ranking into a day. */
+  :root {
+    --paper: #F3EDDF; --card: #FAF6EC;
+    --ink: #262C44; --ink-strong: #1B2138; --ink-soft: #5A5A50;
+    --gold: #9C7A26; --gold-strong: #7E6118;
+    --indigo: #3A4A85; --oxide: #8F4130;
+    --line: rgba(38,44,68,.22); --line-faint: rgba(38,44,68,.12);
+    --chip-bg: rgba(58,74,133,.08); --gold-wash: rgba(156,122,38,.09);
+    --ok: #4A6B3A;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#14182A; --card:#1C2136;
+      --ink:#DDD6C4; --ink-strong:#F0EADA; --ink-soft:#9B968A;
+      --gold:#CFA84E; --gold-strong:#E0BC66;
+      --indigo:#9AA9DE; --oxide:#D28067;
+      --line:rgba(221,214,196,.25); --line-faint:rgba(221,214,196,.12);
+      --chip-bg:rgba(154,169,222,.12); --gold-wash:rgba(207,168,78,.10);
+      --ok:#8FB878;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#14182A; --card:#1C2136;
+    --ink:#DDD6C4; --ink-strong:#F0EADA; --ink-soft:#9B968A;
+    --gold:#CFA84E; --gold-strong:#E0BC66;
+    --indigo:#9AA9DE; --oxide:#D28067;
+    --line:rgba(221,214,196,.25); --line-faint:rgba(221,214,196,.12);
+    --chip-bg:rgba(154,169,222,.12); --gold-wash:rgba(207,168,78,.10);
+    --ok:#8FB878;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:var(--paper); color:var(--ink);
+    font-family:"Source Serif 4", Georgia, serif;
+    font-size:16.5px; line-height:1.58; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:680px; margin:0 auto; padding:0 20px 80px; }
+  .he { font-family:"Frank Ruhl Libre", serif; }
+  .mono { font-family:"IBM Plex Mono", monospace; font-variant-numeric:tabular-nums; }
+
+  header { padding:44px 0 4px; }
+  .masthead { display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    border-bottom:2px solid var(--ink-strong); padding-bottom:6px; }
+  .masthead .meta { font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ink-soft); }
+  h1 { font-family:"Frank Ruhl Libre", Georgia, serif; font-weight:700;
+    font-size:clamp(40px,9vw,58px); line-height:1.05; color:var(--ink-strong); padding:22px 0 2px; }
+  h1 .lat { font-family:"Prata", Georgia, serif; font-weight:400; font-size:.42em; color:var(--ink-soft);
+    display:inline-block; margin-inline-start:14px; letter-spacing:.02em; }
+  .lede { font-size:15.5px; font-style:italic; color:var(--ink-soft); padding:6px 0 18px; max-width:36em; }
+
+  /* place chips */
+  .places { display:flex; gap:8px; padding:2px 0 8px; }
+  .pchip {
+    font-family:"IBM Plex Mono",monospace; font-size:13px; cursor:pointer;
+    background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:3px;
+    padding:8px 14px; display:flex; gap:8px; align-items:baseline;
+  }
+  .pchip .he { font-size:15px; }
+  .pchip.on { border-color:var(--gold); color:var(--gold-strong); background:var(--gold-wash); }
+  .pchip:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+
+  /* levels */
+  .axis { position:relative; margin-top:18px; }
+  .axis::before { content:""; position:absolute; left:8px; top:12px; bottom:12px; width:2px;
+    background:linear-gradient(to bottom, var(--gold), var(--indigo) 40%, var(--line) 94%); }
+  section.level { position:relative; padding:26px 0 26px 40px; }
+  section.level + section.level { border-top:1px solid var(--line-faint); }
+  .node { position:absolute; left:2px; top:34px; width:13px; height:13px; border-radius:50%;
+    background:var(--paper); border:3px solid var(--indigo); }
+  .first .node { border-color:var(--gold); background:var(--gold); }
+  .eyebrow { font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:500;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--indigo);
+    display:flex; gap:12px; align-items:baseline; }
+  .first .eyebrow { color:var(--gold-strong); }
+  .eyebrow .tag { color:var(--ink-soft); letter-spacing:.06em; text-transform:none; }
+  h2 { font-family:"Frank Ruhl Libre", serif; font-weight:700;
+    font-size:clamp(24px,5vw,30px); line-height:1.15; color:var(--ink-strong); padding:8px 0 2px; }
+  h2 .lat { font-family:"Prata", serif; font-weight:400; font-size:.5em; color:var(--ink-soft); margin-inline-start:10px; }
+
+  /* tool cards */
+  .tools { display:flex; flex-direction:column; gap:12px; padding-top:12px; }
+  .tool { background:var(--card); border:1px solid var(--line-faint); border-radius:4px;
+    padding:15px 17px 15px; }
+  .tool.dim { opacity:.42; }
+  .trow { display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .tname { font-size:19px; font-weight:500; color:var(--ink-strong); }
+  .tname .he { font-weight:700; }
+  .tname a { color:inherit; text-decoration:none; border-bottom:1.5px solid var(--gold); }
+  .tname a:focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
+  .tdur { font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-soft); white-space:nowrap; }
+  .twhat { font-size:14.5px; color:var(--ink); padding-top:3px; max-width:44em; }
+  .tmode { font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--gold-strong); padding-top:6px; }
+  .tgauge { font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-soft); padding-top:6px;
+    border-top:1px dashed var(--line-faint); margin-top:8px; }
+  .tgauge b { color:var(--ink-strong); font-weight:500; }
+  .tgauge .tgt { color:var(--indigo); }
+
+  /* the listening timer */
+  .timer { display:flex; align-items:center; gap:16px; padding-top:10px; flex-wrap:wrap; }
+  .tbig { font-family:"IBM Plex Mono",monospace; font-size:34px; color:var(--ink-strong);
+    font-variant-numeric:tabular-nums; min-width:118px; }
+  button.go {
+    font-family:"Frank Ruhl Libre",serif; font-size:17px; cursor:pointer;
+    background:var(--gold-wash); color:var(--gold-strong);
+    border:1px solid var(--gold); border-radius:4px; padding:9px 22px;
+  }
+  button.go:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .tnote { font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-soft); }
+
+  /* body gauges */
+  .body-rows { padding-top:8px; }
+  .brow { display:grid; grid-template-columns: 1fr auto auto auto; gap:10px; align-items:center;
+    padding:8px 0; border-bottom:1px dashed var(--line-faint); }
+  .brow:last-child { border-bottom:none; }
+  .bname { font-size:16.5px; color:var(--ink-strong); }
+  .bname .lat { font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-soft); display:block; }
+  .bval { font-family:"IBM Plex Mono",monospace; font-size:16px; color:var(--ink-strong);
+    font-variant-numeric:tabular-nums; text-align:right; }
+  .bval .tgt { color:var(--indigo); font-size:12.5px; }
+  button.log { font-family:"IBM Plex Mono",monospace; font-size:12px; cursor:pointer;
+    background:var(--chip-bg); color:var(--indigo); border:1px solid var(--line-faint);
+    border-radius:3px; padding:6px 12px; }
+  button.log:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  input.n { width:64px; font-family:"IBM Plex Mono",monospace; font-size:15px; padding:5px 7px;
+    border:1px solid var(--line); border-radius:3px; background:var(--paper); color:var(--ink-strong); }
+  .bweek { font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-soft); text-align:right; }
+
+  /* the week board */
+  .week { background:var(--card); border:1px solid var(--line-faint); border-radius:4px;
+    padding:14px 16px 10px; margin:14px 0 4px; }
+  .todayline { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
+    padding-bottom:10px; border-bottom:1px solid var(--line-faint); }
+  .todayline .dow { font-family:"Frank Ruhl Libre",serif; font-weight:700; font-size:20px; color:var(--gold-strong); }
+  .todayline .plan { font-size:14.5px; color:var(--ink); }
+  .wtbl { width:100%; border-collapse:collapse; margin-top:6px; }
+  .wtbl td { padding:6px 8px 6px 0; border-bottom:1px dashed var(--line-faint);
+    font-size:13px; vertical-align:baseline; }
+  .wtbl tr:last-child td { border-bottom:none; }
+  .wtbl .d { font-family:"Frank Ruhl Libre",serif; font-size:14.5px; font-weight:500;
+    color:var(--ink-strong); white-space:nowrap; width:88px; }
+  .wtbl .d .en { font-family:"IBM Plex Mono",monospace; font-size:9.5px; color:var(--ink-soft);
+    display:block; text-transform:uppercase; letter-spacing:.08em; }
+  .wtbl tr.now td { background:var(--gold-wash); }
+  .wtbl tr.now .d { color:var(--gold-strong); }
+  .wtbl .b { font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--indigo); white-space:nowrap; }
+  .wkfoot { font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-soft);
+    padding-top:8px; line-height:1.7; }
+  footer { margin-top:52px; padding-top:14px; border-top:1px solid var(--line);
+    font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-soft);
+    line-height:1.8; letter-spacing:.03em; }
+  @media (max-width:480px) {
+    section.level { padding-left:28px; }
+    .axis::before { left:3px; }
+    .node { left:-3px; }
+    .brow { grid-template-columns: 1fr auto auto; }
+    .bweek { display:none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="masthead">
+    <span class="meta">machon · the training house</span>
+    <span class="meta">v0.4</span>
+  </div>
+  <h1><span class="he">מָכוֹן</span><span class="lat">one door to every trainer</span></h1>
+  <p class="lede">The order below is the map's own verdict: what comes first — happens; what waits for a free hour — never does. Practice first, the body in the morning, the line and its craft in the best hours, mechanics in what remains.</p>
+  <div class="places" id="places" role="group" aria-label="where are you">
+    <button class="pchip" data-p="bayit"><span class="he">בַּיִת</span><span>home</span></button>
+    <button class="pchip" data-p="sifria"><span class="he">סִפְרִיָּה</span><span>library</span></button>
+    <button class="pchip" data-p="bachutz"><span class="he">בַּחוּץ</span><span>outside</span></button>
+  </div>
+</header>
+
+<div class="week" id="week">
+  <div class="todayline"><span class="dow" id="dow">—</span><span class="plan" id="dplan">—</span></div>
+  <table class="wtbl"><tbody id="wrows"></tbody></table>
+  <div class="wkfoot">every day: psalm first · 10 min listening · craft 2 h (the faculty week) · hebrew 45+ min<br>
+  from 3.09 the Harmony evenings are irregular — the morning is the protected half, and it moves for no one</div>
+</div>
+
+<div class="axis">
+
+  <!-- 1 · PRACTICE FIRST -->
+  <section class="level first" data-modes="bayit sifria bachutz">
+    <span class="node" aria-hidden="true"></span>
+    <div class="eyebrow"><span>01 · first</span><span class="tag">before everything, not after</span></div>
+    <h2><span class="he">הַקְשָׁבָה</span><span class="lat">hakshava · listening</span></h2>
+    <div class="tools"><div class="tool">
+      <p class="twhat">Ten minutes of attention with nothing added — no screen, no goal, no recording. Listening is the trained organ of the profession; here it is the practice itself.</p>
+      <div class="timer">
+        <span class="tbig" id="tdisp">10:00</span>
+        <button class="go" id="tgo">הַתְחֵל · start</button>
+        <span class="tnote" id="tweek"></span>
+      </div>
+    </div>
+    <div class="tool">
+      <div class="trow">
+        <span class="tname"><a id="pslink" href="tehilim.html#1"><span class="he">תְּהִלִּים</span> · tehilim</a></span>
+        <span class="tdur" id="psnext">next · 1 / 150</span>
+      </div>
+      <p class="twhat">One psalm a day, in order — all hundred and fifty, then again. The link opens today's psalm: vowels, Latin transliteration, English underneath, each layer switchable. Reading older than any method, in the language that is becoming the room.</p>
+      <div class="tmode" data-mode-note data-quiet="read with the eyes — the voice waits for home" data-free="aloud, unhurried"></div>
+      <div class="timer" style="padding-top:6px">
+        <button class="go" id="psdone">קָרָאתִי · read it</button>
+        <span class="tnote" id="psweek"></span>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- 2 · THE BODY -->
+  <section class="level" data-modes="bayit bachutz">
+    <span class="node" aria-hidden="true"></span>
+    <div class="eyebrow"><span>02 · the battery</span><span class="tag">every level draws on it</span></div>
+    <h2><span class="he">גּוּף</span><span class="lat">guf · the body</span></h2>
+    <div class="tools">
+      <div class="tool" data-need="bachutz">
+        <div class="trow">
+          <span class="tname"><a href="gan.html"><span class="he">גַּן</span> · gan</a></span>
+          <span class="tdur">40:00 · outside</span>
+        </div>
+        <p class="twhat">Walk, easy run, strength, stretch — counted in Hebrew, a body word in every rest.</p>
+        <div class="tmode" data-mode-note></div>
+      </div>
+      <div class="tool" data-need="bayit">
+        <div class="trow">
+          <span class="tname"><a href="guf.html"><span class="he">גּוּף</span> · guf — Markov at home</a></span>
+          <span class="tdur">30:00 full · 8:00 stretch</span>
+        </div>
+        <p class="twhat">Markov leads the whole session — warm-up, three rounds, plank, the six stretches — counted in Hebrew, a body word in every rest, and the Markovs improvising the music from the next room.</p>
+        <div class="tmode" data-mode-note></div>
+      </div>
+      <div class="tool">
+        <div class="trow"><span class="tname"><span class="he">מַדָּדִים</span> · gauges</span>
+          <span class="tdur">target ← the map</span></div>
+        <div class="body-rows" id="brows"></div>
+        <div class="tgauge" id="bhint">targets from the wish map · dates not set yet — a gauge without a date is a readout, not a goal</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · THE LINE -->
+  <section class="level" data-modes="bayit sifria">
+    <span class="node" aria-hidden="true"></span>
+    <div class="eyebrow"><span>03 · the line</span><span class="tag">the best hours, not the leftovers</span></div>
+    <h2><span class="he">הַקַּו</span><span class="lat">hakav · the line</span></h2>
+    <div class="tools">
+      <div class="tool">
+        <div class="trow">
+          <span class="tname"><a href="2907QR_Engine_8.html">QR Engine</a></span>
+          <span class="tdur">open-ended</span>
+        </div>
+        <p class="twhat">The instrument itself — the lattice, the Markovs, the prayer. Headphones are enough; the work is silent to the room.</p>
+        <div class="tmode" data-mode-note></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · THE CRAFT -->
+  <section class="level" data-modes="bayit sifria">
+    <span class="node" aria-hidden="true"></span>
+    <div class="eyebrow"><span>04 · the craft</span><span class="tag">the conservatory course, taken up at last</span></div>
+    <h2><span class="he">מְלָאכָה</span><span class="lat">melakha · the craft</span></h2>
+    <div class="tools">
+
+      <div class="tool">
+        <div class="trow"><span class="tname"><a href="harmony.html"><span class="he">הַרְמוֹנְיָה</span> · harmony</a></span>
+          <span class="tdur">40 min · exposition, then the tasks</span></div>
+        <p class="twhat">Kholopov's course — his call: the best of the harmony books. Chapter by chapter: the exposition first, with every example playable in just intonation, then one adaptive task built on it. A written problem a day stays the homework beside it. Past the performer's course this is acquisition, not recovery — expect it to feel new, not remembered.</p>
+        <div class="tmode" data-mode-note data-quiet="headphones — the whole chapter is sound"></div>
+        <div class="tgauge" id="g-harmony">—</div>
+      </div>
+
+      <div class="tool">
+        <div class="trow"><span class="tname"><span class="he">הוֹלָכַת קוֹלוֹת</span> · voice leading</span>
+          <span class="tdur">species by species</span></div>
+        <p class="twhat">Strict counterpoint — the discipline under the residue choir: every rule here is a singer's breath. Viola hands remember the inner voices; this names what they remember.</p>
+        <div class="tmode" data-mode-note></div>
+      </div>
+
+      <div class="tool">
+        <div class="trow"><span class="tname"><span class="he">צוּרָה</span> · form &amp; composition</span>
+          <span class="tdur">a miniature a week</span></div>
+        <p class="twhat">The form course read with scores — period, sentence, the small forms — and a written miniature each week in the form just read.</p>
+        <div class="tmode" data-mode-note></div>
+      </div>
+
+      <div class="tool">
+        <div class="trow"><span class="tname"><span class="he">מָנָה</span> · the dose</span>
+          <span class="tdur">2 h/day · the composition faculty</span></div>
+        <p class="twhat">Written work counts; reading about music does not. Harmony now checks itself — its minutes are logged from the page. For the rest: paper, the textbook's key, and the instrument in the house.</p>
+        <div class="tgauge" style="border-top:none;margin-top:2px">
+          sun&nbsp;· harmony 40 + composition 80 (the week's miniature)<br>
+          mon · harmony 40 + polyphony 50 + solfège 30<br>
+          tue&nbsp;· harmony 40 + form analysis 50 + score reading 30<br>
+          wed · harmony 30 + orchestration 60 + composition 30<br>
+          thu&nbsp;· harmony 40 + polyphony 50 + solfège 30<br>
+          fri&nbsp;· the short day — harmony 30 + analysis 30<br>
+          sat&nbsp;· rest; listening with a score in the lap is rest too
+        </div>
+        <div class="timer" style="padding-top:6px">
+          <button class="go" id="clog">log minutes</button>
+          <span class="tnote" id="cweek"></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 5 · THE EAR -->
+  <section class="level" data-modes="bayit sifria">
+    <span class="node" aria-hidden="true"></span>
+    <div class="eyebrow"><span>05 · the ear</span><span class="tag">measure cold, don't drill</span></div>
+    <h2><span class="he">אֹזֶן</span><span class="lat">ozen · the ear</span></h2>
+    <div class="tools">
+      <div class="tool">
+        <div class="trow">
+          <span class="tname"><a href="shmia.html"><span class="he">שְׁמִיעָה</span> · shmia</a></span>
+          <span class="tdur">~10:00 · headphones</span>
+        </div>
+        <p class="twhat">Five gauges, one button, silent. Run it cold — first thing at the desk, not after an hour of sound. Mark the device; a threshold without its device is half a number.</p>
+        <div class="tmode" data-mode-note></div>
+        <div class="tgauge" id="g-shmia">—</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · THE LANGUAGE -->
+  <section class="level" data-modes="bayit sifria">
+    <span class="node" aria-hidden="true"></span>
+    <div class="eyebrow"><span>06 · the room</span><span class="tag">from September the language is the workplace</span></div>
+    <h2><span class="he">עִבְרִית</span><span class="lat">ivrit · the language</span></h2>
+    <div class="tools">
+
+      <div class="tool">
+        <div class="trow">
+          <span class="tname"><a href="zov.html"><span class="he">זוֹב</span> · zov</a></span>
+          <span class="tdur">≤20 pulls</span>
+        </div>
+        <p class="twhat">Spaced recall. One home device only — the history lives where it was made.</p>
+        <div class="tmode" data-mode-note data-quiet="L cards only — hear → recall → grade, no voice" data-free="full deck — P cards and new words say everything aloud, twice"></div>
+        <div class="tgauge" id="g-zov">—</div>
+      </div>
+
+      <div class="tool">
+        <div class="trow">
+          <span class="tname">tekstim <span class="he">·</span> tape</span>
+          <span class="tdur">40:11 · on the phone</span>
+        </div>
+        <p class="twhat">Twenty-three texts: keys → slow → living speed. Take the words from the voice, never the stress. Once a day, again tomorrow, once more in a week.</p>
+        <div class="tmode" data-mode-note></div>
+      </div>
+
+      <div class="tool">
+        <div class="trow">
+          <span class="tname"><a href="sicha.html"><span class="he">שִׂיחָה</span> · sicha</a></span>
+          <span class="tdur">~30:00</span>
+        </div>
+        <p class="twhat">Conversation at level bet.</p>
+        <div class="tmode" data-mode-note data-quiet="typed turns, sound on — the mic stays untouched" data-free="mic on — speak, and let it hear you"></div>
+      </div>
+
+      <div class="tool">
+        <div class="trow">
+          <span class="tname"><a href="sulam.html"><span class="he">סֻלָּם</span> · sulam</a></span>
+          <span class="tdur">~20:00</span>
+        </div>
+        <p class="twhat">The verb ladder — the past paradigm as a melody, men left, women right.</p>
+        <div class="tmode" data-mode-note data-quiet="stage 1 only — listen; the pan carries the grammar" data-free="stages 2–3 — sing the holes, in tempo"></div>
+        <div class="tgauge" id="g-sulam">—</div>
+      </div>
+
+      <div class="tool">
+        <div class="trow">
+          <span class="tname"><a href="imun.html"><span class="he">אִמּוּן</span> · imun</a></span>
+          <span class="tdur">~12:00</span>
+        </div>
+        <p class="twhat">Breath, pulse, backward numbers, images.</p>
+        <div class="tmode" data-mode-note data-quiet="breath block only — the numbers want a voice, the pulse wants a wire" data-free="all four — pulse on wired or built-in sound, never Bluetooth"></div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<footer id="foot">
+  gauges are read from this browser's own storage — an instrument shows numbers only where it has run<br>
+  the drills sit near 80–85% by design: being wrong near the end is the mechanism, not a failure<br>
+  built on the wish map · 28.08.2026 · the order of levels is the map's conclusion
+</footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+
+  /* ---------- state ---------- */
+  var KEY = 'machon-state-v1';
+  var state;
+  try { state = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { state = null; }
+  if (!state) state = { place: 'bayit', listen: [], body: {} };
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  function today() { var d = new Date(); return d.toISOString().slice(0, 10); }
+  function lastDays(rows, n) {
+    var cut = Date.now() - n * 864e5;
+    return (rows || []).filter(function (r) { return new Date(r.d).getTime() >= cut; });
+  }
+
+  /* ---------- place chips ---------- */
+  function setPlace(p) {
+    state.place = p; save();
+    $$('.pchip').forEach(function (c) { c.classList.toggle('on', c.dataset.p === p); });
+    // sections and tools dim when the place cannot hold them
+    $$('section.level').forEach(function (s) {
+      var ok = (s.dataset.modes || '').indexOf(p) >= 0;
+      s.style.display = ok ? '' : 'none';
+    });
+    $$('.tool[data-need]').forEach(function (t) {
+      t.classList.toggle('dim', t.dataset.need !== p);
+    });
+    // per-mode usage notes
+    $$('[data-mode-note]').forEach(function (el) {
+      var quiet = el.getAttribute('data-quiet'), free = el.getAttribute('data-free');
+      if (p === 'sifria') el.textContent = quiet ? '· ' + quiet : '· silent with headphones';
+      else el.textContent = free ? '· ' + free : '';
+    });
+  }
+  $$('.pchip').forEach(function (c) {
+    c.addEventListener('click', function () { setPlace(c.dataset.p); });
+  });
+
+  /* ---------- the listening timer ---------- */
+  var MIN = 10;
+  try { var q = new URLSearchParams(location.search).get('min'); if (q) MIN = Math.max(0.05, parseFloat(q)); } catch (e) {}
+  var tLeft = MIN * 60, tId = null;
+  function tShow() {
+    var m = Math.floor(tLeft / 60), s = Math.round(tLeft % 60);
+    $('#tdisp').textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function tWeek() {
+    var w = lastDays(state.listen, 7);
+    var min = w.reduce(function (a, r) { return a + (r.min || 0); }, 0);
+    $('#tweek').textContent = w.length ? (w.length + ' sits · ' + Math.round(min) + ' min this week') : 'no sits logged this week';
+  }
+  $('#tgo').addEventListener('click', function () {
+    if (tId) { // stop early: log what was actually sat
+      clearInterval(tId); tId = null;
+      var sat = MIN - tLeft / 60;
+      if (sat >= 1) { state.listen.push({ d: today(), min: Math.round(sat * 10) / 10 }); save(); }
+      tLeft = MIN * 60; tShow(); tWeek();
+      $('#tgo').textContent = 'הַתְחֵל · start';
+      return;
+    }
+    $('#tgo').textContent = 'עֲצֹר · stop';
+    tId = setInterval(function () {
+      tLeft -= 1; tShow();
+      if (tLeft <= 0) {
+        clearInterval(tId); tId = null;
+        state.listen.push({ d: today(), min: MIN }); save();
+        tLeft = MIN * 60;
+        $('#tgo').textContent = 'הַתְחֵל · start';
+        tShow(); tWeek();
+      }
+    }, 1000);
+  });
+  tShow(); tWeek();
+
+  /* ---------- body gauges (targets from the map; dates deliberately unset) ---------- */
+  var BODY = [
+    { k: 'run',  he: 'רִיצָה',       lat: 'run · Gan Sacher',   tgt: '3–4/wk', count: true },
+    { k: 'pull', he: 'מְתִיחוֹת',    lat: 'pull-ups',           tgt: 15 },
+    { k: 'abs',  he: 'בֶּטֶן',       lat: 'abs',                tgt: 50 },
+    { k: 'push', he: 'שְׁכִיבוֹת',   lat: 'push-ups',           tgt: 40 }
+  ];
+  function bestOf(rows) {
+    var b = null;
+    (rows || []).forEach(function (r) { if (b == null || r.n > b) b = r.n; });
+    return b;
+  }
+  function renderBody() {
+    var host = $('#brows'); host.innerHTML = '';
+    BODY.forEach(function (b) {
+      var rows = state.body[b.k] || [];
+      var row = document.createElement('div'); row.className = 'brow';
+      var wk = lastDays(rows, 7);
+      var cur = b.count ? wk.length : bestOf(rows);
+      var val = b.count
+        ? (cur || 0) + ' <span class="tgt">/ ' + b.tgt + '</span>'
+        : (cur == null ? '—' : cur) + ' <span class="tgt">→ ' + b.tgt + '</span>';
+      row.innerHTML =
+        '<span class="bname"><span class="he">' + b.he + '</span><span class="lat">' + b.lat + '</span></span>' +
+        '<span class="bval">' + val + '</span>' +
+        '<span class="bweek">' + (b.count ? 'this week' : (wk.length ? wk.length + '× this wk' : '')) + '</span>';
+      var act = document.createElement('span');
+      if (b.count) {
+        var btn = document.createElement('button'); btn.className = 'log'; btn.textContent = 'ran today';
+        btn.addEventListener('click', function () {
+          rows.push({ d: today(), n: 1 }); state.body[b.k] = rows; save(); renderBody();
+        });
+        act.appendChild(btn);
+      } else {
+        var btn2 = document.createElement('button'); btn2.className = 'log'; btn2.textContent = 'log';
+        btn2.addEventListener('click', function () {
+          var inp = document.createElement('input');
+          inp.className = 'n'; inp.type = 'number'; inp.min = '0'; inp.inputMode = 'numeric';
+          act.replaceChild(inp, btn2); inp.focus();
+          function commit() {
+            var n = parseInt(inp.value, 10);
+            if (n >= 0) { rows.push({ d: today(), n: n }); state.body[b.k] = rows; save(); }
+            renderBody();
+          }
+          inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') commit(); });
+          inp.addEventListener('blur', commit);
+        });
+        act.appendChild(btn2);
+      }
+      row.appendChild(act);
+      host.appendChild(row);
+    });
+  }
+  renderBody();
+
+  /* ---------- psalms: one a day, in order, and round again ---------- */
+  if (!state.psalms) state.psalms = { next: 1, log: [] };
+  function psRender() {
+    var n = state.psalms.next;
+    var link = $('#pslink'); if (link) link.href = 'tehilim.html#' + n;
+    $('#psnext').textContent = 'next · ' + n + ' / 150';
+    var w = lastDays(state.psalms.log, 7);
+    $('#psweek').textContent = w.length ? w.length + ' psalms this week' : 'none yet this week';
+  }
+  $('#psdone').addEventListener('click', function () {
+    state.psalms.log.push({ d: today(), n: state.psalms.next });
+    state.psalms.next = state.psalms.next % 150 + 1;
+    save(); psRender();
+  });
+  psRender();
+
+  /* ---------- the craft dose: his own ruling of 19.08 ---------- */
+  if (!state.craft) state.craft = [];
+  function craftDose() { return 120; }   // 28.08, his ruling of the same day, third and standing: «2 часа в день на занятия музыкой по программе композиторского факультета» — the chain 25 → 45 → 120 is the chronicle's to keep
+  function craftRender() {
+    var w = lastDays(state.craft, 7);
+    var min = w.reduce(function (a2, r) { return a2 + (r.min || 0); }, 0);
+    $('#cweek').textContent = Math.round(min) + ' / ' + craftDose() * 7 + ' min this week';
+  }
+  $('#clog').addEventListener('click', function () {
+    var host = $('#clog').parentElement;
+    var inp = document.createElement('input');
+    inp.className = 'n'; inp.type = 'number'; inp.min = '0'; inp.inputMode = 'numeric'; inp.placeholder = 'min';
+    host.insertBefore(inp, $('#clog')); $('#clog').style.display = 'none'; inp.focus();
+    function commit() {
+      var n = parseInt(inp.value, 10);
+      if (n > 0) { state.craft.push({ d: today(), min: n }); save(); }
+      inp.remove(); $('#clog').style.display = '';
+      craftRender();
+    }
+    inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') commit(); });
+    inp.addEventListener('blur', commit);
+  });
+  craftRender();
+
+  /* ---------- gauges read from the instruments' own storage (same origin) ----------
+     Defensive throughout: on a browser where an instrument never ran, its key is
+     absent and the line stays a quiet dash. Never let one bad key break the page. */
+  function readJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+
+  (function shmiaGauge() {
+    var s = readJSON('shmia-state-v1');
+    var el = $('#g-shmia');
+    if (!s || !s.thresholds || !s.thresholds.length) { el.textContent = 'no run in this browser yet'; return; }
+    var order = ['hevdel', 'revach', 'kolot', 'ivrit'], units = { hevdel: '%', revach: 'ms', kolot: 'dB', ivrit: 'dB SNR' };
+    var parts = [];
+    order.forEach(function (k) {
+      var last = null;
+      s.thresholds.forEach(function (t) { if (t.block === k && t.value != null) last = t; });
+      if (last) parts.push(k + ' <b>' + (last.bound || '') + last.value + '</b>' + (units[k] ? ' ' + units[k] : ''));
+    });
+    var oz = [];
+    ['500', '1000', '2000', '4000', '6000', '8000'].forEach(function (f) {
+      var last = null;
+      s.thresholds.forEach(function (t) { if (t.block === 'ozn' + f) last = t; });
+      if (last && last.value != null) oz.push((last.value > 0 ? '+' : '') + last.value);
+    });
+    if (oz.length === 6) parts.push('oznayim <b>' + oz.join(' / ') + '</b>');
+    parts.push('<span class="tgt">ivrit target: native −8…−12</span>');
+    el.innerHTML = parts.length ? parts.join(' · ') : 'no thresholds stored yet';
+  })();
+
+  (function harmonyGauge() {
+    var s = readJSON('harmony-kholopov-v1');
+    var el = $('#g-harmony');
+    if (!el) return;
+    if (!s) { el.textContent = 'not opened in this browser yet'; return; }
+    var seen = 0; for (var k in (s.seen || {})) if (s.seen[k]) seen++;
+    var LAD = { root: 6, tritone: 5, func: 5, modal: 3 };
+    var parts = ['chapters <b>' + seen + '</b>/4'];
+    ['root', 'tritone', 'func', 'modal'].forEach(function (t) {
+      var lv = s.level && s.level[t];
+      if (lv != null) parts.push(t + ' <b>' + (lv + 1) + '</b>/' + LAD[t]);
+    });
+    parts.push('<span class="tgt">root → 5 by 30 Sep</span>');
+    el.innerHTML = parts.join(' · ');
+  })();
+
+  (function zovGauge() {
+    var s = readJSON('zov-state-v1');
+    var el = $('#g-zov');
+    if (!s) { el.textContent = 'no deck in this browser — zov lives on the phone'; return; }
+    try {
+      var cards = s.cards || s.deck || [];
+      var nowT = Date.now(), due = 0, seen = 0;
+      cards.forEach(function (c) {
+        if (c.state && c.state !== 'learn') seen++;
+        var d = c.due || (c.fsrs && c.fsrs.due);
+        if (d && new Date(d).getTime() <= nowT) due++;
+      });
+      el.innerHTML = 'cards <b>' + cards.length + '</b> · past intro <b>' + seen + '</b>' + (due ? ' · due now <b>' + due + '</b>' : '');
+    } catch (e) { el.textContent = 'deck present — shape unknown'; }
+  })();
+
+  (function sulamGauge() {
+    var s = readJSON('sulam-state-v1');
+    var el = $('#g-sulam');
+    if (!s || !s.cells) { el.textContent = 'never opened in this browser'; return; }
+    var n = Object.keys(s.cells).length;
+    el.innerHTML = n ? 'cells touched <b>' + n + '</b> / 96' : 'the lattice is blank — as it should be before the first pass';
+  })();
+
+  /* ---------- the week board: a template, not a log ---------- */
+  var WEEK = [
+    { he: 'רִאשׁוֹן',  en: 'sun', body: 'run · morning',      day: 'the line in the best hours · ear cold at the desk' },
+    { he: 'שֵׁנִי',    en: 'mon', body: 'strength · home',    day: 'the line · language deep block' },
+    { he: 'שְׁלִישִׁי', en: 'tue', body: 'run · morning',      day: 'the line · craft double dose welcome' },
+    { he: 'רְבִיעִי',  en: 'wed', body: 'strength · home',    day: 'episode day — the Markovs go out' },
+    { he: 'חֲמִישִׁי',  en: 'thu', body: 'run · morning',      day: 'the line · language deep block' },
+    { he: 'שִׁישִׁי',   en: 'fri', body: 'light · stretch',    day: 'short day: shopping early, the house for Shabbat, stop before candles' },
+    { he: 'שַׁבָּת',    en: 'sat', body: 'rest',               day: 'psalms and listening only — no gauges, no ladders · episode after havdala' }
+  ];
+  (function weekBoard() {
+    var dow = (new Date().getDay() + 0) % 7;   // 0 = Sunday, the week's first day here
+    var rows = $('#wrows'); if (!rows) return;
+    WEEK.forEach(function (w, i) {
+      var tr = document.createElement('tr');
+      if (i === dow) tr.className = 'now';
+      tr.innerHTML = '<td class="d"><span class="he">' + w.he + '</span><span class="en">' + w.en + '</span></td>' +
+        '<td class="b">' + w.body + '</td><td>' + w.day + '</td>';
+      rows.appendChild(tr);
+    });
+    var t = WEEK[dow];
+    $('#dow').textContent = t.he;
+    $('#dplan').textContent = t.day + ' · body: ' + t.body;
+  })();
+
+  /* ---------- boot ---------- */
+  setPlace(state.place || 'bayit');
+})();
+</script>
+</body>
+</html>

@@ -100,6 +100,8 @@
     <label>music · the Markovs improvise live in the engine's room; off = the built-in pattern</label>
     <div style="display:flex;gap:8px">
       <button class="intBtn on" id="bandBtn">הַמַּרְקוֹבִים · live</button>
+      <input type="range" id="mvol" min="0" max="100" value="60" style="flex:1;min-width:120px;accent-color:var(--gold)">
+      <span id="mvolnum" class="mono" style="min-width:3em;text-align:right">60</span>
     </div>
   </div>
 </div>
@@ -303,8 +305,9 @@ function speak(text, slow) {
   if (!isHe && enVoice) u.voice = enVoice;
   u.lang = isHe ? 'he-IL' : 'en-US';
   u.rate = isHe ? (slow ? 0.78 : 0.9) : 1.0;
-  u.onstart = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain * 0.45, ctx.currentTime, 0.15); if (eng.on) engMaster(0.10); };
-  u.onend = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain, ctx.currentTime, 0.3); if (eng.on) engMaster(0.26); };
+  u.onstart = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain * 0.45, ctx.currentTime, 0.15); if (eng.on) engMaster(mvolDuck()); };
+  u.onend = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain, ctx.currentTime, 0.3); if (eng.on) engMaster(mvol()); };
+  setTimeout(() => { if (eng.on && !speechSynthesis.speaking) engMaster(mvol()); }, Math.max(2500, text.length * 110));
   speechSynthesis.speak(u);
 }
 
@@ -314,6 +317,13 @@ function speak(text, slow) {
 // set while he moves, the prayer for the stretch and the breath. If the file
 // is absent, gan falls back to its own baked blips without a word.
 var eng = { win: null, ready: false, on: false, room: null, heart: false };
+var MVOL_KEY = 'gan-mvol-v1';
+function mvol() {
+  var el = document.getElementById('mvol');
+  var v = el ? parseInt(el.value, 10) : 60;
+  return Math.max(0, Math.min(100, isNaN(v) ? 60 : v)) / 100;
+}
+function mvolDuck() { return Math.max(0.06, mvol() * 0.45); }
 let bandWant = true, bandPaused = false;
 try { bandWant = localStorage.getItem('gan-band-v1') !== 'off'; } catch (e) {}
 (function preloadEngine() {
@@ -356,7 +366,7 @@ function bandStart(firstRoom) {
       if (b && !/stop|■/i.test(b.textContent)) b.click();
       const a = eng.win.document.getElementById('ai-auto');
       if (a && !/stop/i.test(a.textContent)) a.click();   // the improviser breathes scene to scene
-      engMaster(0.26);                                    // under the voice, over the silence
+      engMaster(mvol());                                  // столько, сколько он поставил
     } catch (e) {}
   }, 250);
   let tok = null; try { tok = localStorage.getItem(TOK_KEY); } catch (e) {}
@@ -764,6 +774,17 @@ function shareLog() {
 
 $('shareBtn').onclick = shareLog;
 
+(function volKnob() {
+  var el = $('mvol'), num = $('mvolnum');
+  if (!el) return;
+  try { var s = localStorage.getItem(MVOL_KEY); if (s !== null) el.value = s; } catch (e) {}
+  if (num) num.textContent = el.value;
+  el.addEventListener('input', () => {
+    if (num) num.textContent = el.value;
+    try { localStorage.setItem(MVOL_KEY, el.value); } catch (e) {}
+    if (eng.on) engMaster(mvol());
+  });
+})();
 $('bandBtn').onclick = () => {
   bandWant = !bandWant;
   try { localStorage.setItem('gan-band-v1', bandWant ? 'on' : 'off'); } catch (e) {}

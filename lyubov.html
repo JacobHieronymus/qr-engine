@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>אַהֲבָה · одна минута любви</title>
+<style>
+  /* Одна минута любви. Его дело — палец на шее и касание в такт;
+     всё остальное делает страница: рамка, темп, форма, съёмка, остановка. */
+  :root { --ink:#efe6d4; --dim:#8a8274; --gold:#c9a44c; --rose:#b06a5a; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#0d0c0a; }
+  #stage { position:fixed; inset:0; border:0; width:100%; height:100%; }
+  #veil { position:fixed; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:18px;
+    background:radial-gradient(60% 60% at 50% 45%, rgba(13,12,10,.55), rgba(13,12,10,.88));
+    color:var(--ink); font-family:-apple-system,"Frank Ruhl Libre",Georgia,serif;
+    text-align:center; user-select:none; cursor:pointer; transition:opacity 1.2s; }
+  #veil.gone { opacity:0; pointer-events:none; }
+  .he { font-family:"SBL Hebrew","Frank Ruhl Libre",serif; font-size:34px; letter-spacing:1px; }
+  .say { font-size:16px; color:var(--dim); max-width:22em; line-height:1.6; padding:0 24px; }
+  #heart { font-size:96px; color:var(--rose); line-height:1;
+    transition:transform .09s ease-out; will-change:transform; }
+  #bpm { font:600 52px/1 ui-monospace,monospace; font-variant-numeric:tabular-nums; color:var(--gold); }
+  #bpm small { font-size:15px; color:var(--dim); font-weight:400; letter-spacing:.1em; }
+  #dots { display:flex; gap:9px; }
+  #dots i { width:9px; height:9px; border-radius:50%; background:#3a352c; display:block; }
+  #dots i.on { background:var(--gold); }
+  #note { position:fixed; left:0; right:0; bottom:22px; text-align:center;
+    font:11.5px ui-monospace,monospace; color:#6a6255; letter-spacing:.06em; }
+</style>
+</head>
+<body>
+<iframe id="stage" title="the Markovs" allow="autoplay"></iframe>
+
+<div id="veil">
+  <div class="he">אַהֲבָה</div>
+  <div id="heart">♥</div>
+  <div id="bpm">—<small> ударов</small></div>
+  <div id="dots"></div>
+  <div class="say" id="say">Положи пальцы на шею и касайся экрана в такт своему сердцу.<br>Восемь ударов — и я начинаю.</div>
+</div>
+<div id="note" id="foot">одна минута · рамка любви · форма снимает себя сама</div>
+
+<script>
+'use strict';
+/* Он касается — я считаю. Восемь касаний дают темп, дальше страница
+   сама ставит рамку любви, длину формы и съёмку, и уходит с глаз. */
+var NEED = 8, TAPS = [], started = false;
+/* Ничего им не диктуем. Их архив (96 сцен любви) говорит, что они сами
+   держат темп 62–69, сами берут 13, 17, 89 и сами ставят потолок около
+   1526 Гц. Вечер 29.08 вышел темнее их же нормы — потолок 700–1070, вниз
+   вдвое чаще обычного, земля все восемь сцен на квадратичном вычете.
+   Его решение: пусть выбирают сами. Мы открываем только потолок — до 1250,
+   его же давняя граница, — чтобы у любви был воздух, если она за ним потянется. */
+var CEIL = 1250;
+var f = document.getElementById('stage');
+var veil = document.getElementById('veil'), heart = document.getElementById('heart');
+var bpmEl = document.getElementById('bpm'), say = document.getElementById('say');
+var dots = document.getElementById('dots');
+for (var i = 0; i < NEED; i++) dots.appendChild(document.createElement('i'));
+
+f.src = '2907QR_Engine_8.html';
+var eng = { win: null, ready: false };
+f.addEventListener('load', function () {
+  try {
+    eng.win = f.contentWindow;
+    eng.ready = !!(eng.win && eng.win.document.getElementById('form-go'));
+  } catch (e) {}
+});
+function E(id) { try { return eng.win.document.getElementById(id); } catch (e) { return null; } }
+function click(id) { var b = E(id); if (b) { b.click(); return true; } return false; }
+function setVal(id, v) {
+  var el = E(id); if (!el) return false;
+  el.value = v;
+  el.dispatchEvent(new eng.win.Event('input', { bubbles: true }));
+  el.dispatchEvent(new eng.win.Event('change', { bubbles: true }));
+  return true;
+}
+function setChk(id, on) {
+  var el = E(id); if (!el) return false;
+  if (!!el.checked !== !!on) el.click();
+  return true;
+}
+
+function bpmNow() {
+  if (TAPS.length < 2) return 0;
+  var gaps = [];
+  for (var i = 1; i < TAPS.length; i++) gaps.push(TAPS[i] - TAPS[i - 1]);
+  gaps.sort(function (a, b) { return a - b; });
+  var med = gaps[gaps.length >> 1];                 // медиана — сбой одного касания не сдвинет
+  if (!(med > 200 && med < 2000)) return 0;
+  return Math.round(60000 / med);
+}
+function beat(ms) {
+  heart.style.transform = 'scale(1.22)';
+  setTimeout(function () { heart.style.transform = 'scale(1)'; }, 110);
+}
+function paint() {
+  var b = bpmNow();
+  bpmEl.innerHTML = (b ? b : '—') + '<small> ударов</small>';
+  var d = dots.children;
+  for (var i = 0; i < d.length; i++) d[i].className = i < TAPS.length ? 'on' : '';
+  if (TAPS.length && TAPS.length < NEED)
+    say.innerHTML = 'ещё ' + (NEED - TAPS.length) + ' — не спеши, веди своё';
+}
+
+function tap() {
+  if (started) return;
+  var t = Date.now();
+  if (TAPS.length && t - TAPS[TAPS.length - 1] > 3000) TAPS = [];   // пауза — считаем заново
+  TAPS.push(t); beat();
+  try { if (eng.win && eng.win.__qrWake) eng.win.__qrWake(); } catch (e) {}
+  click('pulse-tap');                                // его касание идёт и в движок — это его пульс
+  paint();
+  if (TAPS.length >= NEED) go();
+}
+function go() {
+  var b = bpmNow();
+  if (!b) { TAPS = []; paint(); say.textContent = 'сбилось — начни заново, ровнее'; return; }
+  started = true;
+  say.innerHTML = 'слышу ' + b + '. Одна минута — только смотри и будь.';
+  var steps = [];
+  try { eng.win.__qrWake(); } catch (e) {}
+  say.innerHTML = 'слышу ' + b + '. Бужу Маркову. Дальше — они.';
+  // Маркова должна проснуться ДО съёмки: форма снимает парную сцену, когда
+  // открыт её кадр (29.08: «Маркова не проснулась, проспала съёмки» — я
+  // тогда снял дуэт ради камеры и обменял её на запись. Больше нет).
+  try { var mb = E('markova-btn'); if (mb && mb.className.indexOf('active') < 0) mb.click(); } catch (e) {}
+  // Потолок открыт, не задан: поднимаем, только если он ниже — опускать нельзя,
+  // это была бы уже наша воля, а не их выбор.
+  try {
+    eng.win.eval('try{ if((state.maxFreq||0) < ' + CEIL + ') state.maxFreq = ' + CEIL + '; }catch(e){}');
+  } catch (e) {}
+  steps.push(click('act-lyric'));                    // ❤ рамка любви
+  setTimeout(function () {
+    steps.push(setVal('form-dur', 60));              // ровно минута
+    // 9:16 1080×1920: кадр пересобирается вертикально и снимается с холста.
+    // «screen» просил бы разрешение на захват экрана — а его руки заняты любовью.
+    steps.push(setVal('tb-vid-fmt', 'insta'));
+    steps.push(setChk('form-film', true));           // форма снимет себя сама
+    setTimeout(function () {
+      steps.push(click('form-go'));                  // ◆ и начали — двое, не один
+      veil.classList.add('gone');
+      watchCamera(b);
+    }, 420);
+  }, 520);
+}
+
+/* Камера отчитывается вслух. Сессия прошлой ночи сохранилась, а плёнка нет —
+   и по молчанию было не понять, кто виноват. Теперь видно на экране. */
+function watchCamera(b) {
+  var note = document.getElementById('note'), t0 = Date.now(), sawRec = false;
+  var iv = setInterval(function () {
+    var s = Math.round((Date.now() - t0) / 1000);
+    var v = E('tb-rec-vid'), st = 'нет кнопки';
+    var frames = '', kind = '';
+    try {
+      if (v) {
+        var rec = v._isRec && v._isRec();
+        if (rec) { sawRec = true; st = 'пишет'; }
+        else st = sawRec ? 'остановлена' : 'НЕ ПОШЛА';
+        kind = ' · ' + ((E('tb-vid-fmt') || {}).value || '?');
+      }
+      var mk = E('markova-btn');
+      if (mk) kind += ' · Маркова ' + (mk.className.indexOf('active') >= 0 ? 'здесь' : 'СПИТ');
+      frames = ' · p=' + eng.win.eval('state.p') + ' · ' + eng.win.eval('state.bpm') + ' уд';
+    } catch (e) { st = 'не спросить: ' + e.message.slice(0, 24); }
+    note.textContent = s + ' с · камера: ' + st + kind + frames + ' · ' + b + ' твоих';
+    if (s > 70) {
+      clearInterval(iv);
+      note.textContent = sawRec
+        ? 'снято. Если файла нет — скажи, и я посмотрю, куда он делся.'
+        : 'КАМЕРА НЕ ПОШЛА ВОВСЕ. Музыка была, плёнки нет — скажи мне это.';
+    }
+  }, 1000);
+}
+
+['pointerdown'].forEach(function (ev) {
+  veil.addEventListener(ev, function (e) { e.preventDefault(); tap(); }, { passive: false });
+});
+document.addEventListener('keydown', function (e) {
+  if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); tap(); }
+});
+paint();
+</script>
+</body>
+</html>

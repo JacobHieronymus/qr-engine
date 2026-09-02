@@ -17,7 +17,7 @@
     --gold:#9C7A26; --gold-strong:#7E6118; --indigo:#3A4A85; --oxide:#8F4130;
     --line:rgba(38,44,68,.22); --line-faint:rgba(38,44,68,.12);
     --gold-wash:rgba(156,122,38,.09); --chip-bg:rgba(58,74,133,.08);
-    --fig:#262C44; --fig2:#8A93B8;
+    --fig:#262C44; --fig2:#8A93B8; --mkva:#2E7D6E; --mkva2:#8FB8AE;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -26,7 +26,7 @@
       --gold:#CFA84E; --gold-strong:#E0BC66; --indigo:#9AA9DE; --oxide:#D28067;
       --line:rgba(221,214,196,.25); --line-faint:rgba(221,214,196,.12);
       --gold-wash:rgba(207,168,78,.10); --chip-bg:rgba(154,169,222,.12);
-      --fig:#E8E2D0; --fig2:#5A6488;
+      --fig:#E8E2D0; --fig2:#5A6488; --mkva:#54CCB8; --mkva2:#3E6B60;
     }
   }
   :root[data-theme="dark"] {
@@ -35,7 +35,7 @@
     --gold:#CFA84E; --gold-strong:#E0BC66; --indigo:#9AA9DE; --oxide:#D28067;
     --line:rgba(221,214,196,.25); --line-faint:rgba(221,214,196,.12);
     --gold-wash:rgba(207,168,78,.10); --chip-bg:rgba(154,169,222,.12);
-    --fig:#E8E2D0; --fig2:#5A6488;
+    --fig:#E8E2D0; --fig2:#5A6488; --mkva:#54CCB8; --mkva2:#3E6B60;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:var(--paper); color:var(--ink);
@@ -65,7 +65,18 @@
   /* session */
   #session { display:none; }
   .stage { background:var(--card); border:1px solid var(--line-faint); border-radius:8px;
-    padding:10px 10px 4px; margin-top:14px; }
+    padding:10px 10px 4px; margin-top:14px; position:relative; }
+  #fs { position:absolute; top:8px; inset-inline-end:8px; z-index:3; cursor:pointer;
+    font-size:18px; line-height:1; padding:8px 12px; background:var(--card);
+    color:var(--ink-soft); border:1px solid var(--line); border-radius:4px; }
+  #fs:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .stage:fullscreen { display:flex; flex-direction:column; justify-content:center;
+    padding:3vh 4vw; border:none; border-radius:0; }
+  .stage:fullscreen canvas { max-height:62vh; object-fit:contain; }
+  .stage:fullscreen .cue .he-big { font-size:52px; }
+  .stage:fullscreen .cue .en { font-size:17px; }
+  .stage:fullscreen .cue .why { font-size:20px; min-height:58px; }
+  .stage:fullscreen .big { font-size:64px; }
   canvas { display:block; width:100%; height:auto; }
   .cue { text-align:center; padding:6px 8px 12px; }
   .cue .he-big { font-family:"Frank Ruhl Libre",serif; font-size:30px; font-weight:700;
@@ -101,7 +112,7 @@
 <header>
   <div class="masthead">
     <a href="machon.html">&larr; machon</a>
-    <span>מַרְקוֹב · voice he+en</span>
+    <span>מַרְקוֹב וּמַרְקוֹבָה · voice he+en</span>
   </div>
   <h1><span class="he">גּוּף</span><span class="lat">guf · Markov trains at home</span></h1>
 </header>
@@ -119,6 +130,11 @@
     <input type="checkbox" id="music" checked style="accent-color:var(--gold)">
     <span><span class="he" style="font-size:14px">הַמַּרְקוֹבִים מְנַגְּנִים</span> · the Markovs improvise the music — their interval set for the rounds, the prayer for the stretches</span>
   </label>
+  <label class="picknote" style="display:flex;gap:10px;align-items:center">
+    <span style="white-space:nowrap"><span class="he" style="font-size:14px">עָצְמָה</span> · loudness</span>
+    <input type="range" id="mvol" min="0" max="100" value="60" style="flex:1;accent-color:var(--gold)">
+    <span id="mvolnum" class="lat" style="min-width:3.2em;text-align:right">60</span>
+  </label>
   <label class="picknote" style="display:flex;gap:8px;align-items:center;cursor:pointer">
     <input type="checkbox" id="pulse" style="accent-color:var(--gold)">
     <span><span class="he" style="font-size:14px">הַלֵּב מְנַצֵּחַ</span> · the heart conducts — Apple Watch → Pulsoid, and the Markovs' tempo follows your pulse at a rational multiple. First time asks for the token once.</span>
@@ -130,7 +146,8 @@
 
 <div id="session">
   <div class="stage">
-    <canvas id="cv" width="720" height="440"></canvas>
+    <button id="fs" title="fullscreen — put the Markovs on the monitor">⛶</button>
+    <canvas id="cv" width="1280" height="460"></canvas>
     <div class="bar"><i id="bari"></i></div>
     <div class="cue">
       <div class="he-big" id="cue-he">—</div>
@@ -192,8 +209,11 @@
       u.lang = lang === 'he' ? 'he-IL' : 'en-US';
       u.rate = (rate || 0.95) * (FAST > 1 ? 1.3 : 1);
       if (eng.on) {
-        u.onstart = function () { engMaster(0.10); };       // the band leans back for the voice
-        u.onend = function () { if (eng.on) engMaster(0.26); };
+        u.onstart = function () { engMaster(mvolDuck()); };  // the band leans back for the voice
+        u.onend = function () { if (eng.on) engMaster(mvol()); };
+        // если голос оборвётся и onend не придёт, громкость всё равно вернётся
+        setTimeout(function () { if (eng.on && !speechSynthesis.speaking) engMaster(mvol()); },
+                   Math.max(2500, text.length * 110));
       }
       speechSynthesis.speak(u);
     } catch (e) {}
@@ -207,6 +227,15 @@
   // file is absent — a local copy without the engine — everything degrades to
   // silence without a word of complaint.
   var eng = { win: null, ready: false, on: false, room: null };
+  // Громкость оркестра — его рука, не моя. 0.26 держалось «под голос» и
+  // оказалось втрое тише того, как движок звучит сам (author, 29.08: «не играет музыка»).
+  var MVOL_KEY = 'guf-mvol-v1';
+  function mvol() {
+    var el = document.getElementById('mvol');
+    var v = el ? parseInt(el.value, 10) : 60;
+    return Math.max(0, Math.min(100, isNaN(v) ? 60 : v)) / 100;
+  }
+  function mvolDuck() { return Math.max(0.06, mvol() * 0.45); }   // под голосом, но не в ноль
   (function armPulseBox() {
     try { if (localStorage.getItem('qrhr.token')) { var pb = document.getElementById('pulse'); if (pb) pb.checked = true; } } catch (e) {}
   })();
@@ -243,6 +272,7 @@
   function bandStart(firstRoom) {
     if (!eng.ready) return;
     eng.on = true; eng.room = firstRoom;
+    try { if (eng.win.__qrWake) eng.win.__qrWake(); } catch (e) {}   // 29.08b: the engine's own wake door — a cold iframe ctx is born suspended
     engClick(firstRoom === 'stretch' ? 'act-meditate' : 'act-workout');
     setTimeout(function () {
       try {
@@ -250,7 +280,7 @@
         if (b && !/stop|■/i.test(b.textContent)) b.click();
         var a = eng.win.document.getElementById('ai-auto');
         if (a && !/stop/i.test(a.textContent)) a.click();   // the improviser breathes scene to scene
-        engMaster(0.26);                                    // under the voice, over the silence
+        engMaster(mvol());                                  // столько, сколько он поставил
       } catch (e) {}
     }, 250);
     // the heart's door — the engine's own pulse-watch (author, 24.07): Apple Watch
@@ -318,57 +348,202 @@
 
   /* ============ the drawn figure ============ */
   var cv = $('#cv'), cx = cv.getContext('2d');
-  var W = 720, H = 440, FLOOR = 386;
+  var W = 1280, H = 460, FLOOR = 386, PANEL = 640;
+  var SLOW = 1.5;                      // (28.08, author: «темп движений помедленнее»)
+  var _curFocus = null;                // the joints doing the work, lit in oxide
+  var _joints = null;                  // this frame's joint map, for shadows and focus
   function rad(d) { return d * Math.PI / 180; }
   // limb helper: from (x,y) at angle a (0 = straight down, +clockwise = forward/right), length L
   function limb(x, y, a, L) { return [x + Math.sin(rad(a)) * L, y + Math.cos(rad(a)) * L]; }
   function up(x, y, a, L) { return [x + Math.sin(rad(a)) * L, y - Math.cos(rad(a)) * L]; }
   function seg(p, q, w, col) {
+    if (_noink) return;
     cx.strokeStyle = col; cx.lineWidth = w; cx.lineCap = 'round';
     cx.beginPath(); cx.moveTo(p[0], p[1]); cx.lineTo(q[0], q[1]); cx.stroke();
   }
   var FIG = { t1: 52, t2: 46, neck: 14, headR: 17, thigh: 62, shin: 58, upper: 44, fore: 40 };
 
-  // a pose is joint angles; the renderer is one forward-kinematic pass
+  // a pose is joint angles; the renderer is one forward-kinematic pass.
+  // Every joint lands in _joints; whatever rests within a palm of the floor gets a
+  // GROUND SHADOW (28.08, author: «непонятно колено или локоть навесу или опираются»)
+  // and the exercise's working joints pulse in oxide («каким суставом выполняется»).
+  function _mark(name, pt) { if (_joints) _joints[name] = pt; }
+  function _shadows() {
+    if (!_joints) return;
+    cx.save();
+    cx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--ink-soft').trim();
+    for (var k in _joints) {
+      var p = _joints[k];
+      if (p[1] >= FLOOR - 10 && p[1] <= FLOOR + 18) {
+        cx.globalAlpha = 0.28;
+        cx.beginPath(); cx.ellipse(p[0], FLOOR + 12, 16, 4.5, 0, 0, Math.PI * 2); cx.fill();
+      }
+    }
+    cx.restore();
+  }
+  function _focusDots(now) {
+    if (!_joints || !_curFocus) return;
+    var ox = getComputedStyle(document.documentElement).getPropertyValue('--oxide').trim();
+    var r = 5.5 + 2.5 * Math.sin((now || 0) / 1000 * 5);
+    cx.save(); cx.fillStyle = ox;
+    _curFocus.forEach(function (k) {
+      var p = _joints[k]; if (!p) return;
+      cx.globalAlpha = 0.5; cx.beginPath(); cx.arc(p[0], p[1], r + 4, 0, Math.PI * 2); cx.fill();
+      cx.globalAlpha = 0.95; cx.beginPath(); cx.arc(p[0], p[1], 4, 0, Math.PI * 2); cx.fill();
+    });
+    cx.restore();
+  }
+  var _figCols = null;  // set per panel: {ink, faint, ring, lw, female}
+  var _noink = false;   // the measuring pass: same kinematics, no paint
+  function _cols(kind) {
+    var css = getComputedStyle(document.documentElement);
+    if (kind === 'markova') return { ink: css.getPropertyValue('--fig').trim(), faint: css.getPropertyValue('--mkva2').trim(), ring: css.getPropertyValue('--mkva').trim(), lw: 0.85, female: true };
+    return { ink: css.getPropertyValue('--fig').trim(), faint: css.getPropertyValue('--fig2').trim(), ring: css.getPropertyValue('--gold-strong').trim(), lw: 1 };
+  }
+  // GROUND SNAP (28.08, author: «непонятно как люди парят над полом»): a body's
+  // lowest point stands ON the floor, always. The figure is walked once without
+  // ink to find that point, then the whole drawing is shifted so it touches.
+  function _grounded(drawFn, pose) {
+    _joints = {}; _noink = true; drawFn(pose); _noink = false;
+    var maxY = -1e9;
+    for (var k in _joints) { if (k !== 'head' && _joints[k][1] > maxY) maxY = _joints[k][1]; }
+    var dy = (maxY > -1e8) ? Math.max(-46, Math.min(46, FLOOR - maxY)) : 0;
+    _joints = {};
+    cx.save(); cx.translate(0, dy); drawFn(pose); cx.restore();
+    if (dy) for (var k2 in _joints) _joints[k2][1] += dy;
+  }
   function drawFigure(p, col) {
-    var ink = col || getComputedStyle(document.documentElement).getPropertyValue('--fig').trim() || '#222';
+    var C = _figCols || _cols('markov');
+    var ink = col || C.ink;
     var hip = [p.x, p.y];
     var chest = up(hip[0], hip[1], p.torso, FIG.t1);
     var sh = up(chest[0], chest[1], p.torso + (p.bend || 0), FIG.t2);
     var headDir = p.torso + (p.bend || 0) + (p.head || 0);
     var hc = up(sh[0], sh[1], headDir, FIG.neck + FIG.headR);
-    // far limbs first, faint
-    var faint = getComputedStyle(document.documentElement).getPropertyValue('--fig2').trim() || '#999';
-    drawLeg(hip, p.legB || p.legF, faint);
-    drawArm(sh, p.armB || p.armF, faint);
-    seg(hip, chest, 9, ink); seg(chest, sh, 9, ink);
-    // the head is MARKOV'S RING — the walk cursor of the engine, come home to a body
-    var gold = getComputedStyle(document.documentElement).getPropertyValue('--gold-strong').trim();
-    cx.strokeStyle = gold; cx.lineWidth = 5;
-    cx.beginPath(); cx.arc(hc[0], hc[1], FIG.headR, 0, Math.PI * 2); cx.stroke();
-    cx.fillStyle = gold; cx.beginPath(); cx.arc(hc[0], hc[1], 3.2, 0, Math.PI * 2); cx.fill();
-    drawLeg(hip, p.legF, ink);
-    drawArm(sh, p.armF, ink);
-    if (p.prop) p.prop(sh, hip);
+    _mark('hip', hip); _mark('spine', chest); _mark('chest', [ (chest[0]+sh[0])/2, (chest[1]+sh[1])/2 ]);
+    _mark('shoulder', sh); _mark('neck', [ (sh[0]+hc[0])/2, (sh[1]+hc[1])/2 ]); _mark('head', hc);
+    var faint = C.faint;
+    drawLeg(hip, p.legB || p.legF, faint, 'B', C.lw);
+    drawArm(sh, p.armB || p.armF, faint, 'B', C.lw);
+    seg(hip, chest, 9 * C.lw, ink); seg(chest, sh, 9 * C.lw, ink);
+    if (!_noink) {
+      // the head is THE RING — each Markov's walk cursor, come home to a body
+      cx.strokeStyle = C.ring; cx.lineWidth = 5;
+      cx.beginPath(); cx.arc(hc[0], hc[1], FIG.headR, 0, Math.PI * 2); cx.stroke();
+      cx.fillStyle = C.ring; cx.beginPath(); cx.arc(hc[0], hc[1], 3.2, 0, Math.PI * 2); cx.fill();
+      if (C.female) {   // her figure reads as hers in profile too
+        var a2 = p.torso + (p.bend || 0);
+        var bx = (chest[0] + sh[0]) / 2 + Math.cos(rad(a2)) * 9;
+        var by = (chest[1] + sh[1]) / 2 + Math.sin(rad(a2)) * 9;
+        cx.fillStyle = ink; cx.beginPath(); cx.arc(bx, by, 6, 0, Math.PI * 2); cx.fill();
+      }
+    }
+    drawLeg(hip, p.legF, ink, 'F', C.lw);
+    drawArm(sh, p.armF, ink, 'F', C.lw);
+    if (p.prop && !_noink) p.prop(sh, hip);
   }
-  function drawLeg(hip, l, col) {
-    if (!l) return;
+  function drawLeg(hip, l, col, side, lw) {
+    if (!l) return; lw = lw || 1;
     var knee = limb(hip[0], hip[1], l.hip, FIG.thigh);
     var ank = limb(knee[0], knee[1], l.hip + l.knee, FIG.shin);
-    seg(hip, knee, 8, col); seg(knee, ank, 8, col);
+    seg(hip, knee, 8 * lw, col); seg(knee, ank, 8 * lw, col);
     var toe = limb(ank[0], ank[1], l.hip + l.knee + 90 + (l.foot || 0), 14);
-    seg(ank, toe, 6, col);
+    seg(ank, toe, 6 * lw, col);
+    if (side === 'F') { _mark('knee', knee); _mark('ankle', ank); _mark('toe', toe); }
+    else { _mark('kneeB', knee); _mark('ankleB', ank); }
   }
-  function drawArm(sh, a, col) {
-    if (!a) return;
+  function drawArm(sh, a, col, side, lw) {
+    if (!a) return; lw = lw || 1;
     var el = limb(sh[0], sh[1], a.sh, FIG.upper);
     var wr = limb(el[0], el[1], a.sh + a.el, FIG.fore);
-    seg(sh, el, 7, col); seg(el, wr, 7, col);
-    if (a.pack) { // the book-filled backpack
+    seg(sh, el, 7 * lw, col); seg(el, wr, 7 * lw, col);
+    if (side === 'F') { _mark('elbow', el); _mark('wrist', wr); }
+    else { _mark('elbowB', el); _mark('wristB', wr); }
+    if (a.pack && !_noink) {
       cx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--gold').trim();
       cx.fillRect(wr[0] - 12, wr[1] - 4, 24, 20);
     }
   }
+
+  /* ---- MARKOVA'S FRONT RIG (28.08): the same movement met face to face ---- */
+  function drawFront(f) {
+    var C = _figCols || _cols('markova');
+    var lw = C.lw;
+    var hy = f.y, hx = f.x, spread = f.spread || 15;
+    var pv = spread + (C.female ? 4 : 0);                 // her pelvis a shade wider
+    var shY = hy - 96 + (f.dipSh || 0), shW = C.female ? 24 : 27;
+    _mark('hip', [hx, hy]); _mark('spine', [hx, (hy + shY) / 2]); _mark('chest', [hx, shY + 12]);
+    // legs
+    ['L', 'R'].forEach(function (sd, i) {
+      var sx = hx + (i ? spread : -spread);
+      var out = (f.legOut || 4) * (i ? 1 : -1);
+      var kb = Math.max(0, Math.min(1, f.kneeBend || 0));
+      var kx = sx + Math.sin(rad(out)) * FIG.thigh, ky = hy + Math.cos(rad(out)) * FIG.thigh * (1 - 0.22 * kb);
+      var ax = kx, ay = ky + FIG.shin * (1 - 0.3 * kb);
+      ay = Math.min(ay, FLOOR); // feet live on the floor
+      seg([sx, hy], [kx, ky], 8 * lw, C.ink); seg([kx, ky], [ax, ay], 8 * lw, C.ink);
+      seg([ax, ay], [ax + (i ? 10 : -10), ay + 4], 6 * lw, C.ink);
+      if (kb > 0.15 && !_noink) { cx.fillStyle = C.ink; cx.beginPath(); cx.arc(kx, ky, 4.5, 0, Math.PI * 2); cx.fill(); }
+      if (i) { _mark('knee', [kx, ky]); _mark('ankle', [ax, ay]); }
+    });
+    seg([hx - pv, hy], [hx + pv, hy], 9 * lw, C.ink);                  // pelvis
+    seg([hx, hy], [hx, shY], 9 * lw, C.ink);                            // spine
+    seg([hx - shW, shY], [hx + shW, shY], 9 * lw, C.ink);               // shoulders
+    _mark('shoulder', [hx + shW, shY]);
+    // arms: angle 0 = hanging, 90 = out level, 170 = overhead
+    ['L', 'R'].forEach(function (sd, i) {
+      var a = (i ? f.armR : f.armL) || { sh: 8, el: 5 };
+      var sx = hx + (i ? shW : -shW), dir = i ? 1 : -1;
+      var ex2 = sx + dir * Math.sin(rad(a.sh)) * FIG.upper, ey = shY + Math.cos(rad(a.sh)) * FIG.upper;
+      var wx = ex2 + dir * Math.sin(rad(a.sh + (a.el || 0))) * FIG.fore, wy = ey + Math.cos(rad(a.sh + (a.el || 0))) * FIG.fore;
+      seg([sx, shY], [ex2, ey], 7 * lw, C.ink); seg([ex2, ey], [wx, wy], 7 * lw, C.ink);
+      if (i) { _mark('elbow', [ex2, ey]); _mark('wrist', [wx, wy]); }
+    });
+    // the teal ring, tilting with the neck
+    var tilt = f.tilt || 0;
+    var hcx = hx + Math.sin(rad(tilt)) * (FIG.neck + FIG.headR);
+    var hcy = shY - Math.cos(rad(tilt)) * (FIG.neck + FIG.headR);
+    _mark('neck', [ (hx + hcx) / 2, (shY + hcy) / 2 ]); _mark('head', [hcx, hcy]);
+    if (!_noink) {
+      cx.strokeStyle = C.ring; cx.lineWidth = 5;
+      cx.beginPath(); cx.arc(hcx, hcy, FIG.headR, 0, Math.PI * 2); cx.stroke();
+      cx.fillStyle = C.ring; cx.beginPath(); cx.arc(hcx, hcy, 3.2, 0, Math.PI * 2); cx.fill();
+      if (C.female) {
+        cx.fillStyle = C.ink;
+        cx.beginPath(); cx.arc(hx - 9, shY + 15, 5.5, 0, Math.PI * 2); cx.fill();
+        cx.beginPath(); cx.arc(hx + 9, shY + 15, 5.5, 0, Math.PI * 2); cx.fill();
+      }
+      if (f.prop) f.prop();
+    }
+  }
+  var FSTAND = { x: 360, y: 262 };
+  var FRONT = {
+    breath: function (t) { var k = Math.sin(t * Math.PI * 2);
+      drawFront({ x: 360, y: 262, dipSh: -k * 4, armL: { sh: 14 + k * 6, el: 4 }, armR: { sh: 14 + k * 6, el: 4 } }); },
+    neckroll: function (t) { var a = t * 360;
+      drawFront({ x: 360, y: 262, tilt: Math.sin(rad(a)) * 26, armL: { sh: 8, el: 5 }, armR: { sh: 8, el: 5 } }); },
+    armcircle: function (t) { var a = (t * 360) % 360;
+      // both arms sweep down → out → up → in, the frontal truth of the circle
+      var sh = 180 - Math.abs(180 - a);   // 0..180..0
+      drawFront({ x: 360, y: 262, armL: { sh: sh, el: 6 }, armR: { sh: sh, el: 6 } }); },
+    hipcircle: function (t) { var a = t * 360;
+      drawFront({ x: 360 + Math.sin(rad(a)) * 14, y: 262, legOut: 6, kneeBend: 0.12,
+        armL: { sh: 30, el: 40 }, armR: { sh: 30, el: 40 } }); },
+    squat: function (t) { var k = (Math.sin(t * Math.PI * 2 - Math.PI / 2) + 1) / 2;
+      drawFront({ x: 360, y: 262 + k * 42, spread: 19, legOut: 6 + 8 * k, kneeBend: k,
+        armL: { sh: 26 + 34 * k, el: 8 }, armR: { sh: 26 + 34 * k, el: 8 } }); },
+    necktilt: function (t) { var sN = Math.sin(rad(Math.min(t, 0.5) * 2 * 90));
+      drawFront({ x: 360, y: 262, tilt: 28 * sN, armR: { sh: 150, el: 62 }, armL: { sh: 8, el: 5 } }); },
+    doorway: function (t) { var k = Math.sin(t * Math.PI * 2) * 0.5 + 0.5;
+      drawFront({ x: 360, y: 262, dipSh: -k * 2,
+        armL: { sh: 96, el: -78 }, armR: { sh: 96, el: -78 },
+        prop: function () {
+          var c = getComputedStyle(document.documentElement).getPropertyValue('--line').trim();
+          cx.strokeStyle = c; cx.lineWidth = 10;
+          cx.beginPath(); cx.moveTo(250, 60); cx.lineTo(250, FLOOR); cx.stroke();
+          cx.beginPath(); cx.moveTo(470, 60); cx.lineTo(470, FLOOR); cx.stroke();
+        } }); }
+  };
   function lerp(a, b, t) { return a + (b - a) * t; }
   function lerpPose(A, B, t) {
     function L(x, y) { return lerp(x == null ? 0 : x, y == null ? 0 : y, t); }
@@ -409,6 +584,7 @@
   var EX = {
     breath: {
       he: 'נְשִׁימָה', en: 'neshima · breathe', why: 'Three slow breaths. Tune first, play second — the body is the instrument you have had longest.',
+      focus: ['chest'],
       period: 5, poses: [
         Object.assign({}, STAND, { bend: -4 }),
         Object.assign({}, STAND, { bend: 5, y: 258 })
@@ -416,6 +592,7 @@
     },
     neckroll: {
       he: 'סִבּוּבֵי צַוָּאר', en: 'sivuvei tsavar · neck circles', why: 'The head weighs as much as a viola case. Let it roll slowly — the neck carries it all day without applause.',
+      focus: ['neck'],
       period: 6, custom: function (t) {
         var p = JSON.parse(JSON.stringify(STAND));
         p.head = Math.sin(rad(t * 360)) * 28;
@@ -425,6 +602,7 @@
     },
     armcircle: {
       he: 'סִבּוּבֵי כְּתֵפַיִם', en: 'sivuvei ktefayim · arm circles', why: 'Thirty years at a mixing desk close the shoulders forward. Circles are the un-doing — slow, both directions, like winding a reel back.',
+      focus: ['shoulder'],
       period: 3.2, custom: function (t) {
         var p = JSON.parse(JSON.stringify(STAND));
         var a = t * 360;
@@ -434,6 +612,7 @@
     },
     hipcircle: {
       he: 'סִבּוּבֵי אַגָּן', en: 'sivuvei agan · hip circles', why: 'The pelvis is the bridge of the instrument: everything above rings through it. Draw slow circles, knees soft.',
+      focus: ['hip'],
       period: 5, custom: function (t) {
         var p = JSON.parse(JSON.stringify(STAND));
         p.x = 360 + Math.sin(rad(t * 360)) * 16;
@@ -444,6 +623,7 @@
     },
     squat: {
       he: 'סְקוּוֹט', en: 'squat', why: 'The bass line. Sit back as onto a chair that is not there; heels stay down; the chest stays proud.',
+      focus: ['knee','hip'],
       period: 3, poses: [
         Object.assign({}, STAND),
         { x: 348, y: 300, torso: 28, head: -14,
@@ -453,6 +633,7 @@
     },
     pushup: {
       he: 'שְׁכִיבוֹת סְמִיכָה', en: 'shchivot smicha · push-ups', why: 'A chord voiced by the whole body: one straight line from heel to head. If the line breaks, drop to the knees — the voicing matters more than the count.',
+      focus: ['elbow','chest'],
       period: 2.8, poses: [
         { x: 390, y: 322, torso: 88, head: -66,
           legF: { hip: -95, knee: 3 }, legB: { hip: -98, knee: 3 },
@@ -464,6 +645,7 @@
     },
     crunch: {
       he: 'כְּפִיפוֹת בֶּטֶן', en: 'kfifot beten · crunches', why: 'Curl only until the shoulder blades leave the floor — a short strong interval, not a big gesture. Exhale on the way up.',
+      focus: ['spine'],
       period: 2.6, poses: [
         { x: 330, y: 356, torso: 96, head: -40,
           legF: { hip: -50, knee: -68 }, legB: { hip: -56, knee: -64 },
@@ -475,6 +657,7 @@
     },
     row: {
       he: 'חֲתִירָה', en: 'chatira · backpack row', why: 'The pull the missing bar owes you. Back flat as a table; the elbow slides along the ribs; the shoulder blade finishes the note.',
+      focus: ['elbow','shoulder'],
       period: 2.6, poses: [
         { x: 348, y: 286, torso: 64, head: -30,
           legF: { hip: 16, knee: -20 }, legB: { hip: -22, knee: -6 },
@@ -486,6 +669,7 @@
     },
     plank: {
       he: 'פְּלַאנְק', en: 'plank', why: 'A held note. Do not grip it — support it, the way breath supports a long tone. The line sings; the clock is nobody.',
+      focus: ['spine','hip'],
       period: 4, poses: [
         { x: 390, y: 336, torso: 86, head: -60,
           legF: { hip: -96, knee: 2 }, legB: { hip: -99, knee: 2 },
@@ -497,6 +681,7 @@
     },
     necktilt: {
       he: 'מְתִיחַת צַוָּאר', en: 'metichat tsavar · neck stretch', why: 'Ear toward shoulder, the palm resting on the head like a light mute — weight, not force. The far shoulder stays low.',
+      focus: ['neck'],
       period: 6, custom: function (t) {
         var p = JSON.parse(JSON.stringify(STAND));
         var s = Math.sin(rad(Math.min(t, 0.5) * 2 * 90));
@@ -507,6 +692,7 @@
     },
     doorway: {
       he: 'פְּתִיחַת חָזֶה', en: 'ptichat chazeh · doorway chest', why: 'Forearms on the frame, one step through. The chest opens like a case long shut — and the instrument inside is fine.',
+      focus: ['chest','shoulder'],
       period: 6, poses: [
         { x: 352, y: 262, torso: 4, head: 4, prop: doorFrame,
           legF: { hip: 14, knee: -8 }, legB: { hip: -8, knee: 0 },
@@ -518,28 +704,56 @@
     },
     catcow: {
       he: 'חָתוּל־פָּרָה', en: 'chatul-para · cat-cow', why: 'The spine is a phrase: the exhale rounds it, the inhale opens it. Eight bars, legato, the head following the line.',
-      period: 6, poses: [
-        { x: 322, y: 320, torso: 96, bend: -26, head: -34,
-          legF: { hip: -6, knee: -86 }, legB: { hip: -12, knee: -80 },
-          armF: { sh: 4, el: 2 }, armB: { sh: 8, el: 2 } },
-        { x: 322, y: 326, torso: 84, bend: 24, head: -96,
-          legF: { hip: -6, knee: -86 }, legB: { hip: -12, knee: -80 },
-          armF: { sh: 4, el: 2 }, armB: { sh: 8, el: 2 } }
-      ]
+      focus: ['spine'],
+      period: 6, custom: function (t) {
+        // knees and palms are PINNED to the floor; only the spine arches (28.08)
+        var C = _figCols || _cols('markov');
+        var k = Math.sin(t * Math.PI * 2);                 // + cow (open), − cat (round)
+        var kneeX = 316, wristX = 452;
+        var hip = [kneeX, FLOOR - FIG.thigh];
+        var sh = [wristX, FLOOR - (FIG.upper + FIG.fore) + 4];
+        var knee = [kneeX, FLOOR - 2], ank = [kneeX - 54, FLOOR - 2];
+        var wr = [wristX, FLOOR - 2];
+        // far pair, faint and a step in
+        seg([kneeX + 9, FLOOR - FIG.thigh + 2], [kneeX + 9, FLOOR - 2], 8 * C.lw, C.faint);
+        seg([wristX - 9, sh[1] + 2], [wristX - 9, FLOOR - 2], 7 * C.lw, C.faint);
+        // near supports
+        seg(hip, knee, 8 * C.lw, C.ink); seg(knee, ank, 8 * C.lw, C.ink);
+        seg(sh, wr, 7 * C.lw, C.ink);
+        // the spine: one bezier from hip to shoulders, the arch in its waist
+        var midX = (kneeX + wristX) / 2, midY = (hip[1] + sh[1]) / 2 - k * 26;
+        if (!_noink) {
+          cx.strokeStyle = C.ink; cx.lineWidth = 9 * C.lw; cx.lineCap = 'round';
+          cx.beginPath(); cx.moveTo(hip[0], hip[1]); cx.quadraticCurveTo(midX, midY, sh[0], sh[1]); cx.stroke();
+        }
+        // the head follows the line: down in cat, up in cow
+        var hc = [wristX + 24, sh[1] - 4 - k * 20];
+        if (!_noink) {
+          cx.strokeStyle = C.ring; cx.lineWidth = 5;
+          cx.beginPath(); cx.arc(hc[0], hc[1], FIG.headR, 0, Math.PI * 2); cx.stroke();
+          cx.fillStyle = C.ring; cx.beginPath(); cx.arc(hc[0], hc[1], 3.2, 0, Math.PI * 2); cx.fill();
+          if (C.female) { cx.fillStyle = C.ink; cx.beginPath(); cx.arc(sh[0] - 6, sh[1] + 16, 6, 0, Math.PI * 2); cx.fill(); }
+        }
+        _mark('hip', hip); _mark('knee', knee); _mark('ankle', ank);
+        _mark('wrist', wr); _mark('shoulder', sh); _mark('head', hc);
+        _mark('spine', [midX, (midY + (hip[1] + sh[1]) / 2) / 2]);
+      }
     },
     lunge: {
       he: 'מְתִיחַת יָרֵךְ', en: 'metichat yarech · hip flexor', why: 'Back knee down, pelvis slides forward a finger-width. Years of sitting live in this muscle; let it go note by note.',
+      focus: ['hip'],
       period: 6, poses: [
-        { x: 340, y: 306, torso: 2, head: 0,
-          legF: { hip: 58, knee: -122, foot: 20 }, legB: { hip: -42, knee: -84 },
+        { x: 340, y: 340, torso: 2, head: 0,
+          legF: { hip: 58, knee: -133, foot: 16 }, legB: { hip: -42, knee: -84 },
           armF: { sh: 12, el: 6 }, armB: { sh: -6, el: 6 } },
-        { x: 352, y: 308, torso: -3, head: 2,
-          legF: { hip: 64, knee: -126, foot: 20 }, legB: { hip: -50, knee: -80 },
+        { x: 350, y: 342, torso: -3, head: 2,
+          legF: { hip: 63, knee: -136, foot: 16 }, legB: { hip: -49, knee: -80 },
           armF: { sh: 12, el: 6 }, armB: { sh: -6, el: 6 } }
       ]
     },
     hamstring: {
       he: 'מְתִיחַת גִּיד הַבֶּרֶךְ', en: 'metichat gid haberech · hamstring', why: 'On the chair edge, one heel forward, and the fold comes from the hips — a straight back travels one centimetre and does everything.',
+      focus: ['hip','knee'],
       period: 6, poses: [
         { x: 310, y: 262, torso: 14, head: -6, prop: chair,
           legF: { hip: 74, knee: -6, foot: -60 }, legB: { hip: -12, knee: -78 },
@@ -551,14 +765,33 @@
     },
     child: {
       he: 'תְּנוּחַת הַיֶּלֶד', en: 'tnuchat hayeled · child\'s pose', why: 'Knees down, arms long, forehead to the floor. The day\'s last chord, held until it stops needing you. Breathe into the back.',
-      period: 5, poses: [
-        { x: 330, y: 344, torso: 74, bend: 18, head: -60,
-          legF: { hip: -24, knee: -120 }, legB: { hip: -28, knee: -116 },
-          armF: { sh: 96, el: 2 }, armB: { sh: 100, el: 2 } },
-        { x: 330, y: 341, torso: 74, bend: 22, head: -60,
-          legF: { hip: -24, knee: -120 }, legB: { hip: -28, knee: -116 },
-          armF: { sh: 96, el: 2 }, armB: { sh: 100, el: 2 } }
-      ]
+      focus: ['spine'],
+      period: 5, custom: function (t) {
+        var C = _figCols || _cols('markov');
+        var k = Math.sin(t * Math.PI * 2) * 2.5;           // only the breath moves
+        var kneeX = 330;
+        var knee = [kneeX, FLOOR - 3], ank = [kneeX - 52, FLOOR - 3];
+        var hip = [kneeX + 22, FLOOR - 32];
+        var head = [kneeX + 102, FLOOR - 15];
+        var sh = [kneeX + 84, FLOOR - 26 - k];
+        var wr = [kneeX + 152, FLOOR - 4];
+        seg(hip, knee, 8 * C.lw, C.ink); seg(knee, ank, 8 * C.lw, C.ink);
+        if (!_noink) {
+          cx.strokeStyle = C.ink; cx.lineWidth = 9 * C.lw; cx.lineCap = 'round';
+          cx.beginPath(); cx.moveTo(hip[0], hip[1]);
+          cx.quadraticCurveTo(kneeX + 56, FLOOR - 48 - k, sh[0], sh[1]); cx.stroke();
+        }
+        seg(sh, wr, 6 * C.lw, C.ink);
+        seg([sh[0] - 7, sh[1] + 3], [wr[0] - 10, wr[1]], 6 * C.lw, C.faint);
+        if (!_noink) {
+          cx.strokeStyle = C.ring; cx.lineWidth = 5;
+          cx.beginPath(); cx.arc(head[0], head[1], FIG.headR * 0.92, 0, Math.PI * 2); cx.stroke();
+          cx.fillStyle = C.ring; cx.beginPath(); cx.arc(head[0], head[1], 3, 0, Math.PI * 2); cx.fill();
+        }
+        _mark('hip', hip); _mark('knee', knee); _mark('ankle', ank);
+        _mark('shoulder', sh); _mark('wrist', wr); _mark('head', head);
+        _mark('spine', [kneeX + 56, FLOOR - 44]);
+      }
     }
   };
 
@@ -596,7 +829,7 @@
 
   /* ============ the engine ============ */
   var steps = [], si = -1, running = false, paused = false;
-  var stepT0 = 0, pauseT0 = 0, repCount = 0, repTimer = null, animEx = null, animT0 = 0;
+  var stepT0 = 0, pauseT0 = 0, repCount = 0, repTimer = null, animEx = null, animKey = null, animT0 = 0;
   var wakeLock = null;
 
   function fmt(s) { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
@@ -621,7 +854,8 @@
     if (si >= steps.length) { return endSession(true); }
     var st = steps[si], ex = EX[st.ex];
     bandRoom(si >= stretchFrom ? 'stretch' : 'work');
-    animEx = ex; animT0 = performance.now();
+    animEx = ex; animKey = st.ex; animT0 = performance.now();
+    _curFocus = ex.focus || null;
     stepT0 = performance.now();
     repCount = 0;
     $('#cue-he').textContent = st.kind === 'rest' ? 'מְנוּחָה' : ex.he;
@@ -643,7 +877,7 @@
       if (st.note) setTimeout(function () { say(st.note, 'en'); }, 1600 / FAST);
     } else { // reps
       say(ex.he, 'he');
-      var period = ex.period * 1000 / FAST;
+      var period = ex.period * SLOW * 1000 / FAST;
       var startDelay = 2200 / FAST;
       repTimer = setInterval(function () {
         if (paused) return;
@@ -677,21 +911,52 @@
     }
   }
 
+  function _panel(cxOff, mirror, kind, painter, now) {
+    cx.save();
+    cx.translate(cxOff, 0);
+    if (mirror) { cx.scale(-1, 1); cx.translate(-720, 0); }
+    if (kind === 'markova') {   // her stature: a twelfth shorter, feet still on the floor
+      cx.translate(360, FLOOR); cx.scale(0.92, 0.92); cx.translate(-360, -FLOOR);
+    }
+    _figCols = _cols(kind);
+    painter();
+    _shadows();
+    _focusDots(now);
+    cx.restore();
+    _joints = null; _figCols = null;
+  }
   function drawScene(now) {
     cx.clearRect(0, 0, W, H);
-    var lc = getComputedStyle(document.documentElement).getPropertyValue('--line').trim();
+    var css = getComputedStyle(document.documentElement);
+    var lc = css.getPropertyValue('--line').trim();
     cx.strokeStyle = lc; cx.lineWidth = 3;
-    cx.beginPath(); cx.moveTo(40, FLOOR + 14); cx.lineTo(W - 40, FLOOR + 14); cx.stroke();
+    cx.beginPath(); cx.moveTo(30, FLOOR + 14); cx.lineTo(W - 30, FLOOR + 14); cx.stroke();
+    cx.beginPath(); cx.moveTo(PANEL, 70); cx.lineTo(PANEL, FLOOR); cx.setLineDash([2, 8]); cx.stroke(); cx.setLineDash([]);
     var ex = animEx;
     if (ex) {
-      var t = ((now - animT0) / 1000 * FAST % ex.period) / ex.period;
+      var per = ex.period * SLOW;
+      var t = ((now - animT0) / 1000 * FAST % per) / per;
       if (paused) t = 0.25;
-      if (ex.custom) ex.custom(t);
-      else {
-        var k = (Math.sin(t * Math.PI * 2 - Math.PI / 2) + 1) / 2;   // ease in-out loop
-        drawFigure(lerpPose(ex.poses[0], ex.poses[1], k));
-      }
+      var profile = function () {
+        if (ex.custom) { _joints = {}; ex.custom(t); }      // customs pin themselves to the floor
+        else _grounded(drawFigure, lerpPose(ex.poses[0], ex.poses[1], (Math.sin(t * Math.PI * 2 - Math.PI / 2) + 1) / 2));
+      };
+      // MARKOV, in profile, stage left
+      _panel(-40, false, 'markov', profile, now);
+      // MARKOVA, stage right: face to face where the front tells the truth,
+      // the mirrored profile where the floor does (28.08, author: «одна фигура
+      // в профиль, другая анфас... чтобы показать движение с двух сторон»)
+      var fr = FRONT[animKey];
+      if (fr) _panel(PANEL - 20, false, 'markova', function () { _joints = {}; fr(t); }, now);
+      else _panel(PANEL - 20, true, 'markova', profile, now);
     }
+    // the two names, in their own ring colours
+    cx.font = '600 21px "Frank Ruhl Libre", serif'; cx.textAlign = 'center';
+    cx.fillStyle = css.getPropertyValue('--gold-strong').trim();
+    cx.fillText('מַרְקוֹב', PANEL / 2 - 40, FLOOR + 46);
+    cx.fillStyle = css.getPropertyValue('--mkva').trim();
+    cx.fillText('מַרְקוֹבָה', PANEL + PANEL / 2 - 20, FLOOR + 46);
+    cx.textAlign = 'start';
   }
   function frame(now) {
     if (!running) return;
@@ -716,16 +981,24 @@
     }
   }, 200);
   // a test hand: draw one exercise at one phase, outside the session
+  (function volKnob() {
+    var el = document.getElementById('mvol'), num = document.getElementById('mvolnum');
+    if (!el) return;
+    try { var s = localStorage.getItem(MVOL_KEY); if (s !== null) el.value = s; } catch (e) {}
+    if (num) num.textContent = el.value;
+    el.addEventListener('input', function () {
+      if (num) num.textContent = el.value;
+      try { localStorage.setItem(MVOL_KEY, el.value); } catch (e) {}
+      if (eng.on) engMaster(mvol());       // слышно сразу, пока тянешь
+    });
+  })();
   window.__eng = eng;
   window.__gufDraw = function (key, t) {
     var ex = EX[key]; if (!ex) return 'no ' + key;
+    animEx = ex; animKey = key; _curFocus = ex.focus || null;
+    animT0 = performance.now() - t * ex.period * SLOW * 1000 / FAST;
+    drawScene(performance.now());
     animEx = null;
-    cx.clearRect(0, 0, W, H);
-    var lc = getComputedStyle(document.documentElement).getPropertyValue('--line').trim();
-    cx.strokeStyle = lc; cx.lineWidth = 3;
-    cx.beginPath(); cx.moveTo(40, FLOOR + 14); cx.lineTo(W - 40, FLOOR + 14); cx.stroke();
-    if (ex.custom) ex.custom(t);
-    else drawFigure(lerpPose(ex.poses[0], ex.poses[1], t));
     return 'drew ' + key + '@' + t;
   };
 
@@ -741,6 +1014,13 @@
   });
   $('#skip').addEventListener('click', function () { if (running) nextStep(); });
   $('#stop').addEventListener('click', function () { endSession(false); });
+  $('#fs').addEventListener('click', function () {
+    try {
+      var st = document.querySelector('.stage');
+      if (document.fullscreenElement) document.exitFullscreen();
+      else st.requestFullscreen();
+    } catch (e) {}
+  });
 })();
 </script>
 </body>

@@ -139,6 +139,14 @@ body.viz-max #stage-exit { display: block; position: fixed; top: calc(8px + env(
 body.viz-max #stage-exit:hover { border-color: var(--accent, #6cf); color: var(--accent, #6cf); }
 body.mk-embedded #stage-exit { display: none !important; }   /* one door for the pair, in the window that owns the stage */
 body.phone-mode #face-back { z-index: 71; bottom: calc(108px + env(safe-area-inset-bottom)); }   /* (16.08 verify) the phone bar is z70 and opaque — the way back must not be buried under it */
+/* (28.08) ONE stage key: both halves by default, or one alone by the mark */
+body.viz-max.stage-his #duo-frame-wrap { display: none !important; }
+body.viz-max.stage-his #viz { width: 100vw !important; }
+body.viz-max.stage-hers #viz { display: none !important; }
+body.viz-max.stage-hers #duo-frame-wrap { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 9999 !important; transform: none !important; }
+body.viz-max.stage-hers #duo-frame-wrap iframe { width: 100% !important; height: 100% !important; }
+#fs-toggle { display: none !important; }        /* the per-half fullscreen keys retired — ⛶ stage is the one door */
+#duo-stage-btn { display: none !important; }    /* the pill's stage key folds into the face's ⛶ (its machinery still answers the call) */
 /* DUET STAGE (author 26.07): fullscreen split — Markov's picture keeps the LEFT half,
    Markova's frame holds the right; the duo pill rides above everything for the exit. */
 body.viz-max.duo-split #viz { width: 50vw; top: var(--dock-h, 0px); height: calc(100vh - var(--dock-h, 0px)); }
@@ -4038,7 +4046,7 @@ function _drawScoreLayer(cc,W,H){
   // slots): the take must carry the same honest score the stage shows.
   try{
     const gq=state.scoreVis;
-    if(!(gq && gq.length && state.groove && state.groove.on && state.groove.arch!=='off' && state.running && !state.paused && typeof ctx!=='undefined' && ctx)) return;
+    if(!(gq && gq.length && state.running && !state.paused && typeof ctx!=='undefined' && ctx)) return;   // (17.08) the score draws whatever sounded — groove is a contributor, not a gatekeeper
     const nowH=ctx.currentTime-((ctx.outputLatency||ctx.baseLatency||0));
     const spb=60/Math.max(24,Math.min(240,state.bpm||60));
     const BEATS_PAST=12, BEATS_FUT=4;
@@ -7142,9 +7150,11 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
       if(arp){
         const vv=_sweep[(k-1)%nS];
         _strike(t,freqs[(k-1)%nS],g,len,sink);
+        try{ _gvNote('omega', t, g, freqs[(k-1)%nS], q?1:-1); }catch(e){}   // (17.08) the passage joins the honest score
         if(g>0.05) shade(vv,g*0.26,per*0.34);
       } else {
-        for(let j=0;j<n;j++) _strike(t,freqForIndex(cyc[j],p),g*(j===0?1:0.72),len,sink);
+        for(let j=0;j<n;j++){ _strike(t,freqForIndex(cyc[j],p),g*(j===0?1:0.72),len,sink);
+          try{ _gvNote('omega', t, g*(j===0?1:0.72), freqForIndex(cyc[j],p), q?1:-1); }catch(e){} }
         if(g>0.05) shade(cyc[0],g*0.22,per*0.34);
       }
     }
@@ -9094,6 +9104,8 @@ function _resetView(){ _view.scale=1; _view.tx=0; _applyView(); }
     if(_sx) _sx.addEventListener('click',ev=>{ ev.stopPropagation();
       try{ const b=document.getElementById('duo-stage-btn'); if(b && document.body.classList.contains('duo-split')){ b.click(); return; } }catch(e){}
       document.body.classList.remove('viz-max');
+      if(document.body.classList.contains('stage-hers')){ try{ if(window._qrDuo && window._qrDuo.vizmax) window._qrDuo.vizmax(false); }catch(e){} }
+      document.body.classList.remove('stage-his'); document.body.classList.remove('stage-hers');
       try{ document.getElementById('fs-toggle').classList.remove('active'); }catch(e){}
       try{ if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); }catch(e){}
       setTimeout(resizeCanvas,80);
@@ -9938,7 +9950,7 @@ let _dualPPStatic={key:'',cv:null};
 let _vFormat='screen'; try{ _vFormat=localStorage.getItem('qr_video_format')||'screen'; }catch(e){}
 let _vertCanvas=null,_vertCtx=null,_vertActive=false,_vertLast=0;
 const _vertStatics={main:{key:'',cv:null},pp:{key:'',cv:null},dual:{key:'',cv:null}};
-function _vertDims(){ return _vFormat==='insta'?{w:1080,h:1920}:(_vFormat==='square'?{w:1080,h:1080}:null); }
+function _vertDims(){ return (_vFormat==='insta'||_vFormat==='tall')?{w:1080,h:1920}:(_vFormat==='square'?{w:1080,h:1080}:null); }   // solo has no columns — tall falls back to the whole 9:16
 function _ensureVertCanvas(){
   const d=_vertDims(); if(!d) return null;
   if(!_vertCanvas) _vertCanvas=document.createElement('canvas');
@@ -13139,12 +13151,14 @@ function cfgChordAt(at, quad0, vol, bd, hitV, pos, tie){
         const hlen=Math.min(_tieCap, Math.max(0.08, R*tie.slotSec - onset));                   // single sustained note for the run, capped
         onsets[vi]=onset; lengths[vi]=hlen;
         scheduleSustainVoice(at+onset, hlen, f, vol, l, r);
+        try{ _gvNote('chord', at+onset, vol, f, isQR(vN,p)?1:-1); }catch(e){}
         return;
       }
     }
     const len   = Math.min(0.26, Math.max(0.08, totalSec - onset));   // staccato strings: short detached stabs (length tunable next pass)
     onsets[vi]=onset; lengths[vi]=len;
     scheduleSustainVoice(at+onset, len, f, vol, l, r);
+    try{ _gvNote('chord', at+onset, vol, f, isQR(vN,p)?1:-1); }catch(e){}   // (17.08) the arpeggio joins the honest score
   });
   // visual flash, rendered against ctx.currentTime so it tracks the audio
   let hi=-1;
@@ -13181,9 +13195,10 @@ function cfgChordAt(at, quad0, vol, bd, hitV, pos, tie){
         const k=_edgeKey(vaN,vbN,p);
         if(tie.edgeFrom&&tie.edgeFrom.has(k)) continue;                          // already sounding — no re-attack
         const R=tie.edgeHold&&tie.edgeHold.get(k);
-        if(R>1){ scheduleSustainVoice(at, Math.min(_glueCap, R*tie.slotSec), fg, 0.6, l, r); continue; }
+        if(R>1){ scheduleSustainVoice(at, Math.min(_glueCap, R*tie.slotSec), fg, 0.6, l, r); try{ _gvNote('glue', at, 0.3, fg, 1); }catch(e){} continue; }
       }
       scheduleSustainVoice(at, Math.min(_glueCap, totalSec), fg, 0.6, l, r);
+      try{ _gvNote('glue', at, 0.3, fg, 1); }catch(e){}
     }
   }
 }
@@ -13796,6 +13811,25 @@ state.activity=null;
         try{ state.reqP=_bk2; }catch(e){}
       }   // one prayer room does not follow you into the next frame
       state.activity=act; paint();
+      // (17.08 author: «между жанрами должно проходить сбрасывание параметров —
+      // после медитации огромные числа зависают и остаются в других жанрах»)
+      // each genre pulls the live state into its own home ranges; pinned hands win.
+      try{ (function(){
+        var G={ focus:   {pLo:13,pHi:199,  homeP:61, bLo:54,bHi:96},
+                meditate:{pLo:13,pHi:99991,homeP:61, bLo:36,bHi:66},
+                workout: {pLo:5, pHi:107,  homeP:29, bLo:96,bHi:144},
+                chores:  {pLo:5, pHi:107,  homeP:23, bLo:72,bHi:116},
+                lyric:   {pLo:11,pHi:199,  homeP:61, bLo:46,bHi:84},
+                ascent:  {pLo:3, pHi:31,   homeP:5,  bLo:54,bHi:104} };
+        var g=G[act]; if(!g) return;
+        var P=state.apPins;
+        if(!(P&&P.has('prime'))){ var p0=state.p|0; if(p0<g.pLo||p0>g.pHi) state.reqP=g.homeP; }
+        if(!(P&&P.has('bpm'))){ var b0=state.bpm|0;
+          if(b0<g.bLo||b0>g.bHi){ state.bpm=Math.max(g.bLo,Math.min(g.bHi,b0||((g.bLo+g.bHi)>>1)));
+            var e1=document.getElementById('bpm'),e2=document.getElementById('bpm-num');
+            if(e1)e1.value=state.bpm; if(e2)e2.value=state.bpm; } }
+        if(typeof _fl==='function') _fl('activity','grounded into '+act+"'s home — p and tempo inside its walls");
+      })(); }catch(e){}
       try{ if(typeof learner!=='undefined' && learner.resetActivity) learner.resetActivity(); }catch(e){}
       if(typeof learner!=='undefined' && learner.isAutoOn && !learner.isAutoOn()){ try{ learner.toggleAuto(); startedAuto=true; }catch(e){} }
       try{ if(typeof _fl==='function') _fl('activity',act+' frame on'); }catch(e){}
@@ -17707,7 +17741,7 @@ startRenderLoop();
     if(document.getElementById('engine-play')) return;
     const lbl=document.createElement('span'); lbl.id='td-label'; lbl.textContent='QR ENGINE';
     lbl.title='build 07.08c — the note-for-note palindrome, retro self-heal, honest score';
-    const _bst=document.createElement('span'); _bst.textContent='17.08c';
+    const _bst=document.createElement('span'); _bst.textContent='29.08b';
     _bst.style.cssText='font-size:9px;color:var(--muted,#667);margin-left:4px;letter-spacing:1px';
     _bst.title='build stamp — if this does not match what Claude just shipped, the tab is serving a stale copy (hard reload: Cmd+Shift+R)';
     const play=document.createElement('button'); play.id='engine-play'; play.className='primary';
@@ -17903,7 +17937,7 @@ startRenderLoop();
         mime=pickMime(['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4;codecs=avc1,mp4a','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']);
       }
       let r;
-      try{ r=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream); }
+      try{ r=mime?new MediaRecorder(stream,{mimeType:mime, audioBitsPerSecond:256e3}):new MediaRecorder(stream,{audioBitsPerSecond:256e3}); }
       catch(e){ try{ r=new MediaRecorder(stream); }catch(e2){ return; } }
       rec=r;
       const myChunks=[];                                       // per-take buffer (no cross-take mixing)
@@ -17992,8 +18026,8 @@ startRenderLoop();
 
     // video format: screen as-is, or a parallel vertical/square re-composition
     const fmt=document.createElement('select'); fmt.id='tb-vid-fmt'; fmt.className='tb-btn'; fmt.style.cursor='pointer';
-    fmt.title='video format: ▭ the canvas as on screen · ▯ 9:16 1080×1920 (Insta Reels/Stories — the piece re-composed vertically, not cropped) · □ 1:1 1080×1080 (square post). Takes effect from the next take.';
-    [['screen','▭ 16:9'],['insta','▯ 9:16 insta'],['square','□ 1:1']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; fmt.appendChild(o); });
+    fmt.title='video format: ▭ the canvas as on screen · ▯ 9:16 1080×1920 (Insta Reels/Stories — the piece re-composed vertically, not cropped) · ║ 9:16 columns (a duet take: Markov the left column, Markova the right; a solo take fills the whole 9:16) · □ 1:1 1080×1080 (square post). Takes effect from the next take.';
+    [['screen','▭ 16:9'],['insta','▯ 9:16 insta'],['tall','║ 9:16 columns'],['square','□ 1:1']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; fmt.appendChild(o); });
     try{ fmt.value=_vFormat; }catch(e){}
     fmt.addEventListener('change',()=>{ try{ _vFormat=fmt.value; localStorage.setItem('qr_video_format',_vFormat); }catch(e){}
       // mid-take format change: restart the mirror geometry on the NEXT take; a running take keeps its stream
@@ -19262,6 +19296,7 @@ startRenderLoop();
     // now dies away like a fermata release (~3 s, both windows), then rests; only
     // the hand's stop is instant.
     try{ window._formOn=false; window._formArc=null; }catch(e){}
+    try{ if(window._qrFormEvT){ window._qrFormEvT.forEach(clearTimeout); window._qrFormEvT=null; } }catch(e){}   // (28.08) a stopped prayer takes its pending entries and arpeggios with it
     var grace=(why && why.indexOf('stopped')>=0)?0:3.2;
     if(grace>0 && typeof ctx!=='undefined' && ctx && masterGain && state.running && !state.paused && !_parkT){
       try{
@@ -19272,13 +19307,31 @@ startRenderLoop();
         _parkT=setTimeout(function(){
           _parkT=null;
           try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}
-          try{ g.cancelScheduledValues(ctx.currentTime); g.setValueAtTime(v, ctx.currentTime); }catch(e){}   // the lever comes back for the next piece
+          // (29.08 author: «последний аккорд не должен выскочить отдельным ударом при
+          // возвращении фейдеров») the lever comes back for the next piece — but only
+          // after the pause has taken hold and the tail has died under the closed
+          // fader, and as a ramp, never a jump.
+          setTimeout(function(){ try{ g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(v, ctx.currentTime, 0.25); }catch(e){} }, 900);
         }, grace*1000);
       }catch(e){ try{ if(state.running && !state.paused) pauseAudio(); }catch(e2){} }
     } else {
       try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}
     }
     try{ if(typeof _fl==='function') _fl('form','the form ended — '+(why||'')+' · the silence after it belongs to it'); }catch(e){}
+    // (29.08, watched together: a 0:20 form came back an 84 s file) the form's
+    // point is the FILM's point too — the take promised to end where the form
+    // ends. The ⏺ form-film hook and the palindrome's tape-done keep their own
+    // stops (form-film is guarded away here; a take already stopped shows no ■).
+    try{
+      var _ffchk=document.getElementById('form-film');
+      if(!(_ffchk && _ffchk.checked)){
+        setTimeout(function(){
+          try{ var v=document.getElementById('tb-rec-vid');
+            if(v && (v.textContent||'').indexOf('■')>=0) v.click();
+          }catch(e){}
+        }, (grace>0?grace:0)*1000+600);   // the fermata breathes, then the point lands
+      }
+    }catch(e){}
     try{ _paint(); }catch(e){}
   }
   var _plainTimer=null;
@@ -19344,7 +19397,25 @@ startRenderLoop();
     try{ if(state.activity==='lyric' && window._lyricArcReset) window._lyricArcReset(); }catch(e){}   // (21.08) the arc is born in tenderness at COMPOSITION time — generate() consumes the phases while building the scenes
     var plan=_qrBuildPlan(T);
     if(!plan){ try{ if(typeof _fl==='function') _fl('form','nothing to create — the improviser gave no scenes'); }catch(e){} return null; }
-    window._qrFormPlan={T:T, plan:plan, score:(typeof _palScoreGen==='function')?_palScoreGen(plan):null, at:Date.now()};
+    var _form=null; try{ _form=(state.duo&&state.duo.mode)||'parts'; }catch(e){}
+    // (28.08 author: «при разных формообразующих разный результат create form»)
+    if(_form==='pal'){
+      // a crab reads best when the seams are symmetric in time: palindromic durations
+      var _k=plan.length;
+      for(var _i=0;_i<(_k>>1);_i++){ var _m=(plan[_i].dur+plan[_k-1-_i].dur)/2; plan[_i].dur=_m; plan[_k-1-_i].dur=_m; }
+      plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur); });
+    }
+    var _ev=null;
+    try{ if(state.activity==='meditate'){
+      // (28.08 author: «в молитве Марков начинает за сколько-то долей до точки
+      // 1/3, 1/2 или 2/3; арпеджио — при встрече и на золотом сечении»)
+      var _p1=(plan[0]&&plan[0].state&&plan[0].state.p)|0 || 61;
+      var _pt=(_p1%3===1)?(1/3):(_p1%3===2)?(2/3):(1/2);   // the prime chooses the meeting point
+      var _bpm1=(plan[0]&&plan[0].state&&plan[0].state.bpm)||state.bpm||60;
+      var _Xs=5*60/Math.max(24,_bpm1);                      // he starts five beats before the meeting
+      _ev={ point:_pt, hisEntry:Math.max(1,_pt*T-_Xs), arpMeet:_pt*T, arpGolden:0.618*T };
+    } }catch(e){}
+    window._qrFormPlan={T:T, plan:plan, score:(typeof _palScoreGen==='function')?_palScoreGen(plan):null, at:Date.now(), form:_form, events:_ev};
     try{ _qrSafePush(window._qrFormPlan); }catch(e){}
     try{ if(typeof _fl==='function') _fl('form','the Markovs composed the form — '+plan.length+' scene(s) · '+Math.round(T)+' s · one score, two readings'); }catch(e){}
     return {scenes:plan.length, T:T};
@@ -19357,6 +19428,8 @@ startRenderLoop();
     try{ if(window._demoOn && window._qrDemoStop) window._qrDemoStop(true); }catch(e){}
     try{ if(!state.running) startAudio(); else if(state.paused) pauseAudio(); }catch(e){}
     var t0=Date.now()+700;
+    try{ if(!Fp.events && typeof masterGain!=='undefined' && masterGain && ctx && masterGain.gain.value<0.02)
+      masterGain.gain.setTargetAtTime(Math.max(0.05,state.vol.master||0.72), ctx.currentTime, 0.2); }catch(e){}   // an interrupted prayer must not darken the next form
     try{ window._formArc={t0:performance.now()+(t0-Date.now()), T:Fp.T*1000}; window._formOn=true; }catch(e){}
     try{ window._llMishearArm=true; }catch(e){}   // (21.08) V11 arms once per form: the mis-hearing entry, then the repair
 
@@ -19366,8 +19439,32 @@ startRenderLoop();
       send({t:'pal', plan:Fp.plan, t0:t0, score:Fp.score||null});     // she reads the SAME score end-to-start, reversed — now literally: the walk is written down
       _palRun(Fp.plan.slice(), t0, false, Fp.score||null);
     } else {
-      _qrPlainRun(Fp.plan.slice(), t0);          // parts/retro mirror the readings on their own laws
+      _qrPlainRun(Fp.plan.slice(), t0);          // parts/retro/free mirror (or ignore) the readings on their own laws
     }
+    // THE PRAYER'S DRAMATURGY (28.08): he is silent until five beats before the
+    // meeting point; the arpeggio answers at the meeting and at the golden section.
+    try{
+      if(window._qrFormEvT){ window._qrFormEvT.forEach(clearTimeout); }
+      window._qrFormEvT=[];
+      var EV=Fp.events;
+      if(EV && typeof masterGain!=='undefined' && masterGain && ctx){
+        var _mPrev=state.vol.master||0.72;
+        masterGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.12);   // his half waits in the dark
+        var _base=t0-Date.now();
+        window._qrFormEvT.push(setTimeout(function(){ try{
+          masterGain.gain.setTargetAtTime(Math.max(0.05,_mPrev), ctx.currentTime, 1.1);
+          if(typeof _fl==='function') _fl('prayer','he enters — five beats before the meeting');
+        }catch(e){} }, Math.max(0,_base+EV.hisEntry*1000)));
+        var _arp=function(tag){ return function(){ try{
+          var cb=document.getElementById('cfg-arp'); if(cb && !cb.checked){ cb.checked=true; }
+          var q0=(typeof cfgCurrent==='function')?cfgCurrent():null;
+          if(q0 && typeof cfgSound==='function'){ cfgSound(q0); try{ cfg.idx++; cfgSyncOverlay(); }catch(e){} }
+          if(typeof _fl==='function') _fl('prayer','the arpeggio answers — '+tag);
+        }catch(e){} }; };
+        window._qrFormEvT.push(setTimeout(_arp('at the meeting'), Math.max(0,_base+EV.arpMeet*1000)));
+        window._qrFormEvT.push(setTimeout(_arp('at the golden section'), Math.max(0,_base+EV.arpGolden*1000)));
+      }
+    }catch(e){}
     return true;
   };
   window._qrFormStop=function(){
@@ -19947,7 +20044,7 @@ startRenderLoop();
         if(ctx&&qrBus&&qrBus.tuneFloors){ try{ qrBus.tuneFloors(); }catch(e){} }
       }catch(e){}
     }
-    else if(m.t==='fade'){ try{ if(typeof ctx!=='undefined' && ctx && masterGain){ var _fg=masterGain.gain, _fv=(state.vol&&state.vol.master)||_fg.value||0.5; _fg.cancelScheduledValues(ctx.currentTime); _fg.setTargetAtTime(0.0001, ctx.currentTime, (+m.secs||3.2)/3.5); setTimeout(function(){ try{ _fg.cancelScheduledValues(ctx.currentTime); _fg.setValueAtTime(_fv, ctx.currentTime); }catch(e){} }, ((+m.secs||3.2)+0.4)*1000); } }catch(e){} }   // her half dies away with his — the wrapped pause then rests both
+    else if(m.t==='fade'){ try{ if(typeof ctx!=='undefined' && ctx && masterGain){ var _fg=masterGain.gain, _fv=(state.vol&&state.vol.master)||_fg.value||0.5; _fg.cancelScheduledValues(ctx.currentTime); _fg.setTargetAtTime(0.0001, ctx.currentTime, (+m.secs||3.2)/3.5); setTimeout(function(){ try{ _fg.cancelScheduledValues(ctx.currentTime); _fg.setTargetAtTime(_fv, ctx.currentTime, 0.25); }catch(e){} }, ((+m.secs||3.2)+1.6)*1000); } }catch(e){} }   // her half dies away with his — the wrapped pause rests both, and her lever returns as a ramp well after it
     else if(m.t==='sdist'){ try{ window._spaceHandAt=Date.now(); if(window._duoSpaceSet) window._duoSpaceSet(+m.v, true); if(window._duoSpaceUI) window._duoSpaceUI(+m.v); }catch(e){} }   // one hand, both windows
     else if(m.t==='bh'){ try{ if(m.o && m.o.act){ window._breathHint=m.o;
       try{ state._lyrPhase=m.o.stage||null; }catch(_){}
@@ -20437,12 +20534,13 @@ startRenderLoop();
           // never cropped). Markov renders his slot here; Markova renders hers
           // INSIDE her engine and feeds it over the bridge. Full bleed, equal
           // halves, independent of any on-screen canvas or window size.
-          var _fmtMapTB={screen:'side',insta:'insta',square:'square'};
+          var _fmtMapTB={screen:'side',insta:'insta',tall:'tall',square:'square'};
           var _tbF=(document.getElementById('tb-vid-fmt')||{}).value;
           if(selDuoFmt && _fmtMapTB[_tbF]) selDuoFmt.value=_fmtMapTB[_tbF];
           var _fmt=(selDuoFmt&&selDuoFmt.value)||'side';
           var SW,SH,CW,CH,HX,HY,FX,FY;
           if(_fmt==='insta'){ CW=1080; CH=1920; SW=1080; SH=960; HX=0;HY=0; FX=0;FY=960; }
+          else if(_fmt==='tall'){ CW=1080; CH=1920; SW=540; SH=1920; HX=0;HY=0; FX=540;FY=0; }   // (28.08 author: «он занимает левую колонку, она правую») two tall columns, re-composed at 540×1920 each — never a crop
           else if(_fmt==='square'){ CW=1080; CH=1080; SW=1080; SH=540; HX=0;HY=0; FX=0;FY=540; }
           else { CW=1920; CH=1080; SW=960; SH=1080; HX=0;HY=0; FX=960;FY=0; }
           _recFlash('raising the frame’s AV bridge…');
@@ -20610,7 +20708,7 @@ startRenderLoop();
           // STANDARD CODEC FIRST (author 02.08: «поставь режим записи в стандартный
           // видеокодек»): H.264 mp4 opens everywhere — QuickTime, Reels, editors.
           var mime=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4;codecs=avc1.4D401F,mp4a.40.2','video/mp4','video/webm;codecs=h264,opus','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(function(m){ return window.MediaRecorder && MediaRecorder.isTypeSupported(m); })||'';
-          _dChunks=[]; _dRec=new MediaRecorder(stream, mime?{mimeType:mime, videoBitsPerSecond:16e6}:undefined);
+          _dChunks=[]; _dRec=new MediaRecorder(stream, mime?{mimeType:mime, videoBitsPerSecond:16e6, audioBitsPerSecond:256e3}:{audioBitsPerSecond:256e3});
           _dRec.ondataavailable=function(e){ if(e.data && e.data.size) _dChunks.push(e.data); };
           _dRec.onstop=function(){
             try{ if(_cleanup) _cleanup(); }catch(e){}
@@ -20622,7 +20720,7 @@ startRenderLoop();
             var isMp4=/mp4/.test(mime||'');
             var blob=new Blob(_dChunks,{type:(mime||'video/webm').split(';')[0]});
             var d2=new Date(), pad=function(n){ return String(n).padStart(2,'0'); };
-            var _fx=(_comp&&selDuoFmt)?((selDuoFmt.value==='insta')?'-916':(selDuoFmt.value==='square')?'-11':''):'';
+            var _fx=(_comp&&selDuoFmt)?((selDuoFmt.value==='insta')?'-916':(selDuoFmt.value==='tall')?'-916c':(selDuoFmt.value==='square')?'-11':''):'';
             var name='qr-duet-'+d2.getFullYear()+pad(d2.getMonth()+1)+pad(d2.getDate())+'-'+pad(d2.getHours())+pad(d2.getMinutes())+pad(d2.getSeconds())+_fx+(isMp4?'.mp4':'.webm');
             window.__lastTakeBlob=blob; window.__lastTakeName=name;   // the take survives a dismissed dialog — until the NEXT take begins
             try{
@@ -20690,9 +20788,9 @@ startRenderLoop();
       // with one screen ABOVE the other, or a square stack — same idea as the
       // single-screen recorder's format select
       selDuoFmt=document.createElement('select');
-      selDuoFmt.title='duet video format: ▭ both screens side by side at native canvas resolution · ▯ 9:16 1080×1920 (Reels/Stories) — Markov ABOVE, Markova BELOW, each half covering 1080×960 · □ 1:1 1080×1080 square stack. Takes effect from the next take.';
+      selDuoFmt.title='duet video format: ▭ both screens side by side at native canvas resolution · ▯ 9:16 1080×1920 (Reels/Stories) — Markov ABOVE, Markova BELOW, each half covering 1080×960 · ║ 9:16 columns — Markov the LEFT column, Markova the RIGHT, each 540×1920 · □ 1:1 1080×1080 square stack. Takes effect from the next take.';
       selDuoFmt.style.cssText='margin-left:4px';
-      [['side','▭ 16:9'],['insta','▯ 9:16'],['square','□ 1:1']].forEach(function(o){
+      [['side','▭ 16:9'],['insta','▯ 9:16'],['tall','║ 9:16 columns'],['square','□ 1:1']].forEach(function(o){
         var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; selDuoFmt.appendChild(op);
       });
       try{ selDuoFmt.value=localStorage.getItem('qr_duet_video_format')||'side'; }catch(e){}
@@ -20820,7 +20918,9 @@ startRenderLoop();
           if(offIn){ offIn.value=v; if(offOut) offOut.textContent=_offLabel(v); }
           send({t:'soff', v:v}); }catch(e){} },
         offsetNow:function(){ try{ return state.duo.offsetBeats||0; }catch(e){ return 0; } },
-        paired:function(){ try{ return !!(state.duo.on && state.duo.peer); }catch(e){ return false; } }
+        paired:function(){ try{ return !!(state.duo.on && state.duo.peer); }catch(e){ return false; } },
+        frame:function(){ try{ if(!(_mkWrap && _mkWrap.parentNode) && btnOpen) btnOpen.onclick({stopPropagation:function(){}}); }catch(e){} },
+        vizmax:function(on){ try{ send({t:'vizmax', on:!!on}); }catch(e){} }
       }; }catch(e){}
       btnMode.style.display='none';   // the open pill shows the four doors; the cycle stays on the collapsed pill and the phone bar
       var _mGl=[['parts','⚭ parts','one piece, two voices — Markov sings his voices, Markova hers'],['retro','⇄ retro','the retrograde canon — the answer plays the SAME material reversed, note for note'],['free','✦ free','her own improviser — only the tempo ratio couples the two'],['pal','◆ palindrome','note for note, the tape wound backward — one half plays a FINITE form, the other then leads the same notes back, end to start: absolute coincidence. Active only for finite forms (form-dur or a Session).']];
@@ -21088,7 +21188,7 @@ startRenderLoop();
     pbFilm.title='film the form — video starts with ◆ play form, the final point stops and saves the take (arms 9:16)';
     pbFilm.onclick=function(){ try{ var _ff=document.getElementById('form-film'); if(!_ff) return;
       _ff.checked=!_ff.checked; pbFilm.classList.toggle('active',_ff.checked);
-      if(_ff.checked){ var _fv=document.getElementById('tb-vid-fmt'); if(_fv && _fv.value!=='insta'){ _fv.value='insta'; _fv.dispatchEvent(new Event('change')); } } }catch(e){} };
+      if(_ff.checked){ var _fv=document.getElementById('tb-vid-fmt'); if(_fv && _fv.value!=='insta' && _fv.value!=='tall'){ _fv.value='insta'; _fv.dispatchEvent(new Event('change')); } } }catch(e){} };
     drow.appendChild(pbBoth); drow.appendChild(pbLead); drow.appendChild(pbPal); drow.appendChild(pbFilm); drow.appendChild(pbRatio);
     bar.appendChild(drow);
     var prow=document.createElement('div'); prow.className='pb-row';
@@ -21286,6 +21386,8 @@ startRenderLoop();
     var _saOrig=window.startAudio, _paOrig=window.pauseAudio;
     if(typeof _saOrig==='function') window.startAudio=function(){ var r=_saOrig.apply(this,arguments);
       try{ if(!_xpApplying && state.duo.on && state.duo.peer) send({t:'xport', on:true}); }catch(e){}
+      try{ if(typeof ctx!=='undefined' && ctx && ctx.state!=='running') ctx.resume(); }catch(e){}   // (29.08) a cold context wakes with the transport — the take must not run on a frozen clock
+      try{ if(IS_LEADER && _mkFrameEl && _mkFrameEl.contentWindow && _mkFrameEl.contentWindow.__qrWake) _mkFrameEl.contentWindow.__qrWake(); }catch(e){}   // his gesture reaches across while the hand is still down
       try{ if(window._duoRecArm && state.running && !state.paused){ window._duoRecArm=false;
         setTimeout(function(){ try{ var _va=document.getElementById('tb-rec-vid'); if(_va) _va.style.color='';
           if(typeof btnRec!=='undefined' && btnRec && (typeof _dRec==='undefined'||!_dRec)) btnRec.onclick({stopPropagation:function(){}}); }catch(e){} },600); } }catch(e){}
@@ -21294,6 +21396,7 @@ startRenderLoop();
       try{ if(!_xpApplying && state.duo.on && state.duo.peer) send({t:'xport', on:(state.running&&!state.paused)}); }catch(e){}
       return r; };
   }catch(e){}
+  try{ global.__qrWake=function(){ try{ if(typeof ctx!=='undefined' && ctx && ctx.state!=='running') ctx.resume(); }catch(e){} }; }catch(e){}   // (29.08) either window can be woken by the other's gesture — same origin, same family
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_boot); else _boot();
 
   global.QRDuo={ send:send, broadcast:function(){ broadcastScene(true); }, role:ROLE, state:function(){ return state.duo; } };
@@ -21412,11 +21515,36 @@ body.viz-max #face { display: none; }
 body.mk-embedded #face, body.mk-embedded #face-back { display: none !important; }   /* one face for the pair — hers is a picture, not a console */
 body.face-quiet #controls, body.face-quiet #top-dock, body.face-quiet #phone-bar { display: none !important; }   /* her cockpit rests while the face greets */
 @media (max-width: 620px){ #face-doors button { font-size: 12px; padding: 8px 2px; } }
-#face-doors { display: flex; gap: 6px; }
-#face-doors button { flex: 1 1 0; min-height: 46px; background: #12161b; color: #cfd6de;
-  border: 1px solid #262e38; border-radius: 11px; font: inherit; padding: 8px 4px; cursor: pointer; }
-#face-doors button.on { border-color: var(--accent, #6cf); color: var(--accent, #6cf); background: #101a20; }
-#face-body { margin-top: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#face-doors { display: flex; gap: 2px; border-bottom: 1px solid #1c222a; }
+#face-doors button { flex: 1 1 0; min-height: 46px; background: transparent; color: #79828e;
+  border: 0; border-bottom: 2px solid transparent; font: inherit; padding: 8px 4px; cursor: pointer;
+  letter-spacing: .04em; }
+#face-doors button:hover { color: #cfd6de; }
+#face-doors button.on { color: #e8e4da; border-bottom-color: var(--accent, #6cf); background: transparent; }
+#face-body { margin-top: 10px; display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+#face-body > div:not(#face-note) { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#face button:focus { outline: none; }
+#face button:focus-visible, #face input:focus-visible { outline: 1px solid var(--accent, #6cf); outline-offset: 2px; }
+#face-note { order: -1; font-size: 12.5px !important; color: #a9b0ba !important;
+  border-bottom: 1px dashed #232a33; padding-bottom: 8px; letter-spacing: .02em; }
+#face-gen button, #face-formp button {
+  background: transparent !important; border: 0 !important; border-bottom: 1px solid transparent !important;
+  border-radius: 0 !important; color: #79828e !important; min-height: 44px; cursor: pointer; }
+#face-gen button:hover, #face-formp button:hover { color: #cfd6de !important; }
+#face-gen button.on, #face-formp button.on {
+  color: #e8e4da !important; border-bottom: 1px solid var(--accent, #6cf) !important; background: transparent !important; }
+#face-formp { border-top: 1px solid #1c222a; padding-top: 8px; }
+#face-formp::before { content: 'form'; font-size: 9px; letter-spacing: .3em; color: #565e68; text-transform: uppercase; margin-right: 8px; }
+#face-gen::before { content: 'genre'; font-size: 9px; letter-spacing: .3em; color: #565e68; text-transform: uppercase; margin-right: 8px; }
+#face-act { border-top: 1px solid #1c222a; padding-top: 10px; }
+#face-make, #face-rec, #face-safe {
+  background: transparent !important; border: 0 !important; border-radius: 0 !important;
+  color: #9aa4b0 !important; }
+#face-make:hover, #face-rec:hover, #face-safe:hover { color: #e8e4da !important; }
+#face-go { background: transparent !important; border: 1px solid #4a5568 !important;
+  color: #e8e4da !important; border-radius: 4px !important; font-size: 19px !important; }
+#face-go:hover { border-color: var(--accent, #6cf) !important; color: var(--accent, #6cf) !important; }
+#face-go.playing { border-color: #5a2a2a !important; color: #ff8a8a !important; background: transparent !important; }
 /* (16.08, at the table: «колеса заменить на что-то более управляемое для курсора»,
    then «убери и +− тоже — оставь ввод и всё») Genres are buttons you can see all at
    once; the length is two typed fields, minutes and seconds, with overflow. */
@@ -21448,7 +21576,6 @@ body.face-manual #face-back { display: block; }
 <div id="face">
   <div id="face-doors">
     <button id="door-play" class="on">◆ form</button>
-    <button id="door-duet">⚭ duet</button>
     <button id="door-demo">∴ demo</button>
     <button id="door-manual">✎ manual</button>
   </div>
@@ -21551,6 +21678,75 @@ body.face-manual #face-back { display: block; }
       mi.onkeydown=function(e){ if(e.key==='Enter'){ readMin(); si.focus(); si.select(); } };
       si.onkeydown=function(e){ if(e.key==='Enter'){ readSec(); si.blur(); } };
       len.appendChild(mi); len.appendChild(colon); len.appendChild(si); len.appendChild(lbl);
+      var frm=document.createElement('div'); frm.id='face-formp'; frm.style.cssText='display:flex;gap:6px;flex-wrap:wrap';
+      var FORMS=[['parts','⚭ parts','both halves sing one piece, each its own voices'],
+                 ['pal','⟲ palindrome','the score plays forward here and back note-for-note on the other half'],
+                 ['retro','⇄ retro','she answers with his material reversed, live'],
+                 ['free','✦ free','he reads the score; she improvises her own']];
+      function paintForms(){
+        var now=null; try{ now=window._qrDuo?window._qrDuo.modeNow():null; }catch(e){}
+        [].forEach.call(frm.querySelectorAll('button'),function(b){ b.classList.toggle('on', b.dataset.m===now);
+          if(b.dataset.m==='pal') b.disabled=isInfinite(); });
+      }
+      FORMS.forEach(function(fm){
+        var b=document.createElement('button'); b.textContent=fm[1]; b.title=fm[2]; b.dataset.m=fm[0];
+        b.style.cssText='min-height:44px;padding:8px 12px;background:#12161b;color:#cfd6de;border:1px solid #262e38;border-radius:11px;font:inherit;cursor:pointer';
+        b.onclick=function(){ try{ if(!(fm[0]==='pal'&&isInfinite()) && window._qrDuo) window._qrDuo.mode(fm[0]); }catch(e){} paintForms(); note(); paintGo(); };
+        frm.appendChild(b);
+      });
+      var _fs=document.createElement('style'); _fs.textContent='#face-formp button.on{border-color:var(--accent,#6cf);color:var(--accent,#6cf);background:#101a20}#face-formp button:disabled{opacity:.38;cursor:not-allowed}#face-formp .who.on{color:#e8e4da!important;border-bottom:1px solid var(--accent,#6cf)!important}';
+      frm.appendChild(_fs);
+      // the duet's last organs live HERE now — the pair is part of the form
+      var sep=function(){ var s=document.createElement('span'); s.style.cssText='color:#3a424c;margin:0 2px'; s.textContent='·'; return s; };
+      frm.appendChild(sep());
+      var bat=document.createElement('button'); bat.textContent='♛ baton';
+      bat.title='hand the baton to the other half — the conductor announces, the answer lands';
+      bat.onclick=function(){ try{ if(window._qrDuo) window._qrDuo.baton(); }catch(e){} note(); };
+      frm.appendChild(bat);
+      var offL=document.createElement('span'); offL.textContent='offset'; offL.style.cssText='color:#565e68;font-size:11px;letter-spacing:.1em;margin-left:6px';
+      var offI=document.createElement('input'); offI.type='text'; offI.inputMode='decimal'; offI.autocomplete='off'; offI.spellcheck=false;
+      offI.style.cssText='width:56px;height:40px;text-align:center;background:transparent;color:#e8e4da;border:0;border-bottom:1px solid #2b323c;font:15px "SF Mono",ui-monospace,monospace';
+      offI.title='beats, both ways — ±(p−1)/2 · negative: the answer moves first';
+      var offO=document.createElement('span'); offO.style.cssText='color:#79828e;font-size:12px';
+      var _offPaint=function(){ try{ var v=window._qrDuo?window._qrDuo.offsetNow():0; offI.value=String(v);
+        offO.textContent=(v===0)?'together':((v>0?'+':'−')+Math.abs(v)+' beats'+(v<0?' · answer first':'')); }catch(e){} };
+      offI.onchange=offI.onblur=function(){ try{ if(window._qrDuo) window._qrDuo.offset(parseFloat(String(offI.value).replace(',','.'))||0); }catch(e){} _offPaint(); };
+      _offPaint();
+      frm.appendChild(offL); frm.appendChild(offI); frm.appendChild(offO);
+      frm.appendChild(sep());
+      // ONE stage key: both by default; mark him or her to stage a single half
+      window._stageWho=window._stageWho||'both';
+      var stg=document.createElement('button'); stg.textContent='⛶ stage';
+      stg.title='fullscreen — by default both halves; mark his or hers to stage one alone. Exit: the ✕ on the stage, or Esc.';
+      stg.onclick=function(){
+        try{
+          var who=window._stageWho||'both';
+          document.body.classList.remove('stage-his','stage-hers');
+          if(who==='both'){ if(window._qrDuo) window._qrDuo.stage(); return; }
+          if(who==='hers' && window._qrDuo){ if(window._qrDuo.frame) window._qrDuo.frame(); if(window._qrDuo.vizmax) window._qrDuo.vizmax(true); }
+          document.body.classList.add(who==='his'?'stage-his':'stage-hers');
+          document.body.classList.add('viz-max');
+          try{ if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); }catch(e){}
+          if(!window._stageFsHook){ window._stageFsHook=1;
+            document.addEventListener('fullscreenchange',function(){
+              if(!document.fullscreenElement && (document.body.classList.contains('stage-his')||document.body.classList.contains('stage-hers'))){
+                document.body.classList.remove('stage-his','stage-hers','viz-max');
+                try{ if(window._qrDuo && window._qrDuo.vizmax) window._qrDuo.vizmax(false); }catch(e){}
+                window.dispatchEvent(new Event('resize'));
+              } }); }
+          window.dispatchEvent(new Event('resize'));
+        }catch(e){}
+      };
+      frm.appendChild(stg);
+      [['both','both'],['his','markov'],['hers','markova']].forEach(function(w){
+        var b=document.createElement('button'); b.className='who'; b.dataset.w=w[0]; b.textContent=w[1];
+        b.style.cssText='font-size:11px;letter-spacing:.06em;min-height:36px;padding:4px 6px';
+        b.onclick=function(){ window._stageWho=w[0];
+          [].forEach.call(frm.querySelectorAll('.who'),function(x){ x.classList.toggle('on',x.dataset.w===w[0]); }); };
+        if(w[0]===(window._stageWho||'both')) b.classList.add('on');
+        frm.appendChild(b);
+      });
+      setTimeout(paintForms,0); setInterval(paintForms,900);
       var mk=document.createElement('button'); mk.id='face-make'; mk.textContent='✚ create form';
       mk.title='the Markovs compose a score of this length — nothing sounds yet';
       mk.style.cssText='min-height:52px;padding:0 16px;background:#12161b;color:#cfd6de;border:1px solid #262e38;border-radius:12px;font:15px "SF Mono",ui-monospace,monospace;cursor:pointer';
@@ -21587,7 +21783,20 @@ body.face-manual #face-back { display: block; }
       sf.style.cssText='min-height:52px;padding:0 12px;background:#12161b;color:#9aa4b0;border:1px solid #262e38;border-radius:12px;font:13px "SF Mono",ui-monospace,monospace;cursor:pointer';
       sf.onclick=function(){ try{ window._qrSafeExport(); }catch(e){} };
       var n=document.createElement('div'); n.id='face-note';
-      body.appendChild(gen); body.appendChild(len); body.appendChild(mk); body.appendChild(fr); body.appendChild(go); body.appendChild(sf); body.appendChild(n);
+      // (28.08 author: «вертикальный режим записи — он левая колонка, она правая»)
+      // the tall mark beside film: lit — the take is 1080×1920, two tall columns;
+      // unlit — the wide 16:9 halves. The mark only chooses; film starts the take.
+      var tl=document.createElement('button'); tl.id='face-tall'; tl.textContent='║ 9:16';
+      tl.title='vertical take — Markov the left column, Markova the right, 1080×1920 (Reels). Unlit: wide 16:9, side by side.';
+      var _tlCss=function(on){ return 'font-size:11px;letter-spacing:.06em;min-height:36px;padding:4px 6px;background:transparent;border:0;cursor:pointer;'+(on?'color:#e8e4da;border-bottom:1px solid var(--accent,#6cf)':'color:#565e68'); };
+      var _tlOn=function(){ try{ var v=document.getElementById('tb-vid-fmt'); return !!(v&&v.value==='tall'); }catch(e){ return false; } };
+      tl.style.cssText=_tlCss(_tlOn());
+      tl.onclick=function(){ try{ var v=document.getElementById('tb-vid-fmt'); if(!v) return;
+        v.value=(v.value==='tall')?'screen':'tall'; v.dispatchEvent(new Event('change')); tl.style.cssText=_tlCss(_tlOn()); }catch(e){} };
+      if(!window._faceTallTick) window._faceTallTick=setInterval(function(){ try{ var b=document.getElementById('face-tall'); if(b) b.style.cssText=_tlCss(_tlOn()); }catch(e){} },900);
+      var act=document.createElement('div'); act.id='face-act';
+      act.appendChild(len); act.appendChild(mk); act.appendChild(fr); act.appendChild(tl); act.appendChild(go); act.appendChild(sf);
+      body.appendChild(n); body.appendChild(gen); body.appendChild(frm); body.appendChild(act);
       showLen(); _facePaintRec();
     }
     function note(){
@@ -21598,7 +21807,9 @@ body.face-manual #face-back { display: block; }
         n.textContent=GEN[sel.genre][1]+' · endless — the engines keep improvising · a palindrome needs an end, so it waits';
       } else if(Fp && Fp.plan && Fp.plan.length){
         var s=Math.round(Fp.T), t=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
-        n.textContent='the Markovs composed it: '+Fp.plan.length+' scenes · '+t+
+        var fw={pal:'⟲ palindrome',parts:'⚭ parts',retro:'⇄ retro',free:'✦ free'}[Fp.form]||'';
+        n.textContent='the Markovs composed it: '+Fp.plan.length+' scenes · '+t+(fw?' · '+fw:'')+
+          (Fp.events?' · prayer: he enters before the meeting; the arpeggio answers there and at φ':'')+
           (_pal?' — start plays it forward here, and back note-for-note on the other half':' — press start; it ends in silence, by itself');
       } else {
         n.textContent=GEN[sel.genre][1]+' · '+mmss()+' — press ✚ and the Markovs compose the score; start is a separate hand';
@@ -21655,54 +21866,6 @@ body.face-manual #face-back { display: block; }
       setTimeout(paintGo,150);
     }
 
-    function paintDuet(){
-      clearBody(); setDoor('door-duet');
-      var row=document.createElement('div'); row.id='face-row';
-      function proxy(label,title,fn,dis){
-        var b=document.createElement('button'); b.textContent=label; b.title=title||'';
-        if(dis){ b.disabled=true; } else b.onclick=fn; row.appendChild(b); return b; }
-      var _now=null; try{ _now=window._qrDuo?window._qrDuo.modeNow():(state.duo&&state.duo.mode); }catch(e){}
-      var _mk=function(lbl,title,m){ var b=proxy(lbl,title,function(){ _dmode(m); });
-        if(_now===m) b.style.borderColor='var(--accent,#6cf)', b.style.color='var(--accent,#6cf)';
-        return b; };
-      _mk('⚭ parts','both halves sing one piece, each its own voices','parts');
-      _mk('⇄ retro','she answers with his material reversed','retro');
-      _mk('✦ free','she runs her own improviser','free');
-      proxy('◆ palindrome', isInfinite()?'a palindrome needs a finite form — choose a length on the play wheel':'the form plays through, then the answer leads it back note for note',
-            function(){ _dmode('pal'); }, isInfinite());
-      proxy('♛ baton','hand the baton to the other half',function(){ try{ if(window._qrDuo) window._qrDuo.baton(); }catch(e){} paintDuet(); });
-      proxy('⛶ stage','fullscreen split of both halves',function(){ try{ if(window._qrDuo) window._qrDuo.stage(); }catch(e){} });
-      var offWrap=document.createElement('label');
-      offWrap.style.cssText='display:inline-flex;align-items:center;gap:6px;color:#6b7480';
-      offWrap.appendChild(document.createTextNode('offset'));
-      var off=document.createElement('input'); off.type='text'; off.inputMode='decimal'; off.autocomplete='off'; off.spellcheck=false;
-      off.style.cssText='width:72px;text-align:center;background:#0d1116;color:#e8e4da;border:1px solid #262e38;border-radius:10px;min-height:44px;font:15px "SF Mono",ui-monospace,monospace';
-      off.title='beats, both ways — ±(p−1)/2 · negative: the answer moves first';
-      try{ off.value=(window._qrDuo?window._qrDuo.offsetNow():((state.duo&&state.duo.offsetBeats)||0)); }catch(e){ off.value=0; }
-
-      var offv=document.createElement('span'); offv.style.color='#cfd6de';
-      var lab=function(v){ v=+v||0; return v===0?'together':('+'+(Math.round(v*100)/100)+' beat'+(v===1?'':'s')); };
-      offv.textContent=lab(off.value);
-      off.onchange=off.onblur=function(){
-        try{ if(window._qrDuo){ window._qrDuo.offset(off.value); off.value=String(window._qrDuo.offsetNow()); } }catch(e){}
-        offv.textContent=lab(off.value); };
-      offWrap.appendChild(off); offWrap.appendChild(offv); row.appendChild(offWrap);
-      body.appendChild(row);
-      var n=document.createElement('div'); n.id='face-note';
-      var _m=null; try{ _m=window._qrDuo?window._qrDuo.modeNow():null; }catch(e){}
-      n.textContent = (_m==='pal')
-        ? ('⟲ palindrome is armed — now open ◆ form and start it: this half plays the whole form, then the other leads it back note for note, end to start'+(isInfinite()?' (choose a length first — an endless piece has no end to mirror)':''))
-        : (_m==='retro') ? '⇄ retro — she answers with his material reversed, from the mirror beat p−r'
-        : (_m==='free') ? '✦ free — she runs her own improviser; only the tempo ratio couples the two'
-        : 'two engines, one law. The conductor announces every change of world a beat ahead, so both halves land on the same beat — the offset moves the answer, and only the answer.';
-      body.appendChild(n);
-    }
-    function _dmode(m){
-      if(m==='pal' && isInfinite()) return;
-      try{ if(window._qrDuo && window._qrDuo.mode){ window._qrDuo.mode(m); paintDuet(); return; } }catch(e){}
-      try{ if(state && state.duo) state.duo.mode=m; }catch(e){}
-    }
-
     function paintDemo(){
       clearBody(); setDoor('door-demo');
       var row=document.createElement('div'); row.id='face-row';
@@ -21749,7 +21912,6 @@ body.face-manual #face-back { display: block; }
     }
 
     document.getElementById('door-play').onclick=function(){ paintPlay(); _fitViz(); };
-    document.getElementById('door-duet').onclick=function(){ paintDuet(); _fitViz(); };
     document.getElementById('door-demo').onclick=function(){ paintDemo(); _fitViz(); };
     document.getElementById('door-manual').onclick=toManual;
     document.getElementById('face-back').onclick=toFace;

@@ -53,7 +53,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <div id="top">
-  <h1>שְׁמִיעָה</h1><span class="sub">shmia · listening gym · v0.1.3 · five gauges</span>
+  <h1>שְׁמִיעָה</h1><span class="sub">shmia · listening gym · v0.1.6 · five gauges</span>
 </div>
 <div id="tabs">
   <div class="tab on" data-v="flow"><span class="heb">אִמּוּן</span><span class="lat">train</span></div>
@@ -189,8 +189,23 @@ function makeStair(start, stepFactorOrDb, min, max, isDb) {
 function stairStep(st, correct, rule) { // rule: 3 = 3-down-1-up (79.4%), 2 = 2-down-1-up... we use 3 and (1-up-2-down for SNR = rule 2)
   st.trials++;
   let dir = 0;
-  if (correct) { st.ok++; if (st.ok >= rule) { st.ok = 0; dir = -1; } }
-  else { st.ok = 0; dir = +1; }
+  // FAST DESCENT (27.08): until the first miss the ladder is above threshold by
+  // construction, and demanding three corrects per step there is paying triple
+  // for information that costs one. On 27.08 three of the four ladders spent the
+  // whole 26-trial block descending from a high start — 96% correct, two
+  // reversals, and NO NUMBER stored, three times over. One correct = one step
+  // down until the first miss; the textbook rule takes over from there.
+  if (correct) {
+    st.ok++;
+    // (28.08) the fast phase demands TWO in a row, not one: on 2AFC a single
+    // correct is a coin flip half the time, and the 28.08 session rode lucky
+    // guesses straight to the 0.15% floor, then spent the block climbing back —
+    // 27 trials, 3 reversals, null. Two-in-a-row cuts the guess-overshoot to a
+    // quarter per step and still descends twice as fast as the textbook rule.
+    if (st.noMissYet !== false) { if (st.ok >= 2) { st.ok = 0; dir = -1; } }
+    else if (st.ok >= rule) { st.ok = 0; dir = -1; }
+  }
+  else { st.ok = 0; dir = +1; st.noMissYet = false; }
   if (dir !== 0) {
     if (st.lastDir && dir !== st.lastDir) st.rev.push(st.v);
     st.lastDir = dir;
@@ -271,10 +286,21 @@ let view = 'flow', bi = -1, stair = null, trial = null, babbleBuf = null, ears =
 // fourteen of twenty-six gap trials were taken without effort — half the block
 // carried no information, and «two voices» ran out of trials while still
 // descending, so its «threshold» was the average of two early lapses: +14 dB.
+const APP_VER = '0.1.6';   // (28.08) every stored number carries the build that made it:
+                           // on 27.08 a session ran on a stale build and nobody could tell
+                           // from the export — that ambiguity is now impossible
+const RAIL_TOP = { hevdel: 30, revach: 120, kolot: 18, ivrit: 18 };
 function lastThreshold(key) {
-  for (let i = state.thresholds.length - 1; i >= 0; i--)
-    if (state.thresholds[i].block === key && state.thresholds[i].value != null)
-      return state.thresholds[i].value;
+  for (let i = state.thresholds.length - 1; i >= 0; i--) {
+    const t = state.thresholds[i];
+    if (t.block !== key || t.value == null) continue;
+    // a value ON the clamp is the rail, not the ear. The phone carried
+    // hevdel=30 from the 15.08 chime-bug session (11/20 correct — chance),
+    // and on 27.08 that poisoned the warm start: the ladder opened at 30%
+    // and burned a third of the block walking down from it.
+    if (RAIL_TOP[key] != null && t.value >= RAIL_TOP[key]) continue;
+    return t.value;
+  }
   return null;
 }
 function startBlock(i) {
@@ -348,11 +374,17 @@ function nextTrial() {
   } else if (b.key === 'oznayim') {
     const f = EAR_FREQS[ears.fi], st = ears.stairs[ears.fi];
     const base = 0.14;                                    // gentle: this ear is being watched
-    const lg = base * Math.pow(10, st.d / 20);
+    // (27.08) the difference d is SPLIT across the ears: left +d/2, right −d/2.
+    // The old form put all of d on the left, whose gain reached 4.4 at the +30
+    // rail — hard clipping into a 0.9 master exactly where a big imbalance
+    // would live, and a distorted tone reads louder than it is. Split, the
+    // worst case is 0.79: clean at every reachable d, and the measured
+    // quantity — the relative L−R difference — is unchanged to the decibel.
+    const half = Math.pow(10, st.d / 40);
     // right first, then left, always in that order — a fixed order keeps the
     // judgement about the ears and not about which came first
-    earTone(t0, f, 0.5, base, +1);
-    earTone(t0 + 0.75, f, 0.5, lg, -1);
+    earTone(t0, f, 0.5, base / half, +1);
+    earTone(t0 + 0.75, f, 0.5, base * half, -1);
     trial.ear = true;
     renderTrial(['שְׂמֹאל|smol · left|1', 'יָמִין|yamín · right|2'], `${f} Hz — which side was louder?`);
   }
@@ -396,7 +428,7 @@ function finishBlock() {
   if (b.key === 'oznayim') {
     const rows = EAR_FREQS.map((f, i) => {
       const d = earBalance(ears.stairs[i]);
-      if (d != null) state.thresholds.push({ date: dayKey(now()), block: 'ozn' + f, value: d });
+      if (d != null) state.thresholds.push({ date: dayKey(now()), block: 'ozn' + f, value: d, dev: state.device || undefined, ver: APP_VER });
       const tag = d == null ? '—'
         : (Math.abs(d) < 4 ? 'even' : (d > 0 ? 'left needs +' + d : 'right needs +' + (-d)));
       return `<tr><td style="padding:3px 12px 3px 0">${f} Hz</td>
@@ -410,20 +442,31 @@ function finishBlock() {
       <div class="meta" style="max-width:420px">Positive means the LEFT ear needed more level to sound
       equal — that side is the quieter one. Under about 4 dB is ordinary asymmetry.
       What matters is not today's number but whether it grows over weeks.
-      This is a monitor. It is not an audiogram and it cannot replace one.</div></div>`;
+      This is a monitor of LOUDNESS at listening level, not of thresholds: where
+      a loss lives, recruitment shrinks the audiogram's gap at comfortable
+      volume — so matching the audiogram above 2 kHz is not expected, and a
+      near-zero reading there is a finding, not a failure.
+      It is not an audiogram and it cannot replace one.</div></div>`;
     $('#controls').innerHTML = nxt >= 0
       ? `<button class="bigbtn primary" onclick="startBlock(${nxt})">הַלְאָה<span class="lat">hál'a · next block</span></button>`
       : `<button class="bigbtn primary" onclick="view='dash';render()">סִיּוּם<span class="lat">siyúm · done - gauges</span></button>`;
     return;
   }
-  const th = stairThreshold(stair);
-  state.thresholds.push({ date: dayKey(now()), block: b.key, value: th });
+  let th = stairThreshold(stair);
+  let bound = null;
+  // (27.08) a block that dies at the trial cap while STILL DESCENDING has not
+  // failed to measure — it has measured a bound: he was passing every trial at
+  // the deepest level reached. Store that level marked «at least this sharp»;
+  // it also seeds tomorrow's warm start, which a null cannot.
+  if (th == null && stair.lastDir < 0) { bound = '\u2264'; th = Math.round(stair.v * 100) / 100; }
+  state.thresholds.push({ date: dayKey(now()), block: b.key, value: th, bound: bound || undefined, dev: state.device || undefined, ver: APP_VER });
   save();
   $('#stage').innerHTML = `<div class="center">
     <div class="bigheb">${b.he}</div>
-    <div style="font-size:26px">${th == null ? '—' : th} <span style="font-size:13px;color:var(--faint)">${b.unit}</span></div>
+    <div style="font-size:26px">${th == null ? '—' : (bound || '') + th} <span style="font-size:13px;color:var(--faint)">${b.unit}</span></div>
     <div class="meta">${th == null
       ? 'the ladder never turned enough times — no number today, which is better than a wrong one'
+      : bound ? 'the cap ended the block while you were still winning — the true threshold is AT OR BELOW this'
       : "today's threshold - smaller is sharper. It lands on the gauges."}</div></div>`;
   $('#controls').innerHTML = nxt >= 0
     ? `<button class="bigbtn primary" onclick="startBlock(${nxt})">הַלְאָה<span class="lat">hál'a · next block</span></button>`
@@ -453,13 +496,22 @@ function renderFlow() {
   bi = -1;
   $('#stage').innerHTML = `<div class="center">
     <div class="bigheb">שְׁמִיעָה</div>
-    <div class="meta">four short listening ladders · ~15 min · AirPods, quiet room<br>
+    <div class="meta">five short listening gauges · ~10 min · headphones, quiet room<br>
     ${BLOCKS.map(b => b.he).join(' → ')}<br><br>
     Each ladder finds today's threshold: it gets harder while you are right and easier when you miss.
     Being wrong half the time near the end is the design, not a failure.</div></div>`;
-  $('#controls').innerHTML = `<button class="bigbtn primary" onclick="beginSession()">הַתְחֵל<span class="lat">hatchél · start</span></button>`;
+  const devs = ['AirPods', 'Mac', 'wired'];
+  // (27.08) the numbers of 15.08 were taken on Mac Chrome, today's on AirPods,
+  // and nothing recorded which — two instruments were about to fold into one
+  // false trend. The device is part of the measurement; it travels with every
+  // threshold row and with the export.
+  $('#controls').innerHTML = `<div style="display:flex;gap:8px;justify-content:center;margin-bottom:10px">${devs.map(d =>
+      `<button onclick="setDevice('${d}')" style="padding:7px 14px;font-size:13px;${(state.device || 'AirPods') === d ? 'border-color:var(--gold);color:var(--gold)' : 'opacity:.55'}">${d}</button>`).join('')}</div>
+    <button class="bigbtn primary" onclick="beginSession()">הַתְחֵל<span class="lat">hatchél · start</span></button>`;
 }
+function setDevice(d) { state.device = d; save(); renderFlow(); }
 function beginSession() {
+  if (!state.device) { state.device = 'AirPods'; }
   audioInit(); ctx.resume();
   startBlock(0);
 }
@@ -474,7 +526,7 @@ function renderDash() {
       ${BLOCKS.map(b => { const l = lastBy(b.key); return `<div class="kv"><span dir="rtl">${b.he}</span><b>${l ? l.value + ' ' + b.unit + ' · ' + l.date : '—'}</b></div>`; }).join('')}
     </div>
     <div class="card"><h3>history</h3>
-      ${BLOCKS.map(b => { const xs = state.thresholds.filter(t => t.block === b.key).slice(-10); return `<div class="kv"><span dir="rtl">${b.he}</span><b>${xs.map(x => x.value).join(' · ') || '—'}</b></div>`; }).join('')}
+      ${BLOCKS.map(b => { const xs = state.thresholds.filter(t => t.block === b.key).slice(-10); return `<div class="kv"><span dir="rtl">${b.he}</span><b>${xs.map(x => (x.bound || '') + x.value).join(' · ') || '—'}</b></div>`; }).join('')}
       <div class="kv"><span>days trained</span><b>${days}</b></div>
     </div>
     <div class="card"><h3>honest frame</h3>
@@ -491,12 +543,12 @@ function renderDash() {
   $('#controls').innerHTML = '';
 }
 function exportJSON() {
-  const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), state, log }, null, 1)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), ver: APP_VER, state, log }, null, 1)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = 'shmia-' + dayKey(now()) + '.json'; a.click();
 }
 function shareJSON() {
-  const f = new File([JSON.stringify({ exported: new Date().toISOString(), state, log }, null, 1)],
+  const f = new File([JSON.stringify({ exported: new Date().toISOString(), ver: APP_VER, state, log }, null, 1)],
     'shmia-' + dayKey(now()) + '.json', { type: 'application/json' });
   if (navigator.canShare && navigator.canShare({ files: [f] })) {
     navigator.share({ files: [f], title: 'shmia log' }).catch(() => {});
@@ -511,7 +563,7 @@ function importJSON(inp) {
 
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => { view = t.dataset.v; render(); });
 load(); render();
-window.answer = answer; window.lapse = lapse; window.startBlock = startBlock; window.beginSession = beginSession;
+window.answer = answer; window.lapse = lapse; window.startBlock = startBlock; window.beginSession = beginSession; window.setDevice = setDevice;
 window.exportJSON = exportJSON; window.shareJSON = shareJSON; window.importJSON = importJSON;
 window.render = render;
 </script>
