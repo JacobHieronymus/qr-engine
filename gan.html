@@ -164,6 +164,7 @@ function buildQRImpulse(ac, p) {
 function audioInit() {
   if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
+  try { ctx.addEventListener('statechange', () => ganLog('gan-ctx', ctx.state)); } catch (e) {}
   master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
   const eIn = ctx.createGain(); eIn.gain.value = 0.57;
   const dry = ctx.createGain(); dry.gain.value = 0.82;
@@ -306,8 +307,16 @@ function speak(text, slow) {
   u.lang = isHe ? 'he-IL' : 'en-US';
   u.rate = isHe ? (slow ? 0.78 : 0.9) : 1.0;
   u.onstart = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain * 0.45, ctx.currentTime, 0.15); if (eng.on) engMaster(mvolDuck()); };
-  u.onend = () => { if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain, ctx.currentTime, 0.3); if (eng.on) engMaster(mvol()); };
-  setTimeout(() => { if (eng.on && !speechSynthesis.speaking) engMaster(mvol()); }, Math.max(2500, text.length * 110));
+  let restored = false;
+  const restore = (why) => {
+    if (restored) return; restored = true;
+    if (musicZone && ctx) musicZone.gain.setTargetAtTime(zoneGain, ctx.currentTime, 0.3);
+    if (eng.on) { engMaster(mvol()); engWake('tts ' + why); }   // the cue may have taken the audio session — wake the band after every cue
+  };
+  u.onend = () => restore('end');
+  u.onerror = (ev) => restore('error ' + ((ev && ev.error) || ''));   // cancel() ends in 'error', never 'end'
+  setTimeout(() => { if (!speechSynthesis.speaking) restore('timer'); }, Math.max(2500, text.length * 110));
+  setTimeout(() => restore('hard-timer'), Math.max(8000, text.length * 220));   // a stuck speaking flag must not keep the duck forever
   speechSynthesis.speak(u);
 }
 
@@ -331,6 +340,11 @@ try { bandWant = localStorage.getItem('gan-band-v1') !== 'off'; } catch (e) {}
     const f = document.getElementById('eng');
     f.addEventListener('load', () => {
       try { eng.win = f.contentWindow; eng.ready = !!(eng.win && eng.win.document.getElementById('engine-play')); } catch (e) {}
+      try {                                               // the engine's flight recorder is lexical; its console.warn('[qr-flight]', ev, d) is the public copy
+        const w = eng.win, orig = w.console.warn.bind(w.console);
+        w.console.warn = function (...args) { if (args[0] === '[qr-flight]') ganLog('eng:' + args[1], args[2]); return orig(...args); };
+      } catch (e) {}
+      ganLog('eng', eng.ready ? 'loaded' : 'no engine');
     });
     f.src = '2907QR_Engine_8.html';
   } catch (e) {}
@@ -350,23 +364,98 @@ function engMaster(v) {
     }
   } catch (e) {}
 }
+/* ============ engine life-support on the phone (03.09) ============
+   Field report 03.09: the band choked and then fell silent at ~minute 20 with the
+   phone in a pocket and the screen locked, while the voice cues went on. Why: iOS
+   keeps a page's Web Audio alive under lock only while a media element is PLAYING;
+   the engine's own keep-alive <audio> was started from a 250 ms timer — outside the
+   tap's gesture — so iOS refused it, and later put the context to sleep; nobody
+   woke it, because gan called __qrWake once, before the engine even had a context.
+   So: gan owns a silent looping <audio> started INSIDE the tap, forwards his real
+   touches to the engine, wakes the band after every cue and on every return, watches
+   the engine's audio clock, and drives the transport by STATE, not by button labels
+   (the engine's play button reads '▶ play' in every state). */
+const ganFlight = [];                                    // the last 300 events since page-open
+function ganLog(ev, d) {
+  try {
+    const row = [running ? Math.round(now()) : -1, new Date().toTimeString().slice(0, 8), ev, String(d || '').slice(0, 160)];
+    ganFlight.push(row); if (ganFlight.length > 300) ganFlight.shift();
+    if (rec && rec.flight) { rec.flight.push(row); if (rec.flight.length > 400) rec.flight.shift(); }
+  } catch (e) {}
+}
+const SILENT_WAV = 'data:audio/wav;base64,UklGRsQPAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YaAPAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
+let anchor = null;                                        // gan's own session anchor
+function anchorPlay() {                                   // INSIDE a gesture: iOS refuses play() from timers
+  try {
+    if (!anchor) { anchor = new Audio(SILENT_WAV); anchor.loop = true; anchor.setAttribute('playsinline', ''); anchor.volume = 0.01; }
+    if (anchor.paused) { const p = anchor.play(); if (p && p.catch) p.catch(e => ganLog('anchor-fail', e && e.name)); }
+  } catch (e) {}
+}
+function engAudio() { try { return (eng.win && eng.win._qrAudio) || null; } catch (e) { return null; } }
+function engCtx() { const a = engAudio(); return a ? a.ctx : null; }
+function engPlaying() { const a = engAudio(); return !!(a && a.running && !a.paused); }
+function engState() {
+  const c = engCtx(); if (!c) return 'no-ctx';
+  let ka = 'no-ka'; try { const k = eng.win.__qrKA; if (k) ka = k.paused ? 'ka-paused' : 'ka-playing'; } catch (e) {}
+  return c.state + '@' + c.currentTime.toFixed(1) + ' ' + ka + (engPlaying() ? ' playing' : ' idle')
+       + (anchor ? (anchor.paused ? ' anchor-paused' : ' anchor-playing') : ' no-anchor');
+}
+const engT = { ct: -1, at: 0, frozenSince: 0, lastWake: 0 };
+function engWake(why) {                                   // gesture-free resume of both contexts, debounced
+  if (!eng.on) return;
+  const t = Date.now(); if (t - engT.lastWake < 900) return; engT.lastWake = t;
+  try { if (eng.win.__qrWake) eng.win.__qrWake(); } catch (e) {}
+  try { if (ctx && ctx.state !== 'running') ctx.resume(); } catch (e) {}
+  ganLog('wake', why + ' · ' + engState());
+}
+function engKick() {                                      // INSIDE a real touch on gan's page — the only gesture that can reach the hidden iframe
+  anchorPlay();
+  if (!eng.on) return;
+  try { if (eng.win.__qrWake) eng.win.__qrWake(); } catch (e) {}
+  try { const k = eng.win.__qrKA; if (k && k.paused) { const p = k.play(); if (p && p.catch) p.catch(e => ganLog('ka-fail', e && e.name)); } } catch (e) {}
+  try { if (ctx && ctx.state !== 'running') ctx.resume(); } catch (e) {}
+}
+['touchstart', 'touchend', 'pointerdown', 'click'].forEach(ev => window.addEventListener(ev, engKick, { passive: true }));
+function engHealth() {                                    // from tick(): while the band plays, its audio clock must advance
+  if (!eng.on || paused) { engT.ct = -1; engT.frozenSince = 0; return; }
+  const c = engCtx(); if (!c) return;
+  const t = Date.now(), ct = c.currentTime, gap = t - engT.at;
+  if (engT.ct < 0) { engT.ct = ct; engT.at = t; return; }
+  if (gap < 2000) return;                                  // one sample per 2 s
+  if (gap > 4000) { ganLog('tick-gap', Math.round(gap / 1000) + 's · ' + engState()); engT.ct = ct; engT.at = t; engWake('after gap'); return; }   // timers were frozen: re-base, wake, judge next sample
+  const moved = ct > engT.ct + 0.5;                        // 2 s of wall time must yield ≥ 0.5 s of audio time
+  engT.ct = ct; engT.at = t;
+  if (moved) { if (engT.frozenSince) ganLog('clock-back', engState()); engT.frozenSince = 0; return; }
+  if (!engT.frozenSince) { engT.frozenSince = t; ganLog('clock-frozen', engState() + ' · ' + document.visibilityState + ' · tts ' + (speechSynthesis.speaking ? 1 : 0)); }
+  engWake('frozen ' + Math.round((t - engT.frozenSince) / 1000) + 's');
+}
+function engFrame(room) {              // click the frame only if it is not the active one (a click on the active frame turns it OFF)
+  const id = room === 'stretch' ? 'act-meditate' : 'act-workout';
+  try { const b = eng.win.document.getElementById(id); if (b && !b.classList.contains('active')) b.click(); } catch (e) {}
+}
 function bandRoom(room) {          // 'work' -> the interval set, 'stretch' -> the prayer
   if (!eng.on || !eng.ready || eng.room === room) return;
   eng.room = room;
-  engClick(room === 'stretch' ? 'act-meditate' : 'act-workout');
+  engFrame(room);
+  ganLog('band', 'room ' + room);
 }
 function bandStart(firstRoom) {
   if (!eng.ready || !bandWant) return;
   eng.on = true; eng.room = firstRoom;
-  try { if (eng.win.__qrWake) eng.win.__qrWake(); } catch (e) {}   // a cold iframe ctx is born suspended
-  engClick(firstRoom === 'stretch' ? 'act-meditate' : 'act-workout');
+  anchorPlay();                                           // gan's own anchor — in the tap
+  try { if (eng.win.__qrWake) eng.win.__qrWake(); } catch (e) {}   // real after a pause; a no-op before the engine's first start
+  engFrame(firstRoom);
+  try {                                                   // the play click stays INSIDE the tap: the engine's gestureKick runs here
+    const b = eng.win.document.getElementById('engine-play');
+    if (b && !engPlaying()) b.click();                    // the label is '▶ play' in every state — read the transport
+  } catch (e) {}
   setTimeout(() => {
     try {
-      const b = eng.win.document.getElementById('engine-play');
-      if (b && !/stop|■/i.test(b.textContent)) b.click();
       const a = eng.win.document.getElementById('ai-auto');
       if (a && !/stop/i.test(a.textContent)) a.click();   // the improviser breathes scene to scene
       engMaster(mvol());                                  // столько, сколько он поставил
+      engT.ct = -1;
+      ganLog('band', 'start ' + firstRoom + ' · ' + engState());
     } catch (e) {}
   }, 250);
   let tok = null; try { tok = localStorage.getItem(TOK_KEY); } catch (e) {}
@@ -380,11 +469,14 @@ function bandStop() {
   eng.on = false; eng.room = null;
   if (eng.heart) { eng.heart = false; engClick('pulse-off'); }
   try {
+    const fr = eng.win.document.querySelector('#act-workout.active, #act-meditate.active');
+    if (fr) fr.click();                                   // release the frame, so the next bandStart's click turns it ON
     const a = eng.win.document.getElementById('ai-auto');
     if (a && /stop/i.test(a.textContent)) a.click();
     const b = eng.win.document.getElementById('engine-play');
-    if (b && /stop|■/i.test(b.textContent)) b.click();
+    if (b && engPlaying()) b.click();                     // pause only a playing engine (the label never says so)
   } catch (e) {}
+  ganLog('band', 'stop · ' + engState());
 }
 
 /* ============ the program ============ */
@@ -496,7 +588,7 @@ let running = false, paused = false, t0 = 0, pausedAt = 0;
 let intensity = 'M', zoneGain = 1.0, zoneState = 'in', zoneSince = 0, lastCue = 0;
 let beatPos = 0, beatIdx = 0, lastSched = 0, heartNext = 0;
 let news = null, newsSpoken = false;
-let rec = null, lastHrSample = 0; // session log: hr series, cues, phases
+let rec = null, lastHrSample = 0, lastAudioSample = 0; // session log: hr series, cues, phases, audio health
 
 const $ = id => document.getElementById(id);
 function now() { return running ? (paused ? pausedAt : (Date.now() - t0) / 1000) : 0; }
@@ -531,6 +623,7 @@ function tick() {
   // music: the Markovs when the band is on; the baked blips otherwise
   const act = ctx.currentTime;
   bandRoom(ph[0] >= 1880 ? 'stretch' : 'work');
+  engHealth();
   const bpm = ph[3];
   if (eng.on) { /* the engine plays in the next room */ }
   else if (bpm > 0) {
@@ -572,6 +665,8 @@ function tick() {
   if (rec) {
     rec.phase = Math.max(rec.phase, PHASES.indexOf(ph));
     if (HR.online && t - lastHrSample >= 5) { lastHrSample = t; rec.hr.push([Math.round(t), Math.round(HR.ema)]); }
+    if (t - lastAudioSample >= 10) { lastAudioSample = t; rec.audio.push([Math.round(t), engState(), ctx ? ctx.state : '-', speechSynthesis.speaking ? 1 : 0, document.visibilityState[0]]); }
+    if (t - (rec.savedAt || 0) >= 60) { rec.savedAt = t; saveRecLive(); }
   }
 
   // heart layer: soft wood pulse at his live heart rate
@@ -686,7 +781,14 @@ let wakeLock = null;
 async function keepAwake() {
   try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
 }
-document.addEventListener('visibilitychange', () => { if (running && document.visibilityState === 'visible') keepAwake(); });
+document.addEventListener('visibilitychange', () => {
+  ganLog('vis', document.visibilityState + ' · ' + engState());
+  if (document.visibilityState === 'visible') { if (running) keepAwake(); engWake('visible'); }
+  else saveRecLive();                       // the screen went dark — bank the evidence now
+});
+window.addEventListener('pageshow', () => engWake('pageshow'));
+window.addEventListener('focus', () => engWake('focus'));
+window.addEventListener('pagehide', saveRecLive);
 
 document.querySelectorAll('.intBtn').forEach(b => {
   b.onclick = () => {
@@ -704,8 +806,8 @@ $('startBtn').onclick = () => {
   running = true; paused = false; t0 = Date.now();
   EV.forEach(e => { e[3] = false; });
   beatIdx = 0; lastSched = 0; heartNext = 0;
-  rec = { date: new Date().toISOString(), intensity, hr: [], cues: [], phase: 0, done: false };
-  lastHrSample = 0;
+  rec = { date: new Date().toISOString(), ua: navigator.userAgent, intensity, hr: [], cues: [], phase: 0, done: false, flight: ganFlight.slice(-40), audio: [] };
+  lastHrSample = 0; lastAudioSample = 0;
   bandStart('work');
   $('setup').classList.add('hidden');
   $('startBtn').classList.add('hidden');
@@ -760,10 +862,18 @@ function saveRec(done) {
     const lg = JSON.parse(localStorage.getItem('gan-log-v1') || '[]');
     lg.push(rec); localStorage.setItem('gan-log-v1', JSON.stringify(lg.slice(-60)));
   } catch (e) {}
+  try { localStorage.removeItem('gan-log-live-v1'); } catch (e) {}   // a finished session supersedes its live snapshot
   rec = null;
 }
+function saveRecLive() {                     // mid-session snapshot — a killed tab must not take the evidence with it
+  if (!rec) return;
+  try { localStorage.setItem('gan-log-live-v1', JSON.stringify(rec)); } catch (e) {}
+}
 function shareLog() {
-  const f = new File([localStorage.getItem('gan-log-v1') || '[]'],
+  let lg = [];
+  try { lg = JSON.parse(localStorage.getItem('gan-log-v1') || '[]'); } catch (e) {}
+  try { const live = JSON.parse(localStorage.getItem('gan-log-live-v1') || 'null'); if (live && !lg.some(r => r.date === live.date)) lg.push(live); } catch (e) {}   // the unfinished session rides along
+  const f = new File([JSON.stringify(lg)],
     'gan-log-' + new Date().toISOString().slice(0, 10) + '.json', { type: 'application/json' });
   if (navigator.canShare && navigator.canShare({ files: [f] })) {
     navigator.share({ files: [f], title: 'gan log' }).catch(() => {});
@@ -799,6 +909,7 @@ $('bandBtn').onclick = () => {
   const ak = localStorage.getItem(API_KEY); if (ak) $('keyIn').value = ak;
   $('bandBtn').classList.toggle('on', bandWant);
   $('bandBtn').textContent = bandWant ? 'הַמַּרְקוֹבִים · live' : 'הַמַּרְקוֹבִים · off';
+  try { if (localStorage.getItem('gan-log-live-v1')) $('shareBtn').classList.remove('hidden'); } catch (e) {}   // last time's unfinished run is exportable
 })();
 setInterval(tick, 250);
 </script>
