@@ -4681,6 +4681,7 @@ function _rebuildAudioContext(){
 // produces NotAllowedError / "Failed to start the audio device". Called first
 // thing from: Start, every global tap (unlockAudio), the sound overlay.
 // ---------------------------------------------------------------------------
+window.__qrLog=window.__qrLog||function(m){ try{ if(typeof _fl==='function') _fl('log',String(m)); else console.warn('[qr-log]',m); }catch(e){} };   // (03.09) the keep-alive's own reports used to vanish into an undefined function
 function gestureKick(src){
   // Deliberately MINIMAL — the original build worked with one context and a
   // plain resume() in the gesture. iOS hard-limits live AudioContexts per page
@@ -8083,6 +8084,7 @@ function _advanceSection(s,p,time){
 }
 
 function schedulerTick(){
+  try{ if(document.hidden && SCHEDULE_AHEAD<1.25) SCHEDULE_AHEAD=1.25; }catch(e){}   // (03.09) hidden from birth (an iframe in a pocketed page) never saw the visibilitychange that raises the margin
   if(!state.running||state.paused) return;
   if(ctx.state!=='running'){ try{ ctx.resume(); }catch(e){} }   // wake a context the OS/tab suspended, don't pile beats onto a frozen clock
   const dur=beatDur();
