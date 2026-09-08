@@ -728,6 +728,17 @@ details.acc[open] { padding-bottom: 0; }
       <input type="range" id="cfg-arp-sub" min="0" max="46" step="1" value="14">
       <span id="cfg-arp-val" style="flex:0;min-width:60px;text-align:right;color:var(--muted)">1/2 beat</span>
     </div>
+    <div class="row" id="cfg-arp-ord-row" style="font-size:11px;gap:10px">
+      <label>arp order</label>
+      <select id="cfg-arp-ord" title="the order the four nodes are struck in.
+· by pitch — low to high, the way it has always been; the residue class of the position decides which way, the ⇅ button and the global reverse flip it.
+· by squares — the same four notes, but climbing by their SQUARES rather than by their pitches: r² mod p ascending. Every square is a quadratic residue, so the figure walks the QR half of the world and its pitch order comes out scrambled by the arithmetic, not by a hand.
+· squaring orbit — the figure leaves the chord and follows the squaring map itself: r, r², r⁴, r⁸. Repeated squaring collapses, so the run is a tail that falls into a circle — and the circles it falls into are exactly what the omega layer sounds. If it reaches unity it stays there, and you hear the arithmetic stop.">
+        <option value="pitch">by pitch</option>
+        <option value="square">by squares</option>
+        <option value="orbit">squaring orbit</option>
+      </select>
+    </div>
     <div class="row">
       <label>chord length</label>
       <input type="range" id="cfg-dur" min="0" max="46" step="1" value="15">
@@ -3206,6 +3217,41 @@ function _nearestPnAnchorR(p, r){
   const c=A[lo], b=A[Math.max(0,lo-1)];
   return (Math.abs(c.r-r)<Math.abs(b.r-r)) ? c.r : b.r;
 }
+// (08.09) THE BREATH'S SEAM TABLE — where a phrase may end. In `main` the seams are
+// the row's own fixed points (a² ≡ r, the slots the engine already treats as the row's
+// landmarks); in prelude/postlude/dual they are the p/n sustain pillars the drones
+// latch onto and the only slots a transition may cross. A seam closes a phrase only
+// if both sides are at least minB slots long — that is how the hint corridor keeps a
+// period in seconds at any tempo. What is left over is divided into EQUAL breaths that
+// never cross a seam. Pure function of the list: both readings of a palindrome build
+// the same table, so the mirror breathes the same.
+let _brCutCache={k:'',v:[0,0]};
+function _breathCuts(LST, p, mode, fixedPts, minB, tgtB){
+  const n=LST.length|0; if(n<2) return [0,Math.max(1,n)];
+  const key=p+'|'+mode+'|'+n+'|'+minB+'|'+tgtB+'|'+((mode==='main')?((fixedPts&&fixedPts.join(','))||''):(LST[0]+','+LST[n-1]));
+  if(_brCutCache.k===key) return _brCutCache.v;
+  const seam=[0];
+  if(mode==='main'){ for(const f of (fixedPts||[])){ const j=f|0; if(j>0&&j<n) seam.push(j); } }
+  else { let A=null; try{ A=pnSustainAnchorSet(p); }catch(e){}
+    if(A&&A.has) for(let j=1;j<n;j++){ if(A.has(LST[j])) seam.push(j); } }
+  seam.sort((x,y)=>x-y); seam.push(n);
+  const keep=[0]; let last=0;
+  for(let i=1;i<seam.length-1;i++){ const j=seam[i];
+    if(j-last>=minB && n-j>=minB){ keep.push(j); last=j; } }
+  keep.push(n);
+  const cuts=[0];
+  for(let i=0;i<keep.length-1;i++){
+    const a=keep[i], b=keep[i+1], len=b-a;
+    let div=Math.round(len/Math.max(1,tgtB)); if(!(div>=1)) div=1;
+    const maxDiv=Math.max(1,Math.floor(len/Math.max(1,minB)));
+    if(div>maxDiv) div=maxDiv;
+    for(let dd=1;dd<=div;dd++) cuts.push(a+Math.round(len*dd/div));
+  }
+  const out=[]; for(const c of cuts){ if(!out.length||c>out[out.length-1]) out.push(c); }
+  if(out[out.length-1]!==n) out.push(n);
+  _brCutCache={k:key,v:out};
+  return out;
+}
 // RULE transAtAnchors («переходы через точки сустейна», author 25.07): is the stream
 // standing on a slot where a p/r TRANSITION is allowed? Allowed slots: a p/n sustain
 // anchor, its mirror p−anchor, or a turnaround — the first/last slot of the current
@@ -3923,7 +3969,7 @@ function buildQRChain(ac, finalNode, p){
   const norm=ac.createGain(); norm.gain.value=1;
   const meter=ac.createAnalyser(); meter.fftSize=2048; meter.smoothingTimeConstant=0.6;
   sum.connect(headroom); headroom.connect(floorsIn); floorsOut.connect(shaper); shaper.connect(tame); tame.connect(norm); norm.connect(comp); comp.connect(finalNode);
-  comp.connect(meter);
+  norm.connect(meter);   // (08.09) the meter used to tap the LIMITER'S OUTPUT, so the level rider measured a signal already squashed and rode until the compressed level hit target — two flatteners feeding each other. It now watches the programme, after its own makeup and before the limiter.
   const obj={ inp, conv, shaper, comp, headroom, send, dry, wet, floorsIn, floorsOut, floorSlots, tuneFloors, norm, meter, floorRevRet,
     // Push the user-facing master-FX state onto the live nodes. Reverb send and
     // limiter threshold/ratio are smoothed; the saturation curve is rebuilt around
@@ -3937,12 +3983,32 @@ function buildQRChain(ac, finalNode, p){
       const _satDrive=Math.max(0.0001, QRA.satK*sd);
       // QR sat curves (qr-raw / qr-envelope) disabled — they didn't behave; classic tanh only.
       shaper.curve = state.fxSatBypass ? _linCurve() : buildSatCurve(_satDrive);
-      const h=(state.autoHeadroom!==false && typeof estimateMixHeadroom==='function') ? estimateMixHeadroom(state) : {trim:1,load:0};
-      const hg=(state.autoHeadroom===false)?1:h.trim;
+      // (08.09 — FREEING THE DYNAMIC RANGE) THE PAD, NOT A NORMALISER. The old trim
+      // was max(0.16, min(1, 0.34·dyn/load)) and it sat on its 0.16 floor in every
+      // scene measured — a fixed −15.9 dB pad wearing an automatic's coat. Above the
+      // floor it was worse than idle: `load` is homogeneous of degree one in the fader
+      // vector, so the bus came out at 0.34·dyn NO MATTER WHERE THE FADERS STOOD — a
+      // normaliser. And turning autoHeadroom off jumped the gain to 1.0, dropping
+      // +15.9 dB straight into the limiter. Now it is honestly a pad, headroomTarget
+      // finally moves it (pp…ff, a knob that until today did nothing at any legal
+      // value), and only a genuinely extreme load pulls further down.
+      const h=(typeof estimateMixHeadroom==='function') ? estimateMixHeadroom(state) : {trim:1,load:0,dyn:1};
+      const PAD=0.16, EXTREME=8;
+      const hg=PAD*(h.dyn||1)*((state.autoHeadroom===false)?1:Math.min(1, EXTREME/Math.max(EXTREME, h.load||0)));
       if(headroom.gain.setTargetAtTime) headroom.gain.setTargetAtTime(hg,now,0.02); else headroom.gain.value=hg;
-      const autoDeep=(state.autoHeadroom!==false && h.load>0.75);
-      const th=(state.fxCompThresh!=null?state.fxCompThresh:(autoDeep?-14:-10));
-      const ra=state.fxCompBypass ? 1 : (state.fxCompRatio!=null?state.fxCompRatio:(autoDeep?14:10));
+      // A SAFETY LIMITER, NOT A PROGRAMME COMPRESSOR. It ran at −12 dB / 12:1 on every
+      // scene (the defaults live in state, so applyFX's gentler fallbacks never fired)
+      // and pressed 6–8 dB one hundred per cent of the time: nine scenes of utterly
+      // different texture — two bowed lines at 60 against a five-band kit at 120 —
+      // came out inside a 0.6 dB band. Now it catches overs and nothing else; the
+      // knobs remain for anyone who wants compression on purpose. The knee is written
+      // every time (it was set once at build and never again) and the release follows
+      // the LIVE prime instead of waiting for the prime to change.
+      const th=(state.fxCompThresh!=null?state.fxCompThresh:-1.5);
+      const ra=state.fxCompBypass ? 1 : (state.fxCompRatio!=null?state.fxCompRatio:20);
+      const kn=(state.fxCompKnee!=null?state.fxCompKnee:0);
+      if(comp.knee.setTargetAtTime) comp.knee.setTargetAtTime(kn,now,0.02); else comp.knee.value=kn;
+      try{ const _lp=(typeof _liveP==='function')?_liveP():state.p; if(comp.release && typeof qrCompRelease==='function') comp.release.value=qrCompRelease(_lp); }catch(e){}
       if(comp.threshold.setTargetAtTime) comp.threshold.setTargetAtTime(th,now,0.02); else comp.threshold.value=th;
       if(comp.ratio.setTargetAtTime) comp.ratio.setTargetAtTime(ra,now,0.02); else comp.ratio.value=ra;
     },
@@ -4046,11 +4112,12 @@ function _drawScoreLayer(cc,W,H){
   // slots): the take must carry the same honest score the stage shows.
   try{
     const gq=state.scoreVis;
-    if(!(gq && gq.length && state.running && !state.paused && typeof ctx!=='undefined' && ctx)) return;   // (17.08) the score draws whatever sounded — groove is a contributor, not a gatekeeper
-    const nowH=ctx.currentTime-((ctx.outputLatency||ctx.baseLatency||0));
+    if(!(gq && gq.length && (state.running || window._palPhaseB) && typeof ctx!=='undefined' && ctx)) return;   // (08.09) paused is NOT erased: ~0.4–1.5 s of exhale and reverb still ring past the ⏸, and the eye should hold what the ear holds   // (17.08) the score draws whatever sounded — groove is a contributor, not a gatekeeper · (08.09) and it draws through the mirror's reading, whose transport is parked on purpose
+    const _pz=(state.paused && state._pauseAt)?state._pauseAt:0;   // (08.09) frozen at the pause — ctx.currentTime keeps running under a pause, and an unfrozen clock would scroll the held score into its own future
+    const nowH=(_pz||ctx.currentTime)-((ctx.outputLatency||ctx.baseLatency||0));
     const spb=60/Math.max(24,Math.min(240,state.bpm||60));
     const BEATS_PAST=12, BEATS_FUT=4;
-    while(gq.length && gq[0].t<nowH-BEATS_PAST*spb-1) gq.shift();
+    if(!_pz) while(gq.length && gq[0].t<nowH-BEATS_PAST*spb-1) gq.shift();
     const _gvRev=!!(window._duoGuard&&window._duoGuard.retroAns);
     const _sgn=_gvRev?-1:1;
     const playX=_gvRev?(W*0.28):(W*0.72);
@@ -4058,6 +4125,16 @@ function _drawScoreLayer(cc,W,H){
     const pastW=_gvRev?(W-playX-8):(playX-8), futW=_gvRev?(playX-8):(W-playX-8);
     const k=Math.max(0.8,Math.min(2.2,Math.min(W,H)/520));   // ink scales with the field
     cc.save();
+    // (08.09) the two marks these coordinates need to be READ: where now is, and
+    // what height means. The score floated over the lattice with neither — a
+    // second system of coordinates with no legend, on top of a first.
+    { const _ink=_bgIsLight?'rgba(11,7,5,':'rgba(246,237,228,';
+      cc.strokeStyle=_ink+'0.30)'; cc.lineWidth=1*k;
+      cc.beginPath(); cc.moveTo(playX,8); cc.lineTo(playX,H-8); cc.stroke();
+      cc.strokeStyle=_ink+'0.10)'; cc.lineWidth=1;
+      for(let f=55; f<12000; f*=2){                       // A octaves — the only fixed rungs a log-frequency axis has
+        const yr=H-10-(Math.log(f)-FLO)/(FHI-FLO)*(H-20);
+        cc.beginPath(); cc.moveTo(6,yr); cc.lineTo(W-6,yr); cc.stroke(); } }
     for(const h of gq){
       const dB=(h.t-nowH)/spb;
       if(dB<-BEATS_PAST||dB>BEATS_FUT) continue;
@@ -4527,6 +4604,7 @@ function flushVoices(){
   // OR there is no audio at all. Drop their pictures too, so the image can never run
   // ahead of a note the engine just killed under strain ("картинка бежит, звучат не все").
   if(state.visQueue) state.visQueue.length=0;
+  try{ if(state.scoreVis && ctx) state.scoreVis=state.scoreVis.filter(h=>h.t<=ctx.currentTime); }catch(e){}   // (08.09) a mark for a note the engine just killed must not cross the needle claiming it sounded
   try{ _ringReg.length=0; }catch(e){}   // tail-governor registry: those sinks are orphaned now
   if(!ctx||!voiceBus) return;
   ctx.__keepPhase=true;                         // the rebuilt bus + layer nodes are persistent
@@ -4667,6 +4745,7 @@ function _rebuildAudioContext(){
   ctx=null; masterGain=null; voiceBus=null; qrBus=null;
   try{ initAudio(); }catch(e){ return false; }
   state.visQueue=[];                       // old-clock visual events are meaningless now
+  window.__vizAt=0;                        // (08.09) and the picture's last-heard stamp was in the old epoch — re-arm the resync on the fresh clock, or its age reads as decades and it never fires again
   if(wasRunning){
     nextBeatTime=ctx.currentTime+0.12;     // re-base the scheduler on the fresh clock
     if(!schedulerInterval) schedulerInterval=setInterval(schedulerTick,LOOKAHEAD_MS);
@@ -4983,7 +5062,7 @@ function _buildLayerNodes(){
     // the sustained family breathes: LVOL → LBREATH → pan — deep slow swells that
     // no fader write can wipe (nothing else ever touches these nodes)
     const br=(_BR_FAMILY.has(k)||_BR_LIGHT.has(k))?ctx.createGain():null;
-    if(br){ br.gain.value=1; vol.connect(br); LBREATH[k]=br; }
+    if(br){ br.gain.value=(_BR_LIGHT.has(k)?(window._brLastLight||1):(window._brLastG||1)); vol.connect(br); LBREATH[k]=br; }   // (08.09) a rebuilt node joins the breath where it stands, not at nominal
     const pan=ctx.createStereoPanner?ctx.createStereoPanner():null;
     if(pan){ pan.pan.value=(state.pan&&state.pan[k]!=null)?state.pan[k]:0; (br||vol).connect(pan); pan.connect(voiceBus); LPAN[k]=pan; }
     else { (br||vol).connect(voiceBus); }
@@ -5024,6 +5103,15 @@ function refreshLVol(){
     if(LVOL[k]) LVOL[k].gain.setTargetAtTime(vget(k), ctx.currentTime, 0.02);
     if(LWET[k]){ const gate=(anySolo && !state.solo.has(k))?0:1; LWET[k].gain.setTargetAtTime((state.sendPreFader?gate:vget(k))*(_wetDoseLast||1), ctx.currentTime, 0.02); }   // volume changes keep the tempo dose
   }
+  // (08.09) THE MASTER REACHES THE NODE. VOL_LAYERS has no 'master' in it, so this
+  // loop never touched it — and every programmatic path moved only the state and the
+  // slider's .value, which fires no 'input' event: scenes.restore, the automation
+  // lane, the smooth glide between steps, _setMaster and therefore every form fade.
+  // The master arc was written into the picture and never into the sound. One place
+  // mends all of them. While tacet, the prayer's darkness or the park's fermata are
+  // speaking through the node, they hold it and this stays silent.
+  if(!window._masterHeld && typeof masterGain!=='undefined' && masterGain)
+    try{ masterGain.gain.setTargetAtTime(Math.max(0.0001, +state.vol.master||0), ctx.currentTime, 0.02); }catch(e){}
   if(qrBus&&qrBus.applyFX) qrBus.applyFX();
 }
 // Per-note low-pass that opens (QR) or closes (NQR) over the note's life. Depth is
@@ -5549,7 +5637,16 @@ function schedulePnSustainIfAnchor(mode,p,r,rList,rIdx,time,beatD,gain,revRank){
   // (20.08, audited: Rasch 1978) a 30-50 ms onset LEAD buys up to ~40 dB of
   // separability for the softer voice; synchronous onsets fuse the anchor into
   // the pulse. The beat grid is untouched — sustains never move the frame.
-  scheduleSustainVoice(time-0.04, Math.min(span*beatD, hold?300:12), freq, gain, la, ra, susTrem);
+  const _susLen=Math.min(span*beatD, hold?300:12);
+  scheduleSustainVoice(time-0.04, _susLen, freq, gain, la, ra, susTrem);
+  state.ppSus={mode:mode, pidx:pidx, i0:rIdx, i1:rIdx+span, t0:time, t1:time+_susLen};   // (08.09) the one anchor that RINGS — one slot, not an array: one drone per section at a time
+  // (08.09) up to FIVE MINUTES of held sound with no line on the field. The main
+  // voices have had one since 5659; the section drone gets the same, on the pitch
+  // index it actually sounds (pidx — the raw anchor r would draw the wrong row).
+  state.activeSus=state.activeSus||[];
+  state.activeSus.push({layer:'sustain', val:pidx, t0:time, t1:time+_susLen,
+    a0:(_susLen>2?Math.min(0.8,Math.max(0.12,_susLen*0.10)):0.06)});
+  if(state.activeSus.length>24) state.activeSus.splice(0,state.activeSus.length-24);
 }
 
 // Sustain anchor for a MAIN voice (a or b) — same principle as the prelude p/n
@@ -5582,7 +5679,8 @@ function scheduleMainVoiceSustain(p, val, sList, sIdx, sDir, valAt, time, beatD,
   scheduleSustainVoice(time-0.04, susLen, freq, 1, la, ra, susTrem);   // (20.08) the same 40 ms lead as the p/n sustain — entries are heard, exits are free
   // expose to the canvas: a held second voice deserves to be SEEN as a held line
   state.activeSus=state.activeSus||[];
-  state.activeSus.push({layer:layerKey, val, t0:time, t1:time+susLen,
+  const susBeats=Math.max(1,Math.min(span,Math.round(susLen/Math.max(1e-6,beatD))));   // (08.09) what actually sounds — susLen is capped at 12 s
+  state.activeSus.push({layer:layerKey, p:p, val, t0:time, t1:time+susLen, i0:sIdx, i1:sIdx+sDir*susBeats,
     a0:(susLen>2?Math.min(0.8,Math.max(0.12,susLen*0.10)):0.06)});   // (03.08c) the line blooms with the bow stroke
   if(state.activeSus.length>24) state.activeSus.splice(0,state.activeSus.length-24);
 }
@@ -5639,6 +5737,7 @@ function scheduleDiagBell(t,dur,freq,vol,pL,pR){
   dur=_articDur(dur);   // NQR diagonal → damped (shorter) bell; QR → full ring
   if(_tArgs) _tapeNote('bell',_tArgs,dur*1.7);   // (16.08) the bell's real end is its ring-out tail, below
   _emitInst='bell';   // (20.08) this scheduler never calls voiceWave — seat the family or the note pours into a STALE corpus
+  try{ _gvNote('diag', t, vol, freq, (_emitDir<0)?-1:1); }catch(e){}   // (08.09) the bell where a meets b, and the ledger's climax bell, both sounded with no mark of any kind
   const sink=makePannedSink(pL,pR,vol);
   // brass body at the fundamental (sawtooth-ish), slightly slower attack, sits under
   // the bell partials and gives the strike a metallic-brass core.
@@ -5668,18 +5767,20 @@ function scheduleHat(t,vol,pL,pR,open){
   const _hp0=Math.max(3,((typeof _liveP==='function')?_liveP():state.p)|0);
   const _chi=_qrExciteBuf(_hp0).getChannelData(0), _cn=_chi.length;
   const n=(ctx.sampleRate*dur)|0, buf=ctx.createBuffer(1,n,ctx.sampleRate), d=buf.getChannelData(0);
-  let prev=0;
-  for(let i=0;i<n;i++){const x=_chi[i%_cn]; const hp=x-prev*0.92; prev=x; d[i]=hp;}   // (16.08) χ-grain, not dice: the same hat sounds the same in the mirror
+  let prev=0, _zc=0;
+  for(let i=0;i<n;i++){const x=_chi[i%_cn]; const hp=x-prev*0.92; prev=x; d[i]=hp; if(i&&((d[i]>=0)!==(d[i-1]>=0))) _zc++;}   // (16.08) χ-grain, not dice: the same hat sounds the same in the mirror — and (08.09) its zero crossings are its honest dominant frequency, so the mark is measured, not guessed
   const src=ctx.createBufferSource(); src.buffer=buf;
   const env=ctx.createGain();
   env.gain.setValueAtTime(0,t); env.gain.linearRampToValueAtTime(vol,t+0.001);
   env.gain.exponentialRampToValueAtTime(1e-4,t+dur);
   src.connect(env); env.connect(makePannedSink(pL,pR,vol));
+  try{ _gvNote('hat·', t, vol, Math.max(30,Math.min(12000,_zc*ctx.sampleRate/(2*Math.max(1,n)))), (typeof _emitDir!=='undefined'&&_emitDir<0)?-1:1); }catch(e){}   // (08.09) it ticked on half the a-beats and reached neither picture
   src.start(t); src.stop(t+dur+0.02);
 }
 
 function scheduleKick(t,vol,pL,pR,boom){
   _tapeNote('kick',arguments,boom?0.9:0.4);
+  try{ _gvNote('kick·', t, Math.min(1, vget('kick')/0.5)*(boom?1:0.72), boom?38:82, 1); }catch(e){}   // (08.09) it sounded on every residue b and left no mark anywhere; f0 is the drum's own, declared four lines below
   const sink=makePannedSink(pL,pR,vol);
   if(boom){
     // real bass-drum body: deep sine with a pitch punch + long body, harder click
@@ -6247,6 +6348,13 @@ function emitVisual(t,mode,p,r,beat,a,b,extra){
   const ev={time:t,mode,p,r,beat,a,b};
   if(extra) Object.assign(ev,extra);
   state.visQueue.push(ev);
+  // (08.09) THE SHADOWS survive every one of the ten queue flushes — the resync's
+  // honest source. A RING, not one frame: the newest frame is always ahead of the
+  // sound by the scheduler's lookahead, so a single shadow was never yet audible
+  // when the resync looked, and the next beat overwrote it with one even further
+  // ahead — measured: fifty flushes, zero resyncs, the picture 21 slots behind.
+  (state.vizShadows=state.vizShadows||[]).push(ev);
+  if(state.vizShadows.length>16) state.vizShadows.splice(0,state.vizShadows.length-12);
   if(state.visQueue.length>4096) state.visQueue.splice(0,state.visQueue.length-2048);
 }
 
@@ -7031,6 +7139,7 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
       return g;
     };
     const _sQR=_sink(-0.22), _sNQR=_sink(0.22), _sMist=_sink(0);
+    try{ window._omSinks=[_sQR,_sNQR,_sMist]; }catch(e){}   // (08.09) the damp hand needs them: a p-change calls no flushVoices, and the old wheel went on stating the OLD prime's circle over a field that showed none of it
     const _wave=(typeof _vw==='function')?_vw('pluck'):null;
     // one strike: an oscillator and its fall, nothing else
     // A HARP, NOT A BUZZ (21.08, author: «нужны изящные арфовые пассажи»). Dropping
@@ -7174,7 +7283,7 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
         // squaring order, wrapped modulo a shorter list: the same count of marks and
         // a different set of notes. cyc stays for the chord branch, which really does
         // state the whole circle at once.
-        window._omEchoVis.push({p:p, beat:beat|0, t0:time, dur:dur, per:per, m:m, K:K, sq:sq,
+        window._omEchoVis.push({p:p, ng:(_omNqrP===p?_omNqrG:0), beat:beat|0, t0:time, dur:dur, per:per, m:m, K:K, sq:sq,
                                 cyc:cyc.slice(), sw:_sweep.slice(), arp:arp, dir:_dir, top:top, sb:_sb});
         if(window._omEchoVis.length>4) window._omEchoVis.splice(0,window._omEchoVis.length-3);
       }
@@ -7186,6 +7295,9 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
 // forget the dose and clear the picture, so neither outlives the sound.
 function _omEchoDamp(){
   try{
+    if(window._omSinks && typeof ctx!=='undefined' && ctx){ const t0=ctx.currentTime, S=window._omSinks; window._omSinks=null;
+      for(const s2 of S){ try{ s2.gain.setTargetAtTime(0.0001,t0,0.06); }catch(e){}
+        setTimeout(()=>{ try{ s2.disconnect(); }catch(e){} },380); } }   // (08.09) flushVoices' own exhale, 0.06 τ / 380 ms — «не обрываться», not a guillotine
     if(window._omRing){ window._omRing.next=0; window._omRing.end=0; }
     if(window._omEchoVis) window._omEchoVis.length=0;
     if(window._omVis) window._omVis.length=0;
@@ -7516,6 +7628,7 @@ function _openAtCentre(s,p,time){
 function _scheduleOneBeatBody(time){
   if(!synthState) resetSynth();
   consumeRequests();
+  if(_beatQ0>state.visQueue.length) _beatQ0=state.visQueue.length;   // (08.09) a navigation wipe shrank the queue under us — re-floor the stamp window, or the jump beat's frames never get the perceived-onset stamp
   // the hall takes one step of its own walk each beat — its index is the walk's, so
   // the breath is deterministic and identical in the mirror
   try{ const _s=synthState; if(_s) _revBreathStep(_s.p|0, (_s.phase==='main')?(_s.aIdx|0):(_s.rIdx|0)); }catch(e){}
@@ -7659,19 +7772,21 @@ function _scheduleOneBeatBody(time){
     }
     s.currentR=(s.fwdList[i]!=null)?s.fwdList[i]:0;   // (03.08i) dual never latched the sounding r — _transPointOK and the ostinato guard read it
     const now=(ctx?ctx.currentTime:0)+0.005;
-    const offT=time + state.postOffsetBeats*dur;
+    const offBeats=Math.max(-1,Math.min(1,Number(state.postOffsetBeats||0)));
+    const offT=Math.max(now, time + offBeats*dur);
+    const effOff=(dur>0)?((offT-time)/dur):0;   // (08.09) what the sound REALLY did, clamp included — the ring reads this, not the knob
     const rings=[];
     for(const st of s.dualStreams){
       const list = st.fwd ? s.fwdList : s.revList;
       const r = list[i];
       if(isFibRest(r)) continue;   // Fibonacci rest: this voice is silent, no ring
-      const tt = (st.track==='post') ? Math.max(now, offT) : time;
+      const tt = (st.track==='post') ? offT : time;
       const rr=!!st.revRank;
       const src=st.source||st.sec;
       emitSectionBeat(src, p, r, list, i, tt, dur, state.track[st.track], rr);
       rings.push({r, sec:st.sec, source:src, track:st.track, revRank:rr, fwd:!!st.fwd});
     }
-    emitVisual(time,'dual',p,(rings[0]?rings[0].r:0),i,0,0,{scatter:s.dualScatter, rings});
+    emitVisual(time,'dual',p,(rings[0]?rings[0].r:0),i,0,0,{scatter:s.dualScatter, rings, postShift:effOff});
     // door 4 — THE CONVERGED STREAMS (21.08). The lyric improviser lives mostly in
     // prepost motion, where main never plays: doors 1 and 2 could not fire, and the
     // cell went unheard through whole scenes even in worlds that have one. Either
@@ -7758,7 +7873,7 @@ function _scheduleOneBeatBody(time){
       // opens here and closes with the window. Safety: absurd primes cap at 1597
       // beats (a Fibonacci number) so a meditation p≈90000 cannot trap the form.
       if(!s._fi){
-        s._fi={left:Math.min(1597,Math.max(1,p-1)), a:1+((Math.random()*(p-1))|0), b:1+((Math.random()*(p-1))|0)};
+        s._fi={left:Math.min(1597,Math.max(1,p-1)), n:0, a:1+((Math.random()*(p-1))|0), b:1+((Math.random()*(p-1))|0)};   // (08.09) n: the window's own beat counter — the ring column was pinned to s.rIdx for the whole window
         try{ if(typeof _fl==='function') _fl('freedom','r=0 — the Markovs improvise freely for '+s._fi.left+' beats'); }catch(e){}
       }
       const FI=s._fi;
@@ -7778,13 +7893,15 @@ function _scheduleOneBeatBody(time){
       _emitLayer='b'; { const fb=freqForIndex(FI.b,p), pgB=panGains(FI.b,p), qb=isQR(FI.b,p); _emitDir=qb?1:-1;
         if(qb) scheduleContinuousSine(_abt0.b,dur,fb,1,pgB[0],pgB[1]);
         else schedulePulseSine(_abt0.b,dur*0.5,fb,1,pgB[0],pgB[1],{decay:0.5}); }
+      let _fv=0,_fq=false;
       if(Math.random()<0.34){   // a breath of the r-line's own color, dosed
         const rv2=((FI.a+FI.b)%(p-1))+1, q2=isQR(rv2,p);
+        _fv=rv2; _fq=q2;   // (08.09) the breath tells the picture where it sounded
         _emitLayer=q2?'qr':'nqr'; _emitDir=q2?1:-1;
         const fr2=freqForIndex(rv2,p), pgR=panGains(rv2,p);
         schedulePulseSine(time,dur*0.5,fr2,0.8,pgR[0],pgR[1],{decay:0.7});
       }
-      emitVisual(time,'main',p,0,s.rIdx,FI.a,FI.b);
+      emitVisual(time,'main',p,0,(FI.n=(FI.n|0)+1)-1,FI.a,FI.b, _fv?{fr:_fv,frQ:_fq}:null);   // (08.09) it sounded on the qr/nqr fader at a pitch the picture never marked
       if(--FI.left<=0){
         s._fi=null; s.rIdx++; s.aFresh=true;
         try{ if(typeof _fl==='function') _fl('freedom','the window closes — the lattice resumes'); }catch(e){}
@@ -7988,7 +8105,7 @@ function _scheduleOneBeatBody(time){
         else scheduleDiagBell((timeA+timeB)*0.5,Math.min(dur*rb2,3),fd,1,ld,rd);
       }
     }
-    emitVisual(time,'main',p,r,s.aIdx,a,b);
+    emitVisual(time,'main',p,r,s.aIdx,a,b,{tA:timeA,tB:timeB});   // (08.09) the two voices are split in time by abOffsetBeats; one frame carried both rings at the base beat
     // Goncharova triggers (multi-voice): each SELECTED voice that sounds this beat
     // queues the quadruples its value belongs to. Values are residues mod p, so
     // they index into cfg.index the same way. Dedup via cfg.played (cleared per r).
@@ -8119,7 +8236,7 @@ function schedulerTick(){
   // timestamp — the duet layer broadcasts it so both engines share one beat grid.
   try{ window._gridInfo={ wall: Date.now()+(nextBeatTime-ctx.currentTime)*1000, bpm: state.bpm }; }catch(e){}
   // the groove floor keeps pumping through holds and quantized scene switches
-  if(typeof groove!=='undefined'){ try{ groove.tick(ctx.currentTime+SCHEDULE_AHEAD); }catch(e){} }
+  if(typeof groove!=='undefined'){ window._gvFromGroove=true; try{ groove.tick(ctx.currentTime+SCHEDULE_AHEAD); }catch(e){} window._gvFromGroove=false; }   // (08.09) the flag the score's audibility gate reads — _emitLayer keeps the LAST scene voice's name and cannot tell the groove apart
   // tempo-dosed wet sends (see _wetDoseK): re-aim the per-note send gains when the
   // dose moves — tempo changed, or the storm breaker engaged/released its duck
   if(performance.now()-_wetDoseAt>700){
@@ -8269,9 +8386,9 @@ function startAudio(){
 function pauseAudio(){
   if(!state.running) return;
   state.paused=!state.paused;
-  if(state.paused){ flushVoices();
+  if(state.paused){ try{ state._pauseAt=ctx.currentTime; }catch(e){} flushVoices();   // (08.09) the score freezes at this instant instead of vanishing
     try{ if(typeof learner!=='undefined'&&learner.saveNow) learner.saveNow(); }catch(e){} }   // playback ended — flush all learned memory
-  else { nextBeatTime=ctx.currentTime+0.08; }       // re-base the clock after the pause
+  else { state._pauseAt=0; nextBeatTime=ctx.currentTime+0.08; }       // re-base the clock after the pause
   setStatus(state.paused?'paused':'running',!state.paused);
 }
 
@@ -9222,6 +9339,7 @@ function bailChords(){
     // be RE-scheduled; dropping them keeps the queue ordered (an old later-time
     // head was blocking every newer frame: picture stalled, then burst)
     try{ state.visQueue=state.visQueue.filter(f=>f.time<nextBeatTime); }catch(e){}   // every re-scheduled beat gets exactly ONE frame, and times stay monotone
+    try{ state.scoreVis=state.scoreVis.filter(h=>h.t<=ctx.currentTime); }catch(e){}   // (08.09) and the score drops the ghosts of the beats just bailed
     try{ schedulerTick(); }catch(e){} }   // resume the melody now
   try{ const b=document.getElementById('td-skipchord'); if(b){ b.classList.add('pulse'); setTimeout(()=>b.classList.remove('pulse'),300); } }catch(e){}
   return had;
@@ -9381,12 +9499,16 @@ setInterval(()=>{
 // the whole Markova block): her ear, and the call-response lead (−1 he leads … +1 she).
 let _mkLead=0, _mkLeadTarget=0, _mkTurn='', _mkMoments=0;   // _mkMoments: how many moments of her OWN Markova has lived (her diverging memory)
 const _mkEar={ his:0, hers:0, hisPeak:1e-3, room:0.5 };
-// SINGING BREATH state (author 29.07): seconds-based, drifting period, urgent-boost
-let _brPhase=Math.random(), _brT=6.0, _brDepth=0.30, _brUrgent=0, _brLast=null, _brTick=0, _brBuf=null;
-const _brWin=[];
+// SINGING BREATH state (08.09): no clock, no seed — the phrase comes from the walk.
+let _brPhase=0, _brT=6.0, _brPeerT=0, _bwOfs=0;
 window._breathState=function(){ return {ph:_brPhase, T:_brT}; };
-window._breathAdopt=function(ph,T){ if(T>2&&T<15) _brT=T;
-  if(ph!=null){ const df=((ph-_brPhase)%1+1)%1; if(Math.min(df,1-df)>0.12) _brPhase=ph; } };
+window._breathAdopt=function(ph,T){
+  // The phrase is read off the score, and both halves read the same score — so there
+  // is nothing left to adopt except the ANTI-PHASE: she breathes out as he breathes
+  // in. The palindrome forbids even that: its two readings must match note for note.
+  try{ _bwOfs=(typeof _palLive==='function' && _palLive())?0:0.5; }catch(e){ _bwOfs=0.5; }
+  if(T>0.2&&T<60) _brPeerT=T;
+};
 setInterval(()=>{
   if(!(ctx && state.running && !state.paused && _breathGain)) return;
   try{
@@ -9400,57 +9522,111 @@ setInterval(()=>{
                        : (0.5+0.5*Math.cos(Math.PI*(x-inh)/Math.max(0.001,T-inh)));
     const depth=Math.min(0.15,Math.max(0.02,1/Math.sqrt(Math.max(5,p_))));
     _breathGain.gain.setTargetAtTime(1+depth*(shape-0.5)*2, ctx.currentTime, 0.15);
-    // SINGING BREATH (author 29.07: «дай им дыхание — как смычки, как пение; если
-    // звук перестал дышать, быть живым — срочно дай ему дыхание»). A second, DEEPER
-    // breath on the sustained family only. Seconds-based (a body, not a metronome),
-    // period drifting 4.5–8.5 s, inhale shorter than the exhale, floor at 1−depth —
-    // the note recedes and returns, it never breaks. The liveness guard watches the
-    // RAW output (the ear's copy is breath-compensated on purpose — useless here):
-    // audibly alive but flat for ~6 s ⇒ the breath deepens at once.
+    // THE SINGING BREATH, RE-LAWED (author 08.09: «поющее дыхание должно быть не
+    // случайным, а следовать мелодике, гармонии и ритму, а также тембру и QR
+    // арифметике»). It was the last object in this instrument taken from a clock
+    // rather than from the lattice: a seconds ramp with a random start phase, a
+    // ±0.8 s random walk on its period, and a servo that deepened the breath whenever
+    // the mix went flat — reading its own output through _outMeter, which hangs
+    // DOWNSTREAM of LBREATH. Deepening the breath is precisely what silenced that
+    // alarm: negative feedback in an observer's coat. Nothing replaces it.
+    //
+    // ONE BREATH = ONE PHRASE = ONE BOW. A phrase runs seam to seam; a seam closes it
+    // only once it has lasted Tlo, and a longer phrase divides into equal breaths that
+    // never cross a seam. PHASE is where the walk stands inside its phrase — an index,
+    // never a clock. DEPTH is how far the sounding harmony stands from its nearest
+    // pillar, measured on the engine's own Basel ladder, and it collapses on a détaché
+    // phrase (you cannot swell a short note). SHAPE — where the crest sits — is χ,
+    // leaned by where the line leans; the arch over the QR order at last, instead of
+    // the DC offset it used to be, which lifted crest and trough alike. THE INHALE is
+    // a real notch at the joint, p^¼ felt-beats long: a bow change you can hear.
+    // Every input is a list index or a list value, so the mirror reads them the same
+    // and the palindrome breathes identically in both directions.
     const nowS=ctx.currentTime;
-    if(_brLast==null) _brLast=nowS;
-    let bdt=nowS-_brLast; if(!(bdt>0)||bdt>1) bdt=0.13; _brLast=nowS;
     // the activity may stage-direct the breath (lyric plays a whole erotic scene
     // with it; prayer breathes long and low) — hints are per-scene, self-validating
     const bH=(window._breathHint && window._breathHint.act===state.activity)?window._breathHint:null;
-    let bTlo=bH?bH.Tlo:3.5, bThi=bH?bH.Thi:7.0;
+    let bTlo=(bH&&bH.Tlo>0)?bH.Tlo:3.5, bThi=(bH&&bH.Thi>0)?bH.Thi:7.0;   // (08.09) the pal seam mails a partial hint with no corridor; the old code took it and froze the follower's breath on a NaN period
+    if(!(bThi>bTlo)) bThi=bTlo+1.5;
     let bDepBase=bH&&bH.depth!=null?bH.depth:0.38;
     if(bH && bH.Tlo2!=null){   // a staged ramp (the passion climax): interpolate the corridor over hint.ramp seconds
       const bkk=Math.max(0,Math.min(1,(Date.now()-(bH.ts||0))/1000/Math.max(1,bH.ramp||20)));
       bTlo=bH.Tlo+(bH.Tlo2-bH.Tlo)*bkk; bThi=bH.Thi+(bH.Thi2-bH.Thi)*bkk;
       if(bH.depth2!=null) bDepBase=bH.depth+(bH.depth2-bH.depth)*bkk;
     }
-    _brPhase+=bdt/_brT;
-    if(_brPhase>=1){ _brPhase-=1; _brT=Math.max(bTlo,Math.min(bThi,_brT+(Math.random()-0.5)*1.6)); }
-    if(_brT<bTlo-0.5||_brT>bThi+0.5) _brT=Math.max(bTlo,Math.min(bThi,_brT));   // adopt a new corridor mid-cycle
-    const inhF=bH&&bH.inh?bH.inh:0.38, bx=_brPhase;
-    const bShape=(bx<inhF)? (0.5-0.5*Math.cos(Math.PI*bx/inhF))
-                          : (0.5+0.5*Math.cos(Math.PI*(bx-inhF)/(1-inhF)));
-    const bBase=bDepBase;   // deeper by default (author 29.07: «углубить и участить»); ramps come from the hint
-    _brDepth += ((_brUrgent>nowS?Math.min(0.66,bBase+0.2):bBase)-_brDepth)*0.05;   // and the depth follows faster — a climax cannot wait
-    // THE ORDER (author 29.07): the breath reads the residue class of the sounding
-    // beat — rise on QR, descend on NQR — the arch graph over χ, one of our orders
-    let _chiT=0;
-    try{ const _rQ=(typeof synthState!=='undefined'&&synthState)?(synthState.currentR||1):1;
-         const _pQ=(synthState&&synthState.p)||state.p||11;
-         _chiT=(typeof isQR==='function' && isQR(_rQ,_pQ))?0.10:-0.10; }catch(e){}
-    const bGain=Math.max(0.30,Math.min(1.08, 1-_brDepth*(1-bShape)+_chiT*_brDepth ));
-    const bLight=1-(1-bGain)*0.6;    // the groove's share of the same breath — it pumps with the lungs, not against them
-    for(const bk in LBREATH){ const bn=LBREATH[bk]; if(bn&&bn.gain){ try{ bn.gain.setTargetAtTime(_BR_LIGHT.has(bk)?bLight:bGain, nowS, 0.18); }catch(e){} } }
-    if(((_brTick=(_brTick+1)&3)===0) && typeof _outMeter!=='undefined' && _outMeter){
-      try{
-        if(!_brBuf) _brBuf=new Float32Array(_outMeter.fftSize);
-        _outMeter.getFloatTimeDomainData(_brBuf);
-        let s2=0; for(let bi=0;bi<_brBuf.length;bi++){ const bv=_brBuf[bi]; s2+=bv*bv; }
-        const brms=Math.sqrt(s2/_brBuf.length);
-        _brWin.push(brms); if(_brWin.length>12) _brWin.shift();
-        if(_brWin.length>=10){
-          let bm=0; for(const bv of _brWin) bm+=bv; bm/=_brWin.length;
-          let bsd=0; for(const bv of _brWin) bsd+=(bv-bm)*(bv-bm); bsd=Math.sqrt(bsd/_brWin.length);
-          if(bm>0.004 && bsd/bm<0.055) _brUrgent=nowS+8;
-        }
-      }catch(e){}
+    let bGain=1, bLight=1;
+    const S_=(typeof synthState!=='undefined')?synthState:null;
+    const bPh=S_?S_.phase:null;
+    const bWalk=(bPh==='main')?'main':((bPh==='prelude'||bPh==='postlude'||bPh==='dual')?bPh:null);
+    const LST=bWalk?((bWalk==='main')?(S_.aList||[]):(S_.rList||[])):null;
+    if(!bWalk || !LST || LST.length<2){
+      // pause-before, pause-after, next-prime, no walk: the node goes back to nominal.
+      // No swell may ever land on a form fade, a fermata, a tacet or the master arc.
+      _brPhase=0;
+    } else {
+      const n=LST.length|0;
+      // the WALK's own index, not the picture's: state.vizBeat is 0 through a pause and
+      // was measured standing at 0 while the walk was on its 66th slot. The per-note
+      // breath and the hall's breath (_revBreathStep) already read the walk this way.
+      let IDX=((bWalk==='main')?(S_.aIdx|0):(S_.rIdx|0));
+      if(!(IDX>=0)) IDX=0; if(IDX>n-1) IDX=n-1;
+      const slot=Math.max(0.06,(S_._slotSec>0)?S_._slotSec:fb);
+      const minB=Math.max(1,Math.round(bTlo/slot));
+      const tgtB=Math.max(minB,Math.round(0.5*(bTlo+bThi)/slot));
+      const cuts=_breathCuts(LST,p_,bWalk,S_.fixedPts||[],minB,tgtB);
+      let si=0; while(si+1<cuts.length-1 && cuts[si+1]<=IDX) si++;
+      const c0=cuts[si], c1=(cuts[si+1]!=null)?cuts[si+1]:n, c2=(cuts[si+2]!=null)?cuts[si+2]:n;
+      const span=Math.max(1,c1-c0);
+      let u=(IDX-c0)/span;
+      if(S_._fi && S_._fi.left!=null){                      // the freedom window is ONE breath, from its first slot to its last
+        const _fl=Math.max(1,Math.min(1597,p_-1));
+        u=1-(S_._fi.left/_fl);
+      }
+      if(_bwOfs) u+=_bwOfs;                                  // the answering half breathes out as he breathes in
+      u=((u%1)+1)%1;
+      _brPhase=u; _brT=span*slot;
+      // ---- DEPTH: harmonic distance from home, in the room's own scale
+      const hi1=(!!state.pitchFlip)!==(state.pitchCouple?false:((p_%4)===3));   // the engine's own orientation bit: a high residue is not always a high pitch
+      const room=Math.max(0.55,Math.min(1.25,Math.pow(41/Math.max(5,p_),0.25)));
+      const sec=(bWalk==='prelude')?1.12:((bWalk==='postlude')?0.85:1.00);
+      const held=(bWalk==='main')
+        ? (((typeof pulseModeForBeat==='function') && pulseModeForBeat(IDX,S_.fixedPts||[])==='cont')?1:0.45)
+        : 1;
+      const regOf=(v)=>{ const t=Math.max(0,Math.min(1,(Math.abs(v)||1)/Math.max(1,p_-1))); return hi1?1-t:t; };
+      const segDepth=(hR,sp,head)=>{
+        let dd=1;
+        try{ const an=_nearestPnAnchorR(p_,hR); if(an!=null) dd=Math.max(1,Math.abs(hR-an)); }catch(e){}
+        const N=Math.max(1,Math.floor(Math.sqrt(p_)));
+        const rung=Math.max(1,Math.min(N,Math.round(Math.sqrt(p_/dd))));
+        const away=1-(rung-1)/Math.max(1,N-1);               // 0 on the pillar's own rung, 1 out in the anchor desert
+        const reg=1.14-0.34*regOf(head);
+        return Math.max(0.04,Math.min(0.70, bDepBase*(0.35+1.45*away)*room*sec*held*reg*Math.min(1,sp/minB)));
+      };
+      const hA=(bWalk==='main')?((S_.currentR||state.vizR||1)|0):(LST[c0]|0);
+      const hB=(bWalk==='main')?hA:(LST[Math.min(n-1,c1)]|0);
+      const dA=segDepth(hA,span,LST[c0]|0), dB=segDepth(hB,Math.max(1,c2-c1),LST[Math.min(n-1,c1)]|0);
+      const D=Math.max(0.04,Math.min(0.70, dA+(dB-dA)*u));   // PURE: a one-pole slew here is causal and would leak the direction of travel into the mirror
+      // ---- SHAPE: χ decides where the crest sits, the line leans it
+      const q=(hA>0 && typeof isQR==='function')?isQR(hA,p_):true;
+      const a0=LST[c0]|0, a1=LST[Math.max(c0,c1-1)]|0;
+      const up=((a1>a0)!==hi1)?1:-1;
+      const inh0=(bH&&bH.inh)?bH.inh:0.38;
+      const inhF=Math.max(0.08,Math.min(0.34, inh/span));    // the inhale, p^¼ felt-beats, as a share of the phrase
+      const bE=Math.max(0.36,1-inhF);
+      const cr=Math.max(0.06,Math.min(bE-0.06, Math.max(0.14,Math.min(0.78,(q?inh0:1-inh0)+0.10*up))));
+      let Sh;
+      if(u<cr) Sh=0.55+0.45*(0.5-0.5*Math.cos(Math.PI*u/cr));
+      else if(u<bE) Sh=0.35+0.65*(0.5+0.5*Math.cos(Math.PI*(u-cr)/Math.max(0.02,bE-cr)));
+      else Sh=0.35*(0.5+0.5*Math.cos(Math.PI*(u-bE)/Math.max(0.02,1-bE)));
+      if((LST[IDX]|0)===0 || S_._fi) Sh=Math.max(Sh,0.55);   // where the music already breathes — a Fibonacci rest, the freedom window — the device stands down
+      bGain=Math.max(0.34,Math.min(1.00, 1-D*(1-Sh)));       // ceiling 1.00: the breath only ever takes away, so it can never push a layer above nominal against a fade
+      bLight=1-(1-bGain)*0.6;                                // the groove's share of the same breath — it pumps with the lungs, not against them
+      try{ if(window.__brLog){ window.__brLog.push({t:+nowS.toFixed(2),p:p_,mode:bWalk,r:hA,idx:IDX,seg:si,u:+u.toFixed(3),D:+D.toFixed(3),S:+Sh.toFixed(3),g:+bGain.toFixed(4)});
+        if(window.__brLog.length>4000) window.__brLog.shift(); } }catch(e){}
     }
+    window._brLastG=bGain; window._brLastLight=bLight;
+    const bTau=Math.max(0.12,Math.min(0.45,((S_&&S_._slotSec>0)?S_._slotSec:fb)*0.5));
+    for(const bk in LBREATH){ const bn=LBREATH[bk]; if(bn&&bn.gain){ try{ bn.gain.setTargetAtTime(_BR_LIGHT.has(bk)?bLight:bGain, nowS, bTau); }catch(e){} } }
     // bloodstream: susA/susB circulate in counter-phase, sustain follows a φ² behind
     const cT=2*T, cx=2*Math.PI*(((beats%cT)+cT)%cT)/cT;
     const PHI=(1+Math.sqrt(5))/2;
@@ -9822,14 +9998,103 @@ function _meterTick(){
   }
   _meterMax=mx;                                                          // loudest layer this frame — the mix-balance reference
 }
+// (08.09, author: «слышу звук и вижу чистый фон») THE OBSERVER MUST NOT STAND
+// DOWNSTREAM OF WHAT IT OBSERVES. _meterTick turns each layer's real loudness into
+// the brightness of its marks — it was called INSIDE the render loop, below the frame
+// decimation gate. So: a skipped frame left the meter unread; a hidden tab stopped
+// requestAnimationFrame and the meter with it; and under audio strain, when two
+// frames in three are shed, it was read at a third of its rate against a release of
+// 1.2 s or more. The meter sank to zero, _layerAlpha returned zero for every layer,
+// and the field went blank WHILE THE INSTRUMENT PLAYED. Measured: the analyser on the
+// a-layer hearing −24.7 dB with _meterSm.a.v exactly 0. The perversity to remember:
+// with the transport STOPPED, _meterOn is false and the brightness falls back to the
+// faders — so the picture was there when the engine was silent and vanished when it
+// sang. It has its own clock now; nothing about painting can blind it. (Same species
+// as the breath's liveness guard, which read its own output through the master.)
+try{ setInterval(()=>{ try{ _meterTick(); }catch(e){} }, 120); }catch(e){}
+// (08.09) THE PICTURE'S CLOCK MAY NOT BE THE PAINTER'S CLOCK. Applying a frame
+// from visQueue — and the resync that stands in when frames stop — lived inside
+// requestAnimationFrame. A hidden tab, a throttled browser, a shed frame: rAF stops,
+// and with it both the applying and the resync that was meant to cover for it.
+// Measured with the pane hidden: rAF fired 0 times in 2.5 s, the queue grew past
+// 170, vizBeat stood at 22 while the walk was on its 82nd slot. So the door is one
+// function, called from the render loop as before AND from its own interval; the
+// while-loop drains idempotently, so two callers cannot apply a frame twice.
+function _vizApply(now){
+  if(!(ctx && state && state.visQueue)) return;
+      const avLat=(ctx.outputLatency||ctx.baseLatency||0);
+      let applied=null;
+      while(state.visQueue.length>0 && ((state.visQueue[0].pt!=null)?state.visQueue[0].pt:state.visQueue[0].time)+avLat<=now+0.008){
+        applied=state.visQueue.shift();
+      }
+      if(applied){
+        window.__vizAt=now;                    // (08.09) when the picture last heard from the sound
+        state.vizMode=applied.mode; state.vizP=applied.p; state.vizR=applied.r;
+        state.vizBeat=applied.beat; state.vizA=applied.a; state.vizB=applied.b;
+        // Dual-mode (converge / mode 5) carries per-stream rings + the scatter
+        // kind as event extras. The export path spreads the whole event, but the
+        // live loop copies fields explicitly — so carry these two through too,
+        // otherwise the moving rings never reach drawFrameOnContext. Non-dual
+        // events have neither, which clears them so no stale rings linger.
+        state.vizRings=applied.rings||null; state.vizScatter=applied.scatter||null;
+        state.vizFr=(applied.fr!=null)?applied.fr:null; state.vizFrQ=!!applied.frQ;   // (08.09) the freedom window's r-breath, when the frame carries one
+        state.vizTA=(applied.tA!=null)?applied.tA:null; state.vizTB=(applied.tB!=null)?applied.tB:null;   // (08.09) each voice's own moment
+      }
+      // (08.09, author: «слышу звук и вижу чистый фон, бывает и наоборот») THE PICTURE
+      // MAY NOT SIT STILL WHILE THE INSTRUMENT SOUNDS. Every frame the eye sees comes
+      // out of visQueue — and the queue is emptied outright at ten places (a goto, a
+      // p-change, a scene restore, a flush), while the sound already scheduled for
+      // those beats goes on playing. With nothing left to apply, the picture simply
+      // KEEPS WHAT IT HAD: at boot that is 'idle' with p=11 — the clean background he
+      // reported, under a sounding instrument. Measured live: two frames overdue by
+      // 36 s, vizMode 'idle', p=11, r=1, while the walk was in the postlude of p=7.
+      // So: when the transport is live and no frame has arrived for a while, the
+      // picture resyncs to the score itself — the same walk the breath reads. This is
+      // a fallback, not a second renderer: one frame from the queue and the queue wins
+      // again at once.
+      try{
+        // A LAST RESORT, NOT A ROUTINE. The queue exists because the scheduler runs
+        // AHEAD of the sound; resyncing to synthState shows that lookahead, which is
+        // the very desync the queue was built to prevent. So the threshold is two and
+        // a half beats, never a fixed second: at 36 bpm a beat is 1.67 s and a flat
+        // 1.2 s would have fired between every pair of beats and put the future on
+        // screen. It fires only when frames have genuinely stopped arriving.
+        const _vzGap=Math.max(1.2, 2.5*((typeof beatDur==='function')?beatDur():0.5));
+        if(state.running && !state.paused && typeof synthState!=='undefined' && synthState
+           && (now-(window.__vizAt||0))>_vzGap){
+          // (08.09) THE SHADOW, not the scheduler. The last frame emitVisual ever built
+          // survives every one of the ten queue flushes; it carries the pre-advance
+          // index, the b that was actually scheduled (ledger-aware), the rings and the
+          // scatter — and it is adopted only once its own sound is audible, by the same
+          // gate the queue uses. Re-deriving from synthState showed the lookahead plus
+          // one already-advanced index, wrote no b at all, and nulled the converge rings
+          // into a photograph.
+          let _sh=null;
+          { const _R=state.vizShadows||[];
+            for(let _i=_R.length-1;_i>=0;_i--){ const _c=_R[_i];
+              if((((_c.pt!=null)?_c.pt:_c.time)+avLat)<=now+0.008){ _sh=_c; break; } } }   // the newest frame whose sound has already reached the speakers
+          if(_sh){
+            state.vizMode=_sh.mode; state.vizP=_sh.p|0; state.vizR=_sh.r|0;
+            state.vizBeat=_sh.beat|0; state.vizA=_sh.a|0; state.vizB=_sh.b|0;
+            state.vizRings=_sh.rings||null; state.vizScatter=_sh.scatter||null;
+            state.vizFr=(_sh.fr!=null)?_sh.fr:null; state.vizFrQ=!!_sh.frQ;
+            state.vizTA=(_sh.tA!=null)?_sh.tA:null; state.vizTB=(_sh.tB!=null)?_sh.tB:null;
+            window.__vizAt=now;
+            window.__vizResync=(window.__vizResync||0)+1;
+          }
+        }
+      }catch(e){}
+}
+try{ setInterval(()=>{ try{ if(ctx) _vizApply(ctx.currentTime); }catch(e){} }, 120); }catch(e){}
 function startRenderLoop(){
   cancelAnimationFrame(rafId);
   let _frameN=0;
   const loop=()=>{
+    rafId=requestAnimationFrame(loop);   // (08.09) LIVENESS FIRST. The reschedule used to sit at the BOTTOM of a hundred-line body with no try/catch above it: one throw anywhere — a null context, a bad vizP — and the picture stopped for good while the audio, on its own clock, played on. The eye died silently. Booking the next frame here makes the chain unbreakable; a throw now costs one frame, not the evening.
     // wake cushion: let the first frames after tab-return pass EMPTY — the browser
     // floods this exact moment with unfrozen timers and deferred paints; 3 skipped
     // frames (~50 ms of still canvas) buy the audio thread its footing back
-    if(_wakeSkipFrames>0){ _wakeSkipFrames--; rafId=requestAnimationFrame(loop); return; }
+    if(_wakeSkipFrames>0){ _wakeSkipFrames--; return; }
     // ADAPTIVE FRAME DECIMATION (resilience): the canvas is the biggest CPU eater
     // on phones. Touch devices draw every 2nd frame; under audio strain everyone
     // sheds frames (2 of 3 when heavy). Watchdogs and the recording mirror never
@@ -9843,13 +10108,12 @@ function startRenderLoop(){
       if(skip && (_frameN%(skip+1))!==0){
         if(ctx){ try{ _audioWatchdog(ctx.currentTime); }catch(e){} }
         if(_vertActive) _vertPaint();
-        rafId=requestAnimationFrame(loop); return;
+        return;
       }
     }
     if(ctx){
       const now=ctx.currentTime;
       _audioWatchdog(now);
-      _meterTick();
       try{ if(_outMeter && state.running && !state.paused){
           if(!window.__tacetBuf || window.__tacetBuf.length!==_outMeter.fftSize) window.__tacetBuf=new Uint8Array(_outMeter.fftSize);
           _outMeter.getByteTimeDomainData(window.__tacetBuf);
@@ -9864,21 +10128,8 @@ function startRenderLoop(){
       // over Bluetooth). Hold each visual until the sound actually reaches the speakers,
       // so the picture stops running ahead of the audio. Read live — outputLatency drifts
       // on wireless. Falls back to baseLatency, then 0 (no change) if unsupported.
-      const avLat=(ctx.outputLatency||ctx.baseLatency||0);
-      let applied=null;
-      while(state.visQueue.length>0 && ((state.visQueue[0].pt!=null)?state.visQueue[0].pt:state.visQueue[0].time)+avLat<=now+0.008){
-        applied=state.visQueue.shift();
-      }
-      if(applied){
-        state.vizMode=applied.mode; state.vizP=applied.p; state.vizR=applied.r;
-        state.vizBeat=applied.beat; state.vizA=applied.a; state.vizB=applied.b;
-        // Dual-mode (converge / mode 5) carries per-stream rings + the scatter
-        // kind as event extras. The export path spreads the whole event, but the
-        // live loop copies fields explicitly — so carry these two through too,
-        // otherwise the moving rings never reach drawFrameOnContext. Non-dual
-        // events have neither, which clears them so no stale rings linger.
-        state.vizRings=applied.rings||null; state.vizScatter=applied.scatter||null;
-      }
+      _vizApply(now);   // (08.09) the queue is drained by a door that also has its own clock — see _vizApply
+
     }
     drawFrame();
     // (03.08d) THE INK BREATHES for real: a bg-colored veil over the finished frame.
@@ -9888,7 +10139,7 @@ function startRenderLoop(){
       const _bn=(typeof LBREATH!=='undefined'&&LBREATH.sustain&&LBREATH.sustain.gain)?LBREATH.sustain.gain.value:1;
       const _veil=Math.max(0,Math.min(0.26,(1-_bn)*0.5));
       if(_veil>0.012){
-        let _dk=true; try{ _dk=isQR(state.vizR||1, state.vizP||3); }catch(e){}
+        let _dk=true; try{ _dk=!_bgIsLight; }catch(e){}   // (08.09) the ground the frame JUST painted (set in drawFrameOnContext) — not r's class alone. The veil read χ(r) while the frame read the mode, so a prelude on a non-residue was washed with light paper under dark ink: the photograph he sent me
         cctx.save(); cctx.globalAlpha=_veil;
         cctx.fillStyle=_dk?((typeof _bgDark!=='undefined'&&_bgDark)||'#000'):((typeof _bgLight!=='undefined'&&_bgLight)||'#eee');
         cctx.fillRect(0,0,canvas.clientWidth||canvas.width,canvas.clientHeight||canvas.height);
@@ -9898,7 +10149,6 @@ function startRenderLoop(){
     // (06.08) THE HONEST SCORE — shared painter; see _drawScoreLayer
     try{ _drawScoreLayer(cctx, canvas.clientWidth||(canvas.width/(window.devicePixelRatio||1)), canvas.clientHeight||(canvas.height/(window.devicePixelRatio||1))); }catch(e){}
     if(_vertActive) _vertPaint();   // vertical recording mirror (Insta 9:16 / 1:1)
-    rafId=requestAnimationFrame(loop);
   };
   loop();
   // (03.08 author: «перетягиваемая толщина визуальной ленты перкуссии») — the strip's
@@ -9969,7 +10219,7 @@ function _vertPaint(){
   const now=performance.now(); if(now-_vertLast<31) return;    // captureStream takes ~30 fps anyway
   _vertLast=now;
   if(!_vertCtx) _vertCtx=_vertCanvas.getContext('2d',{alpha:false});
-  const vs={mode:state.vizMode,p:state.vizP,r:state.vizR,beat:state.vizBeat,a:state.vizA,b:state.vizB,rings:state.vizRings,scatter:state.vizScatter};
+  const vs={mode:state.vizMode,p:state.vizP,r:state.vizR,beat:state.vizBeat,a:state.vizA,b:state.vizB,rings:state.vizRings,scatter:state.vizScatter,tA:state.vizTA,tB:state.vizTB,fr:state.vizFr,frQ:state.vizFrQ};
   const sm=_mainStatic, sp=_ppStatic, sd=_dualPPStatic;        // swap in the mirror's own caches
   _mainStatic=_vertStatics.main; _ppStatic=_vertStatics.pp; _dualPPStatic=_vertStatics.dual;
   try{ drawFrameOnContext(_vertCtx,_vertCanvas.width,_vertCanvas.height,vs); _drawScoreLayer(_vertCtx,_vertCanvas.width,_vertCanvas.height); _drawCaption(_vertCtx,_vertCanvas.width,_vertCanvas.height); }catch(e){}
@@ -10116,7 +10366,7 @@ function _buildPPStatic(mode,p,r,W,H,darkBg,prev){ prev=prev||null;
   };
   _drawGrid(cc,W,H,pad,iW,iH,p,C);
   cc.fillStyle=C.FG; cc.font=`bold ${Math.round(11*_inkScale)}px 'IBM Plex Mono','SF Mono',monospace`;
-  cc.fillText(`p=${p}  [${mode}] · x=time/beat`+(window._halfTacet?'  ·  tacet — this half is silent':''),pad+4,pad-8);
+  cc.fillText(`p=${p}  [${mode}] · x=time/beat`,pad+4,pad-8);   // (08.09) the tacet phrase is painted LIVE now — baked into the cache it never re-rendered on the flag
 
   // Scatter in sounded order: x = beat-slot, y = residue-derived pitch. Class = SHAPE
   // (QR ○ / NQR ×) as in voices a/b: the prelude sounds QR pitches (r²) → dots, the
@@ -10183,7 +10433,7 @@ function _buildDualSectionStatic(directSec,contraSec,p,W,H,darkBg,prev){ prev=pr
   const _rv=_ppRevRank();
   const tag=(directSec===contraSec) ? `${directSec} ↔ ${_rv?'−rank':'retro'}`
                                      : `${directSec} ↔ ${contraSec}${_rv?'-rev':''}`;
-  cc.fillText(`p=${p}  [${tag}] · x=time: direct→ / reverse←`+(window._halfTacet?'  ·  tacet — this half is silent':''),pad+4,pad-8);
+  cc.fillText(`p=${p}  [${tag}] · x=time: direct→ / reverse←`,pad+4,pad-8);
 
   const gs=_glyphScale(p), sz=2.7*gs;
   const N=p-1;
@@ -10257,7 +10507,7 @@ function _buildMainStatic(p,r,W,H,darkBg,prev){ prev=prev||null;
 
   _drawGrid(bc,W,H,pad,iW,iH,p,C);
   bc.fillStyle=C.FG; bc.font=`bold ${Math.round(11*_inkScale)}px 'SF Mono',monospace`;
-  bc.fillText(`p=${p}  r=${r}  [main] · x=time/beat`+(window._halfTacet?'  ·  tacet — this half is silent':''),pad+4,pad-8);
+  bc.fillText(`p=${p}  r=${r}  [main] · x=time/beat`,pad+4,pad-8);
 
   const rIsQRm=isQR(r,p);
   const forward=(p%4===1)?rIsQRm:!rIsQRm;
@@ -10339,17 +10589,17 @@ function _buildMainStatic(p,r,W,H,darkBg,prev){ prev=prev||null;
     r2c.fillText(`r²=${r2}`,pad+2,yR2-3);
   }
 
-  // Fixed-point circles → base (structural; appear only when r is QR)
+  // Fixed-point circles — (08.09) no longer baked into the always-on base: they ARE the
+  // bell's beats (a² ≡ r is where a meets b), so they are drawn live at the diag fader's
+  // own ink, and vanish where the bell cannot sound. Coordinates only, here.
   const showLabels=fixedPts.length<=8;
+  const fixDots=[];
   for(let i=0;i<fixedPts.length;i++){
     const bi=fixedPts[i], a=aValues[bi];
-    const x=_xBeatSlot(pad,iW,p,bi,aXShift), y=yFor(axisMap(a,p));
-    bc.strokeStyle=C.FG; bc.lineWidth=2*_inkScale;
-    bc.beginPath(); bc.arc(x,y,7*_inkScale,0,Math.PI*2); bc.stroke();
-    if(showLabels){ bc.fillStyle=C.FG; bc.font='9px monospace'; bc.fillText(`a=${a}`,x+4,y-5); }
+    fixDots.push({x:_xBeatSlot(pad,iW,p,bi,aXShift), y:yFor(axisMap(a,p)), a:a});
   }
   // r is QR or NQR → which layer the r line follows
-  return { base, aL, bL, rL, r2L, rIsQR:rIsQRm, _aValues:aValues };
+  return { base, aL, bL, rL, r2L, rIsQR:rIsQRm, fwd:forward, _aValues:aValues, _fixDots:fixDots, _fixLbl:showLabels };
 }
 
 // Blit one faded offscreen layer onto the live context. Hoisted to module scope
@@ -10439,6 +10689,15 @@ function _drawOmegaCell(cc,pad,iW,iH,p,yFor,C){
             if(q){ cc.beginPath(); cc.arc(x,y,1.9*_inkScale,0,Math.PI*2); cc.fill(); } };
           if(e.arp!==false) draw(SW[(k-1)%n]);
           else for(let j=0;j<nC;j++) draw(cyc[j]);
+          // (08.09) THE MIST — the same rung carried into her half by the world's smallest
+          // non-residue, sounding on its own centred sink and never drawn: a thin, dotless
+          // stroke at 0.42, arriving a third of a step late as the ear hears it. Not the
+          // strike's ink — the mist always carries the OPPOSITE character to the strike.
+          if(e.ng && now>=tk+per*0.34){
+            const _v=(e.arp!==false)?SW[(k-1)%n]:cyc[0], _her=(_v*e.ng)%e.p;
+            if(_her>=1){ const my=yFor(axisMap(_her,e.p));
+              cc.globalAlpha=al*(off?0.5:1)*0.42; cc.lineWidth=Math.max(1,0.9*_inkScale);
+              cc.beginPath(); cc.moveTo(x,my-2.0*_inkScale); cc.lineTo(x,my+2.0*_inkScale); cc.stroke(); } }
         }
         cc.restore();
       }
@@ -10488,7 +10747,7 @@ function drawFrameOnContext(cc,W,H,vs){
   _setInkScale(W,H);                 // ink weight follows the target's resolution (desktop 1×, 9:16 reel ~2×)
   const p=vs.p||state.vizP;
   const pad=36, iW=W-pad*2, iH=H-pad*2;
-  const r=vs.r||1;
+  const r=(vs.r==null)?1:(vs.r|0);   // (08.09) a Fibonacci rest is r = 0 and used to be swallowed into a sounding r = 1
   const isMainLike=(vs.mode==='main');
   const rIsQR=isMainLike?isQR(r,p):true;
   const darkBg=rIsQR;
@@ -10516,6 +10775,9 @@ function drawFrameOnContext(cc,W,H,vs){
     if(_dualPPStatic.key!==key){ _dualPPStatic={key,cv:_buildDualSectionStatic(directSec,contraSec,p,W,H,darkBg,_dualPPStatic.cv)}; }
     const cv=_dualPPStatic.cv;
     cc.drawImage(cv,0,0);
+    if(window._halfTacet){ cc.save(); cc.fillStyle=C.FG; cc.globalAlpha=0.85;
+      cc.font=`bold ${Math.round(11*_inkScale)}px 'IBM Plex Mono','SF Mono',monospace`;
+      cc.fillText('tacet — this half is silent', pad+4, pad+8); cc.restore(); }   // (08.09) live, one row under the header — the cached header can stay calm
     // scatter fades with pre/post volume; sustains with sustain volume
     // each voice's scatter fades with ITS OWN section volume, so the prelude and the
     // postlude sliders each visibly control their own dots (no shared max() masking).
@@ -10530,13 +10792,17 @@ function drawFrameOnContext(cc,W,H,vs){
       const src=rings[k].source||rings[k].sec;   // sounded section (mode 5 contra = opposite)
       const r2=(rr*rr)%p;
       const yv=axisMap(ppPitchIndex(src,p,r2,!!rings[k].revRank),p);
-      const slot=(rings[k].fwd===false) ? ((p-2)-(vs.beat||0)) : (vs.beat||0);
+      const sh0=(rings[k].track==='post') ? (Number(vs.postShift)||0) : 0;   // (08.09) the post voice sounds postOffsetBeats late — its ring used to fire on the beat
+      const slot=((rings[k].fwd===false) ? ((p-2)-(vs.beat||0)) : (vs.beat||0)) + sh0;
       const cx=_xBeatSlot(pad,iW,p,slot), cy=yFor(yv);
       if(k===0) _ringFrac=(cx-pad)/iW;
-      cc.strokeStyle=(rings[k].track==='pre')?C.RING_A:C.RING_B; cc.lineWidth=2.5;
-      if(window._halfTacet){ cc.save(); cc.globalAlpha=0.3; cc.setLineDash([3,4]); }
-      cc.beginPath(); cc.arc(cx,cy,9,0,Math.PI*2); cc.stroke();
-      if(window._halfTacet) cc.restore();
+      { const aR=_layerAlpha(src||vs.mode);   // (08.09) each stream's ring at its own section's ink
+        if(aR>0.01){
+          cc.save(); cc.globalAlpha=window._halfTacet?aR*0.3:aR;
+          cc.strokeStyle=(rings[k].track==='pre')?C.RING_A:C.RING_B; cc.lineWidth=2.5*_inkScale;
+          if(window._halfTacet) cc.setLineDash([3,4]);
+          cc.beginPath(); cc.arc(cx,cy,9*_inkScale,0,Math.PI*2); cc.stroke();
+          cc.restore(); } }
     }
     // (23.08, author: «арпеджио не видно глазом») THE DUAL BRANCH RETURNED FIRST.
     // The cell is painted in the main branch and in prelude/postlude, and the
@@ -10551,20 +10817,36 @@ function drawFrameOnContext(cc,W,H,vs){
     const key=[vs.mode,p,W,H,darkBg,state.rDir>=0?1:0,state.reorderPP,state.archPPQR,state.archPPNQR,state.archPPOrd,pnNMax(p),state.pitchFlip?1:0,state.pitchCouple?1:0,state.showGrid?1:0].join('_');
     if(_ppStatic.key!==key){ _ppStatic={key,cv:_buildPPStatic(vs.mode,p,r,W,H,darkBg,_ppStatic.cv)}; }
     cc.drawImage(_ppStatic.cv,0,0);
+    if(window._halfTacet){ cc.save(); cc.fillStyle=C.FG; cc.globalAlpha=0.85;
+      cc.font=`bold ${Math.round(11*_inkScale)}px 'IBM Plex Mono','SF Mono',monospace`;
+      cc.fillText('tacet — this half is silent', pad+4, pad+8); cc.restore(); }   // (08.09) live, one row under the header — the cached header can stay calm
     // scatter fades with the pre/post layer volume (invisible at 0)
     if(_ppStatic.cv._scatLayer){ const a=_layerAlpha(vs.mode); if(a>0.01){ cc.save(); cc.globalAlpha=Math.min(1,a); cc.drawImage(_ppStatic.cv._scatLayer,0,0); cc.restore(); } }
     // anchors fade with the sustain layer volume (invisible at 0)
-    if(_ppStatic.cv._susLayer){ const a=_layerAlpha('sustain'); if(a>0.01){ cc.save(); cc.globalAlpha=Math.min(1,a); cc.drawImage(_ppStatic.cv._susLayer,0,0); cc.restore(); } }
+    if(_ppStatic.cv._susLayer){ const a=_layerAlpha('sustain'); if(a>0.01){
+      // (08.09) the skeleton of every anchor, dimmed — and the ONE that rings, bright, from
+      // where it enters to where it lets go. The picture lit every anchor segment in the
+      // section while the ear heard a single drone, sometimes for minutes.
+      cc.save(); cc.globalAlpha=Math.min(1,a)*0.45; cc.drawImage(_ppStatic.cv._susLayer,0,0); cc.restore();
+      try{ const su=state.ppSus, nowT=((typeof ctx!=='undefined'&&ctx)?(ctx.currentTime-(ctx.outputLatency||ctx.baseLatency||0)):0);
+        if(su && su.mode===vs.mode && su.t0<=nowT && su.t1>nowT-0.15){
+          const xa=_xBeatSlot(pad,iW,p,Math.max(0,su.i0)), xb=_xBeatSlot(pad,iW,p,Math.min(p-2,su.i1)), yy=yFor(axisMap(su.pidx,p));
+          const frac=Math.max(0,Math.min(1,(su.t1-nowT)/Math.max(0.001,su.t1-su.t0)));
+          cc.save(); cc.globalAlpha=Math.min(1,a)*(0.45+0.55*frac); cc.strokeStyle=C.SUS_PRE_LINE; cc.lineWidth=2.2*_inkScale;
+          cc.beginPath(); cc.moveTo(Math.min(xa,xb),yy); cc.lineTo(Math.max(xa,xb),yy); cc.stroke(); cc.restore(); } }catch(e){} } }
     // Dynamic: ring on the currently-playing r.
     const r2=(r*r)%p;
-    const yv=(r2===0)?((vs.mode==='prelude')?axisMap(0,p):0):axisMap(ppPitchIndex(vs.mode,p,r2,false),p);   // match audio's pitch index (incl. archPPQR flip)
+    const yv=(r2===0)?((vs.mode==='prelude')?axisMap(0,p):0):axisMap(ppPitchIndex(vs.mode,p,r2,(vs.mode==='postlude')&&_ppRevRank()),p);   // match audio's pitch index (incl. archPPQR flip + reversed-voice rank — (08.09) the literal false put the ring on the row the note was NOT sounding on whenever the pre/post couple was crossed)
     if(r>=1&&r<p){
       const cx=_xBeatSlot(pad,iW,p,vs.beat||0), cy=yFor(yv);
       _ringFrac=(cx-pad)/iW;
-      cc.strokeStyle=C.RINGA_PRE; cc.lineWidth=2;
-      if(window._halfTacet){ cc.save(); cc.globalAlpha=0.3; cc.setLineDash([3,4]); }
-      cc.beginPath(); cc.arc(cx,cy,9,0,Math.PI*2); cc.stroke();
-      if(window._halfTacet) cc.restore();
+      { const aPP=_layerAlpha(vs.mode);   // (08.09) the section's own fader: a full ring used to march over a silenced section
+        if(aPP>0.01){
+          cc.save(); cc.globalAlpha=window._halfTacet?aPP*0.3:aPP;
+          cc.strokeStyle=C.RINGA_PRE; cc.lineWidth=2*_inkScale;
+          if(window._halfTacet) cc.setLineDash([3,4]);
+          cc.beginPath(); cc.arc(cx,cy,9*_inkScale,0,Math.PI*2); cc.stroke();
+          cc.restore(); } }
     }
     _drawOmegaCell(cc,pad,iW,iH,p,yFor,C);   // the breath answers the cell here too
     return;
@@ -10578,6 +10860,18 @@ function drawFrameOnContext(cc,W,H,vs){
     cc.fillText(`p=${p}  [${vs.mode||'idle'}]`,pad+4,pad-8);
     return;
   }
+  if(r===0){                                     // (08.09) the freedom window: no lattice field, but a and b ARE sounding — the picture used to go mute
+    _drawGrid(cc,W,H,pad,iW,iH,p,C);
+    const xF=_xBeatSlot(pad,iW,p,vs.beat||0);
+    _ringFrac=(xF-pad)/iW;
+    const aA0=_layerAlpha('a'), aB0=_layerAlpha('b');
+    if(aA0>0.01&&vs.a){ cc.save(); cc.globalAlpha=aA0; cc.strokeStyle=C.RING_A; cc.lineWidth=2.5*_inkScale;
+      cc.beginPath(); cc.arc(xF,yFor(axisMap(vs.a,p)),10*_inkScale,0,Math.PI*2); cc.stroke(); cc.restore(); }
+    if(aB0>0.01&&vs.b){ cc.save(); cc.globalAlpha=aB0; cc.strokeStyle=C.RING_B; cc.lineWidth=2.5*_inkScale;
+      cc.beginPath(); cc.arc(xF,yFor(axisMap(vs.b,p)),10*_inkScale,0,Math.PI*2); cc.stroke(); cc.restore(); }
+    try{ _drawOmegaCell(cc,pad,iW,iH,p,yFor,C); }catch(e){}
+    return;
+  }
   if(r<1||r>=p){ _drawGrid(cc,W,H,pad,iW,iH,p,C); return; }
 
   const key=[p,r,W,H,darkBg,state.reorderA,state.reorderR,state.reorderPP,state.archAQR,state.archANQR,state.archAOrd,state.archRQR,state.archRNQR,state.archROrd,state.shiftAByR?1:0,state.pitchFlip?1:0,state.pitchCouple?1:0,state.glissA?1:0,state.glissB?1:0,state.showGrid?1:0].join('_');
@@ -10586,10 +10880,42 @@ function drawFrameOnContext(cc,W,H,vs){
   // base (grid/labels/fixed pts) always full; each layer faded by its volume so
   // lowering a slider dims that layer's points/line and they vanish at 0.
   cc.drawImage(M.base,0,0);
-  _compLayer(cc, M.aL,  _layerAlpha('a'));
-  _compLayer(cc, M.bL,  _layerAlpha('b'));
+  if(window._halfTacet){ cc.save(); cc.fillStyle=C.FG; cc.globalAlpha=0.85;
+    cc.font=`bold ${Math.round(11*_inkScale)}px 'IBM Plex Mono','SF Mono',monospace`;
+    cc.fillText('tacet — this half is silent', pad+4, pad+8); cc.restore(); }   // (08.09) live, one row under the header — the cached header can stay calm
+  // (08.09) THE SWEEP WRITES ITSELF — the ruling the omega cell received on 23.08,
+  // carried into the main plot: the whole row was painted at once, and the only mark
+  // of "now" was a ring. What has not yet sounded is a ghost of itself; what has
+  // sounded stands at full ink. Two blits of the SAME offscreens, so the cost does
+  // not grow with p. The r line, r² line and fixed points stay full-width — they
+  // are structure, not notes.
+  { const _GHOST=0.16;
+    const _live=(state.running && !state.paused);
+    const _hasNow=_live && M._aValues && vs.beat>=0 && vs.beat<M._aValues.length;
+    // the side that has SOUNDED is decided by the WALK's direction (aDir), not by the
+    // row's list order (M.fwd): x grows with the slot index whichever way the list was
+    // built, and a reversed walk descends the index. Checked live in both directions —
+    // taking M.fwd here lit the future for r=52 at p=139, whose row order is reversed.
+    const _dirNow=(typeof synthState!=='undefined'&&synthState&&synthState.aDir<0)?-1:1;
+    const _nowX=_hasNow ? _xBeatSlot(pad,iW,p,vs.beat+(_dirNow<0?-0.5:0.5)) : 0;
+    const _compSweep=(layer,alpha)=>{
+      if(!(alpha>0.01)) return;
+      if(!_hasNow){ _compLayer(cc,layer,alpha); return; }
+      _compLayer(cc, layer, alpha*_GHOST);                    // the whole map, faint
+      cc.save(); cc.beginPath();
+      if(_dirNow<0) cc.rect(_nowX,0,pad+iW-_nowX,H); else cc.rect(0,0,_nowX,H);
+      cc.clip(); _compLayer(cc, layer, alpha); cc.restore();  // what has sounded, full
+    };
+    _compSweep(M.aL, _layerAlpha('a'));
+    _compSweep(M.bL, _layerAlpha('b')); }
   _compLayer(cc, M.rL,  _layerAlpha(M.rIsQR?'qr':'nqr'));   // r line follows r's QR/NQR layer
   _compLayer(cc, M.r2L, _layerAlpha('r2'));
+  { let aDg=0; try{ aDg=Math.max(0.35*Math.min(1,vget('diag')/0.5), _layerAlpha('diag')); }catch(e){ aDg=_layerAlpha('diag'); }   // (08.09) structure while the bell's fader is up (it CAN sound here), full ink while it rings (it DOES) — and nothing where its fader is down
+    if(aDg>0.01 && M._fixDots && M._fixDots.length){
+      cc.save(); cc.globalAlpha=Math.min(1,aDg); cc.strokeStyle=C.FG; cc.lineWidth=2*_inkScale;
+      for(const dd of M._fixDots){ cc.beginPath(); cc.arc(dd.x,dd.y,7*_inkScale,0,Math.PI*2); cc.stroke();
+        if(M._fixLbl){ cc.fillStyle=C.FG; cc.font='9px monospace'; cc.fillText('a='+dd.a,dd.x+4,dd.y-5); } }
+      cc.restore(); } }
 
   // Dynamic: current-beat rings (the only thing that changes each frame). The
   // beat index runs backwards in reverse, so the ring travels right→left.
@@ -10605,14 +10931,43 @@ function drawFrameOnContext(cc,W,H,vs){
     _ringFrac=(Math.max(xA,xB)-pad)/iW;   // 0..1 along the time axis, for zoom auto-follow
     const yA=yFor(axisMap(vs.a,p)), yB=yFor(axisMap(vs.b,p));
     const aA=_layerAlpha('a'), aB=_layerAlpha('b');
-    if(aA>0.01){
+    const restA=isFibRest(vs.a), restB=isFibRest(vs.b);   // (08.09) a Fibonacci rest is silence — no ring parked at the axis edge
+    // (08.09) a ring lights only once ITS voice has reached the speakers — with an a/b
+    // offset the two are up to a beat apart, and one frame used to light both at once
+    const _hn=(typeof ctx!=='undefined'&&ctx)?(ctx.currentTime-(ctx.outputLatency||ctx.baseLatency||0)):Infinity;
+    if(aA>0.01 && !restA && (vs.tA==null || _hn>=vs.tA-0.008)){
       cc.save(); cc.globalAlpha=aA; cc.strokeStyle=C.RING_A; cc.lineWidth=2.5*_inkScale;
+      if(window._halfTacet){ cc.globalAlpha=aA*0.3; cc.setLineDash([3,4]); }   // (08.09) the muted half's ring is pale and dashed, as it is in pp/dual
       cc.beginPath(); cc.arc(xA,yA,10*_inkScale,0,Math.PI*2); cc.stroke(); cc.restore();
     }
-    if(aB>0.01){
+    if(aB>0.01 && !restB && (vs.tB==null || _hn>=vs.tB-0.008)){
       cc.save(); cc.globalAlpha=aB; cc.strokeStyle=C.RING_B; cc.lineWidth=2.5*_inkScale;
-      cc.beginPath(); cc.arc(xB,yB,10*_inkScale,0,Math.PI*2); cc.stroke(); cc.restore();
+      if(window._halfTacet){ cc.globalAlpha=aB*0.3; cc.setLineDash([3,4]); }
+      cc.beginPath(); cc.arc(xB,yB,10*_inkScale,0,Math.PI*2); cc.stroke();
+      // (08.09) the b that SOUNDS gets its own glyph under the ring: in lyric the ledger
+      // rewrites b live (echo, Prinner, mirror, the held dominant) while the cloud on
+      // the paper is still r·a⁻¹ — the cool ring travelled over blank paper. Outside
+      // lyric the glyph lands on the cloud's own mark and reads as a slight thickening.
+      try{ const gs2=_glyphScale(p), bv=((vs.b%p)+p)%p;
+        if(bv>0){ if(isQR(bv,p)){ cc.fillStyle=C.B_QR; cc.beginPath(); cc.arc(xB,yB,2.8*gs2*_inkScale,0,Math.PI*2); cc.fill(); }
+          else { const X2=3.2*gs2*_inkScale; cc.strokeStyle=C.B_NQR; cc.lineWidth=(0.9+0.5*gs2)*_inkScale;
+            cc.beginPath(); cc.moveTo(xB-X2,yB-X2); cc.lineTo(xB+X2,yB+X2); cc.moveTo(xB-X2,yB+X2); cc.lineTo(xB+X2,yB-X2); cc.stroke(); } } }catch(e){}
+      cc.restore();
     }
+    // (08.09) the freedom window's r-breath: a dashed ring in the r line's own colour,
+    // smaller than the two real voices, on the qr/nqr fader's ink — the fader that
+    // until today moved no ink at all
+    { const _frv=(vs.fr!=null)?vs.fr:state.vizFr, _frq=(vs.fr!=null)?!!vs.frQ:!!state.vizFrQ;
+      if(_frv){
+        const aR=_layerAlpha(_frq?'qr':'nqr');
+        if(aR>0.01){
+          const bSlot=Math.max(0,Math.min(p-2,vs.beat|0));
+          const xR=_xBeatSlot(pad,iW,p,bSlot,0), yR3=yFor(axisMap(_frv,p));
+          cc.save(); cc.globalAlpha=aR; cc.strokeStyle=C.RLINE; cc.lineWidth=2*_inkScale;
+          cc.setLineDash([3,3]);
+          cc.beginPath(); cc.arc(xR,yR3,7*_inkScale,0,Math.PI*2); cc.stroke(); cc.restore();
+        }
+      } }
   }
   // Held a/b sustain anchors: draw each active p/n anchor as a horizontal held
   // line at its own pitch row, fading with its layer fader (susA / susB).
@@ -10621,8 +10976,10 @@ function drawFrameOnContext(cc,W,H,vs){
     // when its sound REACHES THE SPEAKERS, not when the graph starts it
     const now=((typeof ctx!=='undefined'&&ctx)?(ctx.currentTime-(ctx.outputLatency||ctx.baseLatency||0)):0);
     for(let i=state.activeSus.length-1;i>=0;i--){ if(state.activeSus[i].t1<now-0.15) state.activeSus.splice(i,1); }
+    const _abO=Math.max(-1,Math.min(1,Number(state.abOffsetBeats||0)));
     for(const su of state.activeSus){
       if(su.t0>now) continue;
+      if(su.p!=null && su.p!==p) continue;   // (08.09) a line held in the OLD prime must not be redrawn on the new prime's rows
       const al=_layerAlpha(su.layer); if(al<=0.012) continue;
       const y=yFor(axisMap(su.val,p));
       const col=(su.layer==='susA')?C.SUS_LINE:C.SUS_PRE_LINE;
@@ -10630,7 +10987,13 @@ function drawFrameOnContext(cc,W,H,vs){
       const rise=su.a0?Math.max(0,Math.min(1,(now-su.t0)/su.a0)):1;   // (03.08c) fade IN with the attack — the line arrives when the ear does
       cc.save(); cc.globalAlpha=al*(0.35+0.55*frac)*rise;
       cc.strokeStyle=col; cc.lineWidth=1.6*_inkScale;
-      cc.beginPath(); cc.moveTo(pad,y); cc.lineTo(pad+iW,y); cc.stroke();
+      // (08.09) the line runs from where the anchor ENTERS to where it lets go — it was a
+      // pedal under the whole row while the ear heard it stop at the next anchor
+      let x0=pad, x1=pad+iW;
+      if(su.i0!=null){ const sh=(su.layer==='susA')?(_abO<0?-_abO:0):(_abO>0?_abO:0);
+        const xa=_xBeatSlot(pad,iW,p,su.i0,sh), xb=_xBeatSlot(pad,iW,p,su.i1,sh);
+        x0=Math.min(xa,xb); x1=Math.max(xa,xb); }
+      cc.beginPath(); cc.moveTo(x0,y); cc.lineTo(x1,y); cc.stroke();
       cc.restore();
     }
   }
@@ -10713,7 +11076,7 @@ function drawFrame(){
   const vs={
     mode:state.vizMode,p:state.vizP,r:state.vizR,
     beat:state.vizBeat,a:state.vizA,b:state.vizB,
-    rings:state.vizRings, scatter:state.vizScatter,
+    rings:state.vizRings, scatter:state.vizScatter, tA:state.vizTA, tB:state.vizTB, fr:state.vizFr, frQ:state.vizFrQ,
   };
   drawFrameOnContext(cctx,W,H,vs);
   _drawCaption(cctx,W,H);
@@ -10790,8 +11153,22 @@ function bindRangePair(rId,nId,cb){
 // already-scheduled future shows as ghosts to its right (the lookahead, honestly).
 const _GV_ORDER=['kick','bass','snare','tom','hatC','hatO','zap','click','cymbal'];
 const _GV_COLS={kick:'rgba(238,110,160,0.9)',bass:'rgba(238,110,160,0.66)',snare:'rgba(255,196,90,0.9)',tom:'rgba(255,196,90,0.62)',hatC:'rgba(110,200,255,0.85)',hatO:'rgba(110,200,255,0.55)',zap:'rgba(150,240,120,0.8)',click:'rgba(200,210,225,0.7)',cymbal:'rgba(255,255,255,0.75)'};
-function _gvPush(lane,t,v){ try{ const q=state.grooveVis||(state.grooveVis=[]); q.push({l:lane,t:t,v:(v!=null?v:0.5)}); if(q.length>256) q.splice(0,q.length-192); }catch(e){} }
+// (08.09) the honest score inked every groove hit without asking whether the lane
+// could be heard: the groove master at zero, or a lane at zero, still marked. Scene
+// voices (kick·, hat·, diag, chord, omega, glue) set _emitLayer and are not gated —
+// their faders are their own; the groove never touches _emitLayer and is gated by its
+// master × lane level, the same product its sink hears.
+function _gvAudible(lane){
+  try{ if(!window._gvFromGroove) return true;   // only the groove is gated; scene voices own their faders
+    const g=(typeof state!=='undefined')&&state.groove; if(!g||!g.lanes) return true;
+    const ln=g.lanes[lane==='cymbal'?'crash':lane]; if(!ln) return true;
+    const lv=(ln.lvl!=null)?ln.lvl:0.8;
+    return (Math.max(0,Math.min(1,Number(g.level)||0))*Math.max(0,lv))>0.003;
+  }catch(e){ return true; }
+}
+function _gvPush(lane,t,v){ if(!_gvAudible(lane)) return; try{ const q=state.grooveVis||(state.grooveVis=[]); q.push({l:lane,t:t,v:(v!=null?v:0.5)}); if(q.length>256) q.splice(0,q.length-192); }catch(e){} }
 function _gvNote(lane,t,v,f,q){
+  if(!_gvAudible(lane)) return;
   // (06.08 author: «только ноты, честно в частотных координатах») every groove hit
   // reports its TRUE fundamental and its Legendre class — the honest-score layer
   // draws nothing it cannot prove.
@@ -11170,13 +11547,13 @@ const groove=(()=>{
   // / NQR down) tops the strike. Fundamental sits at ¼ of the current freq range; the
   // ring is √p (QR) / ⁴√p (NQR) felt-beats; the spring window is 0.2 felt-beat.
   function _cymbal(t,v,P,k){
-    _gvPush('cymbal',t,v);
     const sink=gvSink('crash'); if(!sink) return;
     P=Math.max(5,P|0);
     const fb=Math.max(0.06,(typeof feltQuarter==='function'?feltQuarter():0.5));   // felt-beat (s)
     // use less often: enforce a gap between crashes — loud structural hits (drops) always pass
     if(v<0.85 && _lastCym!=null && (t-_lastCym)>=0 && (t-_lastCym)<1.25*fb) return;
     _lastCym=t;
+    _gvPush('cymbal',t,v);   // (08.09) below the refractory return: a crash the engine chose not to strike no longer marks the strip
     k=(k==null)?1:(((k%P)+P)%P); if(k===0) k=1;
     const q = isQR(k,P) ? 1 : -1;                              // this hit's QR/NQR class
     const W=0.2*fb;                                            // spring window = 0.2 beat (BPM-relative)
@@ -11276,6 +11653,7 @@ const groove=(()=>{
     const fc=_octInto(Math.sqrt(F.lo*F.hi),170,240);
     const bp=ctx.createBiquadFilter(); bp.type='bandpass';
     bp.frequency.value=Math.min(3200,fc*((F.P%4===1)?6:5)); bp.Q.value=1.4;
+    _gvNote('clap',t,v,bp.frequency.value,F.q);   // (08.09) it clapped every backbeat and stood in no score; the formant is what the ear hears, as the hat already reports its own corner
     bp.connect(sink);
     const gap=Math.max(0.006,Math.min(0.02,(0.2*F.fb)/Math.sqrt(F.P)));
     for(let j=0;j<3;j++){
@@ -12174,8 +12552,9 @@ state.floorsDepth=0;
 state.attackMorph=0;     // universal attack↔morph: 0 = crisp attacks · 1 = sounds melt and transform into each other
 state.morphCh={};        // per-channel attack↔morph (mixer 'morph' tab); combines with the global slider
 state.fxSatMode='tanh';  // sat curve mode: 'tanh' | 'qr-raw' | 'qr-envelope'
-state.fxCompThresh=-12;  // limiter threshold, dB (-60..0)
-state.fxCompRatio=12;    // limiter ratio (1..20); 1 = no gain reduction
+state.fxCompThresh=-1.5; // limiter threshold, dB (-60..0) — (08.09) protection, not programme: it was −12, which pressed everything, always
+state.fxCompRatio=20;    // limiter ratio (1..20); 1 = no gain reduction — steep, but it only meets the overs now
+state.fxCompKnee=0;      // (08.09) hard knee: the 12 dB knee was set once at build and softened the ratio to ~1.5:1 wherever it did engage
 state.fxCompBypass=false;// bypass the limiter (ratio→1) — removes clip protection on dense passages
 state.autoHeadroom=true; // prime-aware bus trim before floors/limiter; preserves texture while preventing overload
 state.headroomTarget=1.0;  // musical dynamics: 0.70≈piano, 1.00=reference, 1.30≈forte
@@ -13125,8 +13504,31 @@ function cfgChordAt(at, quad0, vol, bd, hitV, pos, tie){
   const manual = (cfg.chordDir<0) ? -1 : 1;                  // ⇅ button
   const glob   = (synthState && synthState.rDir<0) ? -1 : 1; // global reverse
   const dirSign = base*manual*glob;
-  const order=[0,1,2,3].sort((a,b)=>quad[a]-quad[b]);        // low → high
-  if(dirSign<0) order.reverse();                             // high → low
+  // (08.09, author: «добавим новые режимы в арпеджио — сначала по порядку возведения
+  // в квадрат») THE ARPEGGIO'S ORDER. By pitch is the old law. By squares strikes the
+  // same four nodes but climbs by r² mod p — every square is a residue, so the figure
+  // walks the QR half and its pitch order is scrambled by the arithmetic rather than
+  // by a hand. The orbit leaves the chord for the squaring map itself: r, r², r⁴, r⁸ —
+  // repeated squaring collapses, so the run is a tail falling into a circle, and those
+  // circles are precisely what the omega layer already sounds. Unity is a trap: reach
+  // it and the figure stays there, and the ear hears the arithmetic stop.
+  const _arpOrd=(document.getElementById('cfg-arp-ord')||{}).value||'pitch';
+  const _sq=(v)=>{ const x=((v%p)+p)%p; return (x*x)%p; };
+  let quadA=quad;
+  if(arp && _arpOrd==='orbit'){
+    // start at the TOP node, not the bottom: a Goncharova quadruple is a translation
+    // class and is normalised to contain 1 — and the orbit of unity is unity forever.
+    const _asc=[0,1,2,3].sort((a,b)=>quad[a]-quad[b]);
+    let v0=0; for(let k=3;k>=0;k--){ const c=((quad[_asc[k]]%p)+p)%p; if(c>1){ v0=c; break; } }
+    if(!v0) v0=((quad[_asc[3]]%p)+p)%p||1;
+    const orb=[v0]; for(let k=1;k<4;k++) orb.push(_sq(orb[k-1]));
+    quadA=orb;
+  }
+  let order;
+  if(arp && _arpOrd==='square') order=[0,1,2,3].sort((a,b)=>_sq(quadA[a])-_sq(quadA[b]));
+  else if(arp && _arpOrd==='orbit') order=[0,1,2,3];         // the orbit IS the order — it is already written in time
+  else order=[0,1,2,3].sort((a,b)=>quadA[a]-quadA[b]);       // low → high
+  if(dirSign<0 && _arpOrd!=='orbit') order.reverse();        // high → low; an orbit read backwards would be a square root, and roots are not unique
   // Arpeggio onset spacing comes from its OWN slider (same beat-scale as duration,
   // but independent): each successive node enters arpStep beats after the previous,
   // and rings until the chord's total length ends.
@@ -13134,7 +13536,7 @@ function cfgChordAt(at, quad0, vol, bd, hitV, pos, tie){
   const onsets=[0,0,0,0], lengths=[0,0,0,0];
   _emitLayer='chord'; _emitDir=1;
   order.forEach((vi,n)=>{
-    const v=quad[vi];
+    const v=quadA[vi];
     const vN=((v%p)+p)%p;
     const idx=axisMap(vN, p);
     const f=freqForIndex(idx,p);
@@ -13164,11 +13566,11 @@ function cfgChordAt(at, quad0, vol, bd, hitV, pos, tie){
   });
   // visual flash, rendered against ctx.currentTime so it tracks the audio
   let hi=-1;
-  if(hitV!=null){ const hv=((hitV%p)+p)%p; hi=quad.findIndex(v=>v===hv); }
+  if(hitV!=null){ const hv=((hitV%p)+p)%p; hi=quadA.findIndex(v=>v===hv); }   // (08.09) quadA: in the squaring orbit the four that SOUND are not the four of the chord — the flash lit silent nodes
   // Compute edges for THIS quad (not the overlay's selected quad)
   const _qt=qrTable(p);
-  const _flashEdges=cfgEdges(quad,p,_qt).edges;
-  cfg.flashes.push({ tStart:at, p, quad:quad.slice(), onsets, lengths, hit:hi, edges:_flashEdges });
+  const _flashEdges=cfgEdges(quadA,p,_qt).edges;
+  cfg.flashes.push({ tStart:at, p, quad:quadA.slice(), beat:(state.vizBeat|0), onsets, lengths, hit:hi, edges:_flashEdges });   // (08.09) beat: the slot the chord fired in — the flash lives on the TIME axis now, like everything else on the canvas
   if(cfg.flashes.length>48) cfg.flashes.splice(0,cfg.flashes.length-32);
 
   // ---- glue voices: one faint tone per QR-difference edge (an "agreeing
@@ -13180,7 +13582,7 @@ function cfgChordAt(at, quad0, vol, bd, hitV, pos, tie){
     _emitLayer='glue'; _emitDir=1;
     const edges=_flashEdges;
     for(const e of edges){
-      const va=quad[e[0]], vb=quad[e[1]];
+      const va=quadA[e[0]], vb=quadA[e[1]];   // (08.09) the glue binds the tones that are sounding
       const vaN=((va%p)+p)%p, vbN=((vb%p)+p)%p;
       const ia=axisMap(vaN,p), ib=axisMap(vbN,p);
       const fa=freqForIndex(ia,p), fb=freqForIndex(ib,p);
@@ -13255,7 +13657,8 @@ function cfgDrawOverlay(cc,W,H){
   const _aGlue=_layerAlpha('glue'), _aChord=_layerAlpha('chord');
   for(const fl of cfg.flashes){
     if(fl.p!==p) continue;
-    const fpts=fl.quad.map(v=>({v, x:xFor(v), y:yFor(v)}));
+    const _bx=_xBeatSlot(pad,iW,p,fl.beat|0);   // (08.09) the flash sits on the BEAT-SLOT axis like the tick that explains it and every other mark on the canvas — it was on the residue-value axis, so tick and bloom fired on opposite sides of the plot
+    const fpts=fl.quad.map(v=>({v, x:_bx, y:yFor(v)}));
     const inten=fl.quad.map((v,i)=>envAt(now-(fl.tStart+fl.onsets[i]), fl.lengths[i]));
     if(inten.every(x=>x<=0)) continue;
     // pulsing edges (the glue lattice) — fade with the glue layer
@@ -13335,18 +13738,18 @@ function cfgDrawOverlay(cc,W,H){
     const cx=x0+S/2, cy=y0+S/2 + 4, R=S*0.30;
     const corners=[ {x:cx-R,y:cy-R}, {x:cx+R,y:cy-R}, {x:cx+R,y:cy+R}, {x:cx-R,y:cy+R} ];
     // pick the most recent ACTIVE flash → show its quad + intensities live
-    let quadShown=ov.quad, inten=[0,0,0,0];
+    let quadShown=ov.quad, inten=[0,0,0,0], edgesShown=ov.info.edges;
     for(const fl of cfg.flashes){
       if(fl.p!==p) continue;
       const ii=fl.quad.map((v,i)=>{ const local=now-(fl.tStart+fl.onsets[i]); if(local<0)return 0; const atk=0.05; if(local<atk)return local/atk; const xx=(local-atk)/Math.max(0.05,fl.lengths[i]-atk); return xx>=1?0:Math.pow(1-xx,1.6); });
-      if(ii.some(v=>v>0)){ inten=ii; quadShown=fl.quad; }   // most recent active wins
+      if(ii.some(v=>v>0)){ inten=ii; quadShown=fl.quad; edgesShown=fl.edges||ov.info.edges; }   // most recent active wins — (08.09) with ITS edges: in the squaring orbit the four that sound are not the selected type's lattice
     }
     // title
     cc.fillStyle=C.FG; cc.font="bold 9px 'SF Mono',monospace"; cc.textAlign='left';
     cc.fillText('chord graph', x0+8, y0+13);
     // edges (the lattice topology is fixed by the selected type)
     cc.lineWidth=2.5; cc.strokeStyle=C.RING_B;
-    ov.info.edges.forEach(e=>{
+    edgesShown.forEach(e=>{
       const lit=Math.max(inten[e[0]],inten[e[1]]);
       cc.globalAlpha=0.45+0.55*lit;
       cc.beginPath(); cc.moveTo(corners[e[0]].x,corners[e[0]].y); cc.lineTo(corners[e[1]].x,corners[e[1]].y); cc.stroke();
@@ -13515,7 +13918,34 @@ function cfgRenderGlyphs(){
 // Up at ≤ +1.2 dB per tick, down faster; frozen on near-silence and whenever
 // the master is inside a silence frame (form fades own those moments).
 // ---------------------------------------------------------------------------
-state.autoLevel=(state.autoLevel!==false);
+// (08.09) THE PROBE: the chain must be measurable from inside, or every claim about
+// it is a story. Returns what each stage is doing RIGHT NOW — no sound, no cost.
+window._qrChain=function(){
+  try{
+    var o={};
+    o.norm=(qrBus&&qrBus.norm)?+qrBus.norm.gain.value.toFixed(3):null;
+    o.headroom=(qrBus&&qrBus.headroom)?+qrBus.headroom.gain.value.toFixed(3):null;
+    o.masterNode=(typeof masterGain!=='undefined'&&masterGain)?+masterGain.gain.value.toFixed(4):null;
+    o.masterState=+(state.vol&&state.vol.master||0).toFixed(4);
+    o.held=!!window._masterHeld;
+    if(qrBus&&qrBus.comp){ o.limiterDb=+qrBus.comp.reduction.toFixed(2);
+      o.thresh=qrBus.comp.threshold.value; o.ratio=qrBus.comp.ratio.value; o.knee=qrBus.comp.knee.value;
+      o.release=+qrBus.comp.release.value.toFixed(3); }
+    o.autoLevel=!!state.autoLevel;
+    o.vizAgeSec=+(ctx.currentTime-(window.__vizAt||0)).toFixed(2);   // how long the picture has gone without a frame from the sound
+    o.vizQueue=(state.visQueue||[]).length;
+    o.vizResyncs=window.__vizResync||0;
+    o.vizMode=state.vizMode; o.vizP=state.vizP; o.vizR=state.vizR;
+    try{ o.walk=synthState?{p:synthState.p,phase:synthState.phase,r:synthState.currentR}:null; }catch(e){}
+    try{ var h=estimateMixHeadroom(state); o.load=+h.load.toFixed(2); o.dyn=h.dyn; }catch(e){}
+    if(qrBus&&qrBus.meter){ var b=new Float32Array(qrBus.meter.fftSize);
+      qrBus.meter.getFloatTimeDomainData(b);
+      var s=0; for(var i=0;i<b.length;i++) s+=b[i]*b[i];
+      o.busRmsDb=+(20*Math.log10(Math.max(1e-7,Math.sqrt(s/b.length)))).toFixed(1); }
+    return o;
+  }catch(e){ return {error:String(e)}; }
+};
+state.autoLevel=(state.autoLevel===true);   // (08.09) OFF by default: an AGC of −10.8 dB target, ±3 dB per tick, makeup to 12×, riding a signal it measured after the limiter. It is a room control now — a hand may wake it, a scene may not.
 (function(){
   const TARGET=-10.8, FLOOR=-55;
   let buf=null;
@@ -14009,6 +14439,7 @@ const scenes = (()=>{
       arp:document.getElementById('cfg-arp')?.checked||false,
       tie:document.getElementById('cfg-tie')?.checked||false,
       arpSub:parseInt(document.getElementById('cfg-arp-sub')?.value||'14'),
+      arpOrd:document.getElementById('cfg-arp-ord')?.value||'pitch',
       durIdx:parseInt(document.getElementById('cfg-dur')?.value||'15'),
       inset:_cfgInsetOn,
       // ---- FULL-STATE capture [28.07]: the parameters that used to slip through ----
@@ -14133,9 +14564,9 @@ const scenes = (()=>{
     if(s.morphCh){ if(!state.morphCh) state.morphCh={};
       for(const k in s.morphCh){ const v=+s.morphCh[k]; if(isFinite(v)) state.morphCh[k]=Math.max(0,Math.min(1,v)); } }
     if(s.fxSatMode!=null) state.fxSatMode=s.fxSatMode;
-    if(s.autoLevel!=null){ state.autoLevel=!!s.autoLevel;
-      const _al=document.getElementById('auto-level'); if(_al) _al.classList.toggle('active',state.autoLevel);
-      if(!state.autoLevel && ctx && qrBus && qrBus.norm) try{ qrBus.norm.gain.setTargetAtTime(1,ctx.currentTime,0.4); }catch(e){} }
+    /* (08.09) a scene no longer switches the level rider on: it is a room control,
+       not a musical property, and old scenes carry autoLevel:true from the years
+       when it was the default. The field is read and ignored, like mood before it. */
     /* (16.08) old scenes may still carry a mood — it is read and ignored */
     if(s.activity!==undefined){ state.activity=s.activity||null;
       try{ if(typeof window._phonePaintActivity==='function') window._phonePaintActivity(); }catch(e){} }
@@ -14154,7 +14585,9 @@ const scenes = (()=>{
     { const dp=(s.depthPan!=null?s.depthPan:s.modDepth); if(dp!=null){ state.depthPan=dp; const e=document.getElementById('depth-pan'); if(e) e.value=dp; } }
     { const ds=(s.depthSend!=null?s.depthSend:s.modDepth); if(ds!=null){ state.depthSend=ds; const e=document.getElementById('depth-send'); if(e) e.value=ds; } }
     if(s.modSwap!=null){ state.modSwap=s.modSwap; const mw=document.getElementById('mod-swap'); if(mw) mw.checked=s.modSwap; }
-    for(const k of ['tremDepth','vibDepth','floorsDepth','pulseDepth','fxRevSend','fxRevBypass','fxSat','fxSatBypass','fxCompThresh','fxCompRatio','fxCompBypass','autoHeadroom','headroomTarget']){
+    /* (08.09) fxCompThresh/fxCompRatio/fxCompBypass left OUT: the limiter is protection,
+       not music, and every scene saved before today carries −12 dB / 12:1 in it. */
+    for(const k of ['tremDepth','vibDepth','floorsDepth','pulseDepth','fxRevSend','fxRevBypass','fxSat','fxSatBypass','autoHeadroom','headroomTarget']){
       if(s[k]!=null) state[k]=s[k];
     }
     if(ctx&&qrBus&&qrBus.applyFX) qrBus.applyFX();
@@ -14170,6 +14603,7 @@ const scenes = (()=>{
     const arp=document.getElementById('cfg-arp'); if(arp)arp.checked=!!s.arp;
     const tieC=document.getElementById('cfg-tie'); if(tieC)tieC.checked=!!s.tie;
     setNum('cfg-arp-sub', s.arpSub!=null?s.arpSub:14);
+    { const _ao=document.getElementById('cfg-arp-ord'); if(_ao) _ao.value=(s.arpOrd==='square'||s.arpOrd==='orbit')?s.arpOrd:'pitch'; }
     setNum('cfg-dur', s.durIdx!=null?s.durIdx:15);
     _cfgInsetOn=!!s.inset; const ic=document.getElementById('cfg-inset'); if(ic)ic.checked=_cfgInsetOn;
     if(typeof cfgRenderGlyphs==='function') cfgRenderGlyphs();
@@ -17743,7 +18177,7 @@ startRenderLoop();
     if(document.getElementById('engine-play')) return;
     const lbl=document.createElement('span'); lbl.id='td-label'; lbl.textContent='QR ENGINE';
     lbl.title='build 07.08c — the note-for-note palindrome, retro self-heal, honest score';
-    const _bst=document.createElement('span'); _bst.textContent='29.08b';
+    const _bst=document.createElement('span'); _bst.textContent='08.09k · the one that rings';
     _bst.style.cssText='font-size:9px;color:var(--muted,#667);margin-left:4px;letter-spacing:1px';
     _bst.title='build stamp — if this does not match what Claude just shipped, the tab is serving a stale copy (hard reload: Cmd+Shift+R)';
     const play=document.createElement('button'); play.id='engine-play'; play.className='primary';
@@ -19218,9 +19652,11 @@ startRenderLoop();
   function _setTacet(on){
     try{
       if(on){ if(_tacetPrev==null && typeof masterGain!=='undefined' && masterGain){ _tacetPrev=masterGain.gain.value;
+          window._masterHeld=true;
           masterGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.15); } }
       else if(_tacetPrev!=null && typeof masterGain!=='undefined' && masterGain){
-        masterGain.gain.setTargetAtTime(Math.max(0.05,_tacetPrev), ctx.currentTime, 0.2); _tacetPrev=null; }
+        masterGain.gain.setTargetAtTime(Math.max(0.05,_tacetPrev), ctx.currentTime, 0.2); _tacetPrev=null;
+        window._masterHeld=false; }
     }catch(e){}
   }
   // (16.08 audit) _palActive belongs to the retired scene-crab and is NEVER true for
@@ -19298,11 +19734,12 @@ startRenderLoop();
     // now dies away like a fermata release (~3 s, both windows), then rests; only
     // the hand's stop is instant.
     try{ window._formOn=false; window._formArc=null; }catch(e){}
-    try{ if(window._qrFormEvT){ window._qrFormEvT.forEach(clearTimeout); window._qrFormEvT=null; } }catch(e){}   // (28.08) a stopped prayer takes its pending entries and arpeggios with it
+    try{ if(window._qrFormEvT){ window._qrFormEvT.forEach(clearTimeout); window._qrFormEvT=null; window._masterHeld=false; } }catch(e){}   // (28.08) a stopped prayer takes its pending entries and arpeggios with it — and lets go of the node
     var grace=(why && why.indexOf('stopped')>=0)?0:3.2;
     if(grace>0 && typeof ctx!=='undefined' && ctx && masterGain && state.running && !state.paused && !_parkT){
       try{
         var g=masterGain.gain, v=(state.vol&&state.vol.master)||g.value||0.5;
+        window._masterHeld=true;                      // (08.09) the fermata owns the node until the lever comes home
         g.cancelScheduledValues(ctx.currentTime);
         g.setTargetAtTime(0.0001, ctx.currentTime, grace/3.5);
         try{ send({t:'fade', secs:grace}); }catch(e){}
@@ -19313,7 +19750,7 @@ startRenderLoop();
           // возвращении фейдеров») the lever comes back for the next piece — but only
           // after the pause has taken hold and the tail has died under the closed
           // fader, and as a ramp, never a jump.
-          setTimeout(function(){ try{ g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(v, ctx.currentTime, 0.25); }catch(e){} }, 900);
+          setTimeout(function(){ try{ g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(v, ctx.currentTime, 0.25); }catch(e){} window._masterHeld=false; }, 900);
         }, grace*1000);
       }catch(e){ try{ if(state.running && !state.paused) pauseAudio(); }catch(e2){} }
     } else {
@@ -19451,10 +19888,12 @@ startRenderLoop();
       var EV=Fp.events;
       if(EV && typeof masterGain!=='undefined' && masterGain && ctx){
         var _mPrev=state.vol.master||0.72;
+        window._masterHeld=true;                      // (08.09) the prayer's darkness owns the node until he enters
         masterGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.12);   // his half waits in the dark
         var _base=t0-Date.now();
         window._qrFormEvT.push(setTimeout(function(){ try{
           masterGain.gain.setTargetAtTime(Math.max(0.05,_mPrev), ctx.currentTime, 1.1);
+          window._masterHeld=false;
           if(typeof _fl==='function') _fl('prayer','he enters — five beats before the meeting');
         }catch(e){} }, Math.max(0,_base+EV.hisEntry*1000)));
         var _arp=function(tag){ return function(){ try{
@@ -19602,7 +20041,14 @@ startRenderLoop();
                      hat:(typeof scheduleHat!=='undefined')&&scheduleHat,
                      kick:(typeof scheduleKick!=='undefined')&&scheduleKick}[x.k];
             if(reg){ try{ _emitLayer=x.l||null; _emitDir=(x.e!=null?x.e:1);
-                var aa=x.a.slice(); aa[0]=tt; reg.apply(null,aa); }catch(e){} finally{ _emitLayer=null; _emitDir=1; } }
+                var aa=x.a.slice(); aa[0]=tt; reg.apply(null,aa);
+                // (08.09) the mirrored note reports the same lane, pitch and class it reported
+                // going forward — freq sits at a[2] for pulse/cont/sus/gliss/bell; hat and kick
+                // have none, their a[1] is the volume. The score was dead through phase B.
+                var _f=(x.k==='hat')?9000:(x.k==='kick')?60:(x.a[2]||0);
+                var _v=(x.k==='hat'||x.k==='kick')?(x.a[1]||0.5):(x.a[3]||0.5);
+                try{ _gvNote(x.l||x.k, tt, _v, _f, (x.e!=null?x.e:1)); }catch(e){}
+              }catch(e){} finally{ _emitLayer=null; _emitDir=1; } }
           }
         }
       }catch(e){}
@@ -20219,7 +20665,7 @@ startRenderLoop();
             var _hg=_hc.getContext('2d');
             var _st3={main:{key:'',cv:null},pp:{key:'',cv:null},dual:{key:'',cv:null}};
             var _renderHer=function(){
-              var vs={mode:state.vizMode,p:state.vizP,r:state.vizR,beat:state.vizBeat,a:state.vizA,b:state.vizB,rings:state.vizRings,scatter:state.vizScatter};
+              var vs={mode:state.vizMode,p:state.vizP,r:state.vizR,beat:state.vizBeat,a:state.vizA,b:state.vizB,rings:state.vizRings,scatter:state.vizScatter,tA:state.vizTA,tB:state.vizTB,fr:state.vizFr,frQ:state.vizFrQ};
               var sm=_mainStatic, sp0=_ppStatic, sd0=_dualPPStatic;
               _mainStatic=_st3.main; _ppStatic=_st3.pp; _dualPPStatic=_st3.dual;
               try{ drawFrameOnContext(_hg,_sw,_sh,vs); _drawScoreLayer(_hg,_sw,_sh); }
@@ -20565,7 +21011,7 @@ startRenderLoop();
             var hisCtx=hisCv.getContext('2d');
             var _slotStat={main:{key:'',cv:null},pp:{key:'',cv:null},dual:{key:'',cv:null}};
             var _renderHis=function(){
-              var vs={mode:state.vizMode,p:state.vizP,r:state.vizR,beat:state.vizBeat,a:state.vizA,b:state.vizB,rings:state.vizRings,scatter:state.vizScatter};
+              var vs={mode:state.vizMode,p:state.vizP,r:state.vizR,beat:state.vizBeat,a:state.vizA,b:state.vizB,rings:state.vizRings,scatter:state.vizScatter,tA:state.vizTA,tB:state.vizTB,fr:state.vizFr,frQ:state.vizFrQ};
               var sm=_mainStatic, sp0=_ppStatic, sd0=_dualPPStatic;
               _mainStatic=_slotStat.main; _ppStatic=_slotStat.pp; _dualPPStatic=_slotStat.dual;
               try{ drawFrameOnContext(hisCtx,SW,SH,vs); _drawScoreLayer(hisCtx,SW,SH); }
