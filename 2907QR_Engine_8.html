@@ -4741,7 +4741,21 @@ function _clockMoving(cb){
 function _ensureKeepAlive(){
   try{
     let a=window.__qrKA;
-    if(!a){ a=new Audio(SILENT_WAV); a.loop=true; a.setAttribute('playsinline',''); a.muted=false; a.volume=0.001; window.__qrKA=a; }
+    if(!a){ a=new Audio(SILENT_WAV); a.loop=true; a.setAttribute('playsinline',''); a.muted=false; a.volume=0.001; window.__qrKA=a;
+      // (12.09) iOS pauses HTMLMediaElements on a remote 'pause' whatever the
+      // page's own handler decides. This element is not music — it is the open
+      // audio session AND, since the Media Session block, the only reason the
+      // stem squeeze reaches us at all. Let it stop and one squeeze would take
+      // the pedal away with it. So: if it is still the current keep-alive and
+      // the transport is live, it goes back. A deliberate teardown
+      // (_rebuildAudioContext) nulls window.__qrKA first, so that one is left
+      // alone by the identity test.
+      a.addEventListener('pause',function(){
+        try{ if(window.__qrKA===a && state.running && !state.paused){
+          const _p=a.play(); if(_p&&_p.catch) _p.catch(function(){});   // a refused re-play is an ordinary outcome, not an incident — do not let it light the flight log
+        } }catch(e){}
+      });
+    }
     if(a.paused){ const pp=a.play(); if(pp&&pp.then) pp.then(()=>{window.__qrLog&&__qrLog('keepalive playing');},e=>{window.__qrLog&&__qrLog('keepalive FAIL: '+(e&&e.name||e));}); }
   }catch(e){}
 }
@@ -4755,6 +4769,12 @@ function _rebuildAudioContext(){
   window.__qrKA=null; window.__qrKACtx=null;   // MediaElementSource is per-context; rebuild gets a fresh one
   ctx=null; masterGain=null; voiceBus=null; qrBus=null;
   try{ initAudio(); }catch(e){ return false; }
+  // (12.09) The rebuild above paused and nulled the keep-alive. Since the Media Session
+  // block, that element is not only the open AVAudioSession — it is the ONLY reason the
+  // OS forwards a stem squeeze to this page. Leave it dead and the pedal dies with it,
+  // silently, until he touches the screen again: exactly the moment he cannot. Re-arm it
+  // here. A play() without fresh activation may be refused; that is caught inside.
+  try{ _ensureKeepAlive(); }catch(e){}
   state.visQueue=[];                       // old-clock visual events are meaningless now
   window.__vizAt=0;                        // (08.09) and the picture's last-heard stamp was in the old epoch — re-arm the resync on the fresh clock, or its age reads as decades and it never fires again
   if(wasRunning){
@@ -13166,7 +13186,8 @@ window.addEventListener('keydown',e=>{
   if(e.key===' '){ e.preventDefault();
     // (06.08 plan I.4) Space = the pair transport — the same legal door as ▶
     try{ if(!state.running){ startAudio(); } else { pauseAudio(); } }catch(e2){} return; }
-  if(!e.ctrlKey && !e.metaKey && !e.altKey && (e.key==='h'||e.key==='H')){
+  if(!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key==='h'||e.key==='H')){   // (12.09) Shift+H belongs to the pulse panel — without this guard one keystroke pressed the heart AND opened the panel
+    if(e.repeat) return;   // (12.09) a finger resting on the key is ONE yes. Without this the OS repeat rate wrote a like and a φ²-weighted lesson twenty times a second.
     e.preventDefault(); try{ const _lk=document.getElementById('tb-like'); if(_lk) _lk.click(); }catch(e2){} return; }
   if(!e.ctrlKey && !e.metaKey && !e.altKey && (e.key==='c'||e.key==='C')){ e.preventDefault(); if(typeof bailChords==='function') bailChords(); return; }   // 'c' = escape a chord pile-up, keep playing
   if(e.shiftKey && e.key==='ArrowRight'){ if(typeof composer!=='undefined' && composer.count && composer.count()>0){ e.preventDefault(); composer.next(); return; } }
@@ -13182,11 +13203,98 @@ window.addEventListener('keydown',e=>{
 let _wakeL=null;
 async function _wakeAcq(){ try{ if(!_wakeL && navigator.wakeLock && state.running && !state.paused) _wakeL=await navigator.wakeLock.request('screen'); }catch(e){} }
 function _wakeRel(){ try{ if(_wakeL){ _wakeL.release(); _wakeL=null; } }catch(e){} }
-setInterval(()=>{ if(state.running && !state.paused) _wakeAcq(); else _wakeRel(); },3000);
+setInterval(()=>{ if(state.running && !state.paused) _wakeAcq(); else _wakeRel(); try{ _msSync(); }catch(e){} },3000);   // (12.09) the same heartbeat carries the lock screen's title — the engine advances the prime on its own, so nobody else would update it
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') _wakeAcq(); });
 
+// ---------------------------------------------------------------------------
+// (12.09) THE PEDAL — Media Session, so the heart can be pressed without
+// looking at anything. AirPods stem: one squeeze = play/pause, two = next
+// track, three = previous. Those arrive here as 'play'/'pause' and
+// 'nexttrack'/'previoustrack'. Also: the Mac's own F8, the lock screen, the
+// Now Playing widget, a Bluetooth pedal, a car's steering wheel.
+//
+// WHY IT WORKS AT ALL: an OS media session exists only while an
+// HTMLMediaElement is playing — Web Audio alone creates none, and the handlers
+// below would be registered and never called. The engine already plays one:
+// the near-silent looping keep-alive (_ensureKeepAlive, SILENT_WAV), built for
+// a completely different reason — holding the AVAudioSession open in
+// WKWebView. So this needs no new element, no new permission and no new
+// dependency; it borrows the one that is already running.
+//
+// NO ARTWORK is set: the single-file rule forbids a fetch, and a base64 cover
+// would cost more bytes than every line of this block together.
+let _msWasHeart=0;
+function _msHeart(){
+  // A stem squeeze is a physical guess: two squeezes are often read as three,
+  // which would deliver nexttrack AND previoustrack. Both land on the heart on
+  // purpose — the gesture must be forgiving — but the heart is φ²-weighted
+  // teaching, so a misread must not teach twice. One heart per 1.2 s.
+  const t=Date.now(); if(t-_msWasHeart<1200) return; _msWasHeart=t;
+  try{ const _lk=document.getElementById('tb-like'); if(_lk) _lk.click(); }catch(e){}
+}
+function _msSync(){
+  try{
+    if(!('mediaSession' in navigator)) return;
+    const ms=navigator.mediaSession;
+    ms.playbackState=(state.running && !state.paused)?'playing':'paused';
+    // The lock screen says what he is actually HEARING. That is not the same as what
+    // the scheduler has already computed: this file's rule (03.08d) is that LABELS name
+    // the viz values, released on the audio clock, while the typed boxes and every
+    // navigation path keep the scheduler truth. The lock screen is a label. Reading
+    // _liveR() here put a root of 4 and a ○ on the phone while a 3 and a × were sounding
+    // — the same picture-against-sound fault the 08.09 pass went through the engine to
+    // remove, reintroduced on a surface nobody would think to check. Same expression as
+    // the on-screen p/r indicator, so the two can never say different things.
+    // (12.09) state.r DOES NOT EXIST — it is read in five places in this file and
+    // assigned in none. _liveR() is the real reading (synthState.currentR, falling back
+    // to the viz value), and it is what the p/r boxes and the score already use.
+    const _sp=(typeof _liveP==='function')?_liveP():(state.p|0);
+    const _sr=(typeof _liveR==='function')?_liveR():0;
+    const live=state.running && !state.paused;
+    const p=(live && state.vizP)?(state.vizP|0):_sp;
+    const r=(live && state.vizR)?(state.vizR|0):_sr;
+    let q=''; try{ if(typeof isQR==='function' && r>=1 && r<p) q=isQR(r,p)?' \u25cb':' \u00d7'; }catch(e){}
+    const ttl='p '+p+' \u00b7 r '+r+q;
+    if(!ms.metadata || ms.metadata.title!==ttl){
+      try{ ms.metadata=new MediaMetadata({title:ttl, artist:'QR Engine', album:'Goncharova lattice'}); }catch(e){}
+    }
+  }catch(e){}
+}
+(function _msInit(){
+  try{
+    if(!('mediaSession' in navigator) || typeof MediaMetadata==='undefined') return;
+    const ms=navigator.mediaSession, on=(a,f)=>{ try{ ms.setActionHandler(a,f); }catch(e){} };
+    // A media-key press counts as user activation, so startAudio's gestureKick
+    // is allowed to resume the context from here — the same legal door as \u25b6.
+    on('play', ()=>{ try{
+      if(!state.running){ startAudio(); }                 // startAudio does the gesture-gated wake itself
+      else if(state.paused){
+        // The dock's \u25b6 SUSPENDS the context when it pauses. Un-pausing without waking
+        // it puts the transport back on a frozen clock: state says running, the scheduler
+        // ticks, and nothing sounds. The dock's own button resumes before un-pausing; this
+        // door has to do the same, or the pedal gives him silence that looks like music.
+        try{ gestureKick('media'); }catch(e2){}
+        try{ if(typeof ctx!=='undefined' && ctx && ctx.resume) ctx.resume().catch(()=>{}); }catch(e2){}
+        pauseAudio();
+      }
+    }catch(e){} _msSync(); });
+    on('pause',()=>{ try{ if(state.running && !state.paused) pauseAudio(); }catch(e){} _msSync(); });
+    on('stop', ()=>{ try{ if(state.running && !state.paused) pauseAudio(); }catch(e){} _msSync(); });
+    on('nexttrack',     _msHeart);
+    on('previoustrack', _msHeart);
+    // seekto / seekforward are deliberately left unbound: there is no tape to
+    // seek. The engine computes the next slot; a scrub has nothing to land on.
+    _msSync();
+  }catch(e){}
+})();
+
 // Live p indicator — also tracks the engine's own auto-advance to the next prime.
-setInterval(_refreshLiveP,150);
+// (12.09) The lock screen rides the SAME pulse. On the 3 s heartbeat it lagged the music
+// by up to three seconds — a phone on the stand showing a prime the engine had already
+// left. _msSync only builds a MediaMetadata when the title actually changes, so at 150 ms
+// this costs one string compare a tick. The lock screen is a picture of the sound and owes
+// it the same exactness as every other picture here.
+setInterval(()=>{ _refreshLiveP(); try{ _msSync(); }catch(e){} },150);
 
 
 // ===========================================================================
@@ -14664,10 +14772,11 @@ const scenes = (()=>{
       // (06.08 plan I.4) the loud yes is never anonymous: the default name carries
       // what actually sounded — p, r with its Legendre glyph, the genre, the family mode
       try{
-        const q=(typeof isQR==='function'&&state.r>=1&&state.r<state.p)?(isQR(state.r,state.p)?' ○':' ×'):'';
+        const _r=(typeof _liveR==='function')?_liveR():0;   // (12.09) was state.r, assigned nowhere in this file — every kept scene has been named '· rundefined' and its class glyph never drawn
+        const q=(typeof isQR==='function'&&_r>=1&&_r<state.p)?(isQR(_r,state.p)?' ○':' ×'):'';
         const md=(state.duo&&state.duo.on&&state.duo.peer)?(' '+({parts:'⚭',retro:'⇄',free:'✦',pal:'◆'}[state.duo.mode]||'')):'';
         const act=state.activity?(' · '+state.activity):'';
-        return 'p'+state.p+' · r'+state.r+q+act+md;
+        return 'p'+state.p+' · r'+_r+q+act+md;
       }catch(e){ return `scene ${store.length+1}`; }
     })();
     const st=capture();
@@ -16148,7 +16257,7 @@ const learner = (()=>{
   // coarse _sig still gates transitions + segment counting, so the Markov chain
   // structure stays clean while every knob value is learned.
   let _liveOn=true; try{ _liveOn=(localStorage.getItem('qr_live_learn')!=='0'); }catch(e){}
-  let _livePrev=null, _liveSaveDue=0;
+  let _livePrev=null, _liveSaveDue=0, _liveSkip=0;
   function _liveKey(s){
     const g=s.groove;
     return _sig(s)+'|'+[
@@ -16165,21 +16274,64 @@ const learner = (()=>{
     ].join(',');
   }
   function _liveTick(){
-    if(!_liveOn || autoOn || typeof state==='undefined' || !state.running || state.paused){ _livePrev=null; return; }
+    // (12.09) The gate is split. Detection runs whenever he is playing by hand;
+    // only the LEARNING below is gated by _liveOn. Reason: this tick is now also
+    // the one place that marks how long the current scene has been held, and the
+    // heart's weight must not depend on a learning checkbox. `autoOn` still exits
+    // — under the autopilot _earSceneReset owns that mark, and the two writers
+    // must never both be live or the dwell would reset twice per scene.
+    if(autoOn || typeof state==='undefined' || !state.running || state.paused){ _livePrev=null; return; }
+    // (12.09) When live learning is off, the only reason to run is the hold mark, and
+    // that feeds a weight clamped to whole seconds — so a third of the rate is exact
+    // enough and costs a third of the captures. Someone who switches learning off is
+    // asking for a lighter engine; do not hand them the full price for nothing.
+    if(!_liveOn && (++_liveSkip % 3)) return;
     let cur; try{ cur=current(); }catch(e){ return; }
     if(!cur || !cur.p) return;
-    const lk=_liveKey(cur), sig=_sig(cur), now=performance.now();
-    if(!_livePrev){ _livePrev={s:cur,lk,sig,t:now}; return; }
+    const lk=_liveKey(cur), sig=_sig(cur), now=performance.now();   // capture() is the cost here; see the _liveSkip gate above — it is paid at a third rate when nothing is being learned
+    if(!_livePrev){
+      // (12.09 fix) DETECTION STARTING IS ITSELF A BEGINNING. The gate above nulls
+      // _livePrev whenever the transport is stopped, paused, or under the autopilot,
+      // so this bootstrap runs on the first play of a session and again after every
+      // pause and every handover from the machine. Without the mark here, holdStart
+      // kept whatever it last held — at page load that is 0, i.e. time since the page
+      // opened. Measured: open the page, leave it 26 s, press play, press the heart
+      // → weight 72 instead of 2.6. The ceiling bug survived the first fix on the most
+      // ordinary path of all: pressing play and loving the opening scene.
+      try{ _ear.holdStart=now; }catch(e){}
+      _livePrev={s:cur,lk,sig,t:now}; return;
+    }
     if(lk!==_livePrev.lk){
       const dur=Math.max(0.3,(now-_livePrev.t)/1000), w=Math.max(0.2,Math.min(60,dur));
-      _learnState(_livePrev.s,w);                          // every deliberate change teaches, weighted by time held
-      if(sig!==_livePrev.sig){                             // a real structural segment → transition + count
-        _learnTransition(_livePrev.s,cur,w);
-        model.sourceSegments=(model.sourceSegments||0)+1;
-        model.sourceDurationSec=Math.round(((model.sourceDurationSec||0)+dur)*10)/10;
+      // (12.09) THE HEART STOPS WEIGHING A CONSTANT. loveThis weights the yes by
+      // phi-squared times `held`, and `held` counts from _ear.holdStart. That mark
+      // was written in one function only — _earSceneReset — which is called from
+      // applyNext, i.e. at a scene change: usually the autopilot's, but also the
+      // '↯ next learned' button, which works with the autopilot off. So wherever the
+      // MODEL chose the scene the rule worked; in MANUAL play holdStart stayed at 0,
+      // `held` was time since the page loaded, it passed the 60 s clamp within the
+      // first minute, and EVERY heart he pressed by hand weighed exactly the same
+      // maximum. The law that a long-held sound is worth more than one caught in
+      // passing existed only while he wasn't playing.
+      // Marked here and at the bootstrap above for the manual side — deliberately NOT
+      // by calling _earSceneReset, which also zeroes the ear's tension accumulator:
+      // clearing that on every knob touch would corrupt _earSceneMean and the mid-scene
+      // reflection, which have nothing to do with the heart.
+      // Note what else lands here: _sig carries p and the 5-BPM bucket, so the engine's
+      // OWN prime advance resets the dwell too. That is correct, not a leak — the mark
+      // measures how long the sound he is hearing has been THIS sound, and a prime the
+      // engine turned by itself is still a new sound he has not yet lived with.
+      try{ _ear.holdStart=now; }catch(e){}
+      if(_liveOn){
+        _learnState(_livePrev.s,w);                        // every deliberate change teaches, weighted by time held
+        if(sig!==_livePrev.sig){                           // a real structural segment → transition + count
+          _learnTransition(_livePrev.s,cur,w);
+          model.sourceSegments=(model.sourceSegments||0)+1;
+          model.sourceDurationSec=Math.round(((model.sourceDurationSec||0)+dur)*10)/10;
+        }
+        if(++_liveSaveDue>=8){ _liveSaveDue=0; saveLocal(false); }
       }
       _livePrev={s:cur,lk,sig,t:now};
-      if(++_liveSaveDue>=8){ _liveSaveDue=0; saveLocal(false); }
     }
   }
   function setLiveLearn(on){
@@ -17769,7 +17921,9 @@ const learner = (()=>{
           reassertFade:()=>{ if(_fadeRunner) _setMaster(_fadeRunner.cur); },   // (05.08 audit) _fadeRunner is closure-local — the duo block reasserts fades through this door
           mkMemory:()=>({moments:_mkModel?(_mkModel.moments||0):0, dur:_mkModel?(_mkModel.dur||0):0, divergence:+_mkDivergence().toFixed(2), features:_mkModel?_mkModel.features:null}),
           clMemory:()=>({moments:_clModel?(_clModel.moments||0):0, dur:_clModel?(_clModel.dur||0):0, features:_clModel?_clModel.features:null, lastTouch:_clLastTouch}),   // [29.07] Claude's memory, read-only
-          earState:()=>({tHat:_ear.tHat, samples:_ear._acN, reflBias:_reflBias, earCal:_earCal, lastIntended:_lastIntended, lastReflection:_lastReflection}),
+          earState:()=>({tHat:_ear.tHat, samples:_ear._acN, reflBias:_reflBias, earCal:_earCal, lastIntended:_lastIntended, lastReflection:_lastReflection,
+                         heldSec:+Math.max(0,(performance.now()-_ear.holdStart)/1000).toFixed(2),   // (12.09) the heart's weight, made visible: loveThis multiplies phi-squared by this, clamped to [1,60]
+                         nextHeartW:+(2.618*Math.max(1,Math.min(60,(performance.now()-_ear.holdStart)/1000))).toFixed(2)}),
           forgetPrayerPrimes:()=>{ try{
             var fp=_model && _model.features && _model.features.p;
             if(fp && fp.length){ var keep=fp.filter(function(x){ return num(x.v,0)<5000; });
@@ -17815,6 +17969,7 @@ startRenderLoop();
     {id:'v-master',    kind:'range',  label:'master volume'},
     {id:'btn-p-up',    kind:'button', label:'prime +'},
     {id:'btn-p-down',  kind:'button', label:'prime \u2212'},
+    {id:'tb-like',     kind:'button', label:'\u2665 like'},        // (12.09) a pedal is a heart with no screen — the car, the library, the stage
   ];
 
   // source key = "C<cc>" (control change) or "N<note>" (note on).
@@ -17836,7 +17991,7 @@ startRenderLoop();
   function fireTarget(t, raw, isNote){
     const el=document.getElementById(t.id); if(!el) return;
     if(t.kind==='range'){ driveRange(el, Math.max(0,Math.min(127,raw))/127); return; }
-    const lvl = isNote ? 127 : raw;                 // button: rising edge
+    const lvl = isNote ? (raw>0?127:0) : raw;       // button: rising edge (note-off arrives as raw 0 and re-arms it)
     const prev = lastEdge.get(t.id)||0; lastEdge.set(t.id, lvl);
     if(lvl>=64 && prev<64){ try{ el.click(); }catch(e){} }
   }
@@ -17847,6 +18002,7 @@ startRenderLoop();
     let key=null, raw=0, isNote=false;
     if(status===0xB0){ key='C'+a; raw=b; }                       // control change
     else if(status===0x90 && b>0){ key='N'+a; raw=b; isNote=true; } // note on
+    else if(status===0x80 || (status===0x90 && b===0)){ key='N'+a; raw=0; isNote=true; }   // (12.09) NOTE OFF, which used to be dropped here. fireTarget latches lastEdge at 127 for a note-on and only fires on a rising edge, so without the falling edge every button target — the heart included — fired exactly ONCE per page load. A pad, a key, a footswitch: one yes, then silence.
     else return;
     if(learnTarget){
       const prevOwner=targetBySrc.get(key);
@@ -18182,7 +18338,7 @@ startRenderLoop();
     if(document.getElementById('engine-play')) return;
     const lbl=document.createElement('span'); lbl.id='td-label'; lbl.textContent='QR ENGINE';
     lbl.title='build 07.08c — the note-for-note palindrome, retro self-heal, honest score';
-    const _bst=document.createElement('span'); _bst.textContent='12.09 · the circle’s own order';
+    const _bst=document.createElement('span'); _bst.textContent='12.09 · a heart with no screen';
     _bst.style.cssText='font-size:9px;color:var(--muted,#667);margin-left:4px;letter-spacing:1px';
     _bst.title='build stamp — if this does not match what Claude just shipped, the tab is serving a stale copy (hard reload: Cmd+Shift+R)';
     const play=document.createElement('button'); play.id='engine-play'; play.className='primary';
@@ -18415,17 +18571,18 @@ startRenderLoop();
     const sp=document.createElement('span'); sp.id='td-spacer'; bar.appendChild(sp);   // push records to the right
     const wrap=document.createElement('span'); wrap.id='tb-perf';
 
-    const like=document.createElement('button'); like.className='tb-btn'; like.id='tb-like'; like.textContent='❤ like'; like.title='ONE heart, both memories (05.08): saves the current setup as a scene AND teaches the Markovs that THIS, exactly as it sounds, is what you want more of (the loud yes, φ²-weighted). In a live duet the scene keeps BOTH sides.';
+    const like=document.createElement('button'); like.className='tb-btn'; like.id='tb-like'; like.textContent='❤ like'; like.title='ONE heart, both memories (05.08): saves the current setup as a scene AND teaches the Markovs that THIS, exactly as it sounds, is what you want more of (the loud yes, φ²-weighted). In a live duet the scene keeps BOTH sides.\n\nFour doors, one heart: this button · the H key · the ♥ on the phone bar · the NEXT-TRACK gesture — two squeezes on an AirPod stem, the skip button on a lock screen, a steering wheel or a pedal. That last one is the only door that works with the screen dark and both hands on an instrument. Beware the neighbour: ONE squeeze, or a play/pause key, is the transport — it starts and stops the sound, it does not love it. The weight is how long this sound had been sounding, so a heart after living with it says more than a heart on the way past.';
     like.addEventListener('click',()=>{ try{ scenes.save(''); }catch(e){}
       try{
         var _bk=[]; try{ _bk=JSON.parse(localStorage.getItem('qr_likes')||'[]')||[]; }catch(e){}
         var _st=null; try{ _st=scenes.capture(); }catch(e){}
         if(_st){ try{ if(window._duoCap){ var _dc=window._duoCap(); if(_dc) _st.duo=_dc; } }catch(e){}
-          var _q=''; try{ _q=(typeof isQR==='function'&&state.r>=1&&state.r<state.p)?(isQR(state.r,state.p)?' \u25cb':' \u00d7'):''; }catch(e){}
-          _bk.push({ts:Date.now(), p:state.p|0, r:state.r|0, cls:_q.trim(),
+          var _r=0; try{ _r=(typeof _liveR==='function')?_liveR():0; }catch(e){}   // (12.09) was state.r, assigned nowhere — every yes he ever kept recorded r:0 and a blank class
+          var _q=''; try{ _q=(typeof isQR==='function'&&_r>=1&&_r<state.p)?(isQR(_r,state.p)?' \u25cb':' \u00d7'):''; }catch(e){}
+          _bk.push({ts:Date.now(), p:state.p|0, r:_r|0, cls:_q.trim(),
                     act:(state.activity||null), mode:((state.duo&&state.duo.on&&state.duo.peer)?state.duo.mode:null),
                     bpm:Math.round(state.bpm||0), caption:(state._caption||''),
-                    name:'\u2665 p'+state.p+' \u00b7 r'+state.r+_q+(state.activity?(' \u00b7 '+state.activity):''),
+                    name:'\u2665 p'+state.p+' \u00b7 r'+_r+_q+(state.activity?(' \u00b7 '+state.activity):''),
                     state:_st});
           if(_bk.length>400) _bk.splice(0,_bk.length-400);
           try{ localStorage.setItem('qr_likes', JSON.stringify(_bk)); }catch(e){}
@@ -21681,7 +21838,7 @@ startRenderLoop();
     }catch(e){} };
     mrow.appendChild(murl);
     var pbLike=document.createElement('button'); pbLike.textContent='♥';
-    pbLike.title='the loud yes — saves the scene and teaches both memories';
+    pbLike.title='the loud yes — saves the scene and teaches both memories. Same heart as ♥ like in the dock, the H key, and the next-track gesture (two squeezes on an AirPod stem).';
     pbLike.onclick=function(){ try{ var _o=document.getElementById('tb-like'); if(_o) _o.click(); }catch(e){}
       pbLike.style.color='var(--warn,#ffb86b)'; setTimeout(function(){ pbLike.style.color=''; },700); };
     mrow.appendChild(pbLike);
