@@ -619,6 +619,16 @@ details.acc[open] { padding-bottom: 0; }
           <button class="mini-tgl" id="arch-ashift" title="rotate the a-sequence cyclically by the current r">shift · r</button>
         </div>
       </div>
+      <div class="reorder-lvl" style="border:0.5px solid var(--border);border-radius:6px;padding:6px 7px;margin-bottom:6px">
+        <div style="font:11px ui-monospace,monospace;color:var(--muted);margin-bottom:4px">omega · the circle</div>
+        <div class="btn-row" id="reorderOM-btns">
+          <button class="ord-btn active" data-grp="OM" data-val="0" title="by pitch — the circle sorted low to high, run up and back without repeating the turning notes"><svg viewBox="0 0 28 16" width="30" height="16" aria-hidden="true"><polyline points="2,14 13,2 15,2 26,14" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>
+          <button class="ord-btn" data-grp="OM" data-val="1" title="by squaring — the circle's own order, where every member is the square of the one before. The run never turns: the circle closes and comes round, and the harp states exactly what the canon beneath it states. The same members sound either way; only their succession changes."><span style="font-weight:700;letter-spacing:.02em">x²</span></button>
+        </div>
+        <div class="row" style="gap:5px;flex-wrap:wrap;margin-top:5px">
+          <span style="font-size:10px;color:var(--muted)">the wheel's succession — the canon underneath always keeps the squaring order</span>
+        </div>
+      </div>
 
     </details>
 
@@ -3333,6 +3343,7 @@ const state={
   omSpeed:15,            // index into _OM_STEPS: 15 = 1/4 of a beat per strike — the author's default (21.08)
   topHz:1250,            // (21.08) nothing is composed above this — the whole map lives under it
   omArp:true,            // the ring spins the circle as an ARPEGGIO by default; false = struck as a chord (author 21.08)
+  omArpOrd:'sweep',      // (12.09) the arpeggio's ORDER: 'sweep' = by pitch, up and back · 'square' = the circle's own, each member the square of the one before
   omEcho:true,           // omega arpeggio on/off (the old delay is gone — it will return as an insert effect): the touch of ω/ω² delays the beat's vertical slice in the world's Legendre rhythm, fading over √p beats
   solo:new Set(),   // soloed layer keys; if non-empty, only these layers sound
   // Prelude/Postlude as separate tracks (volume), plus a time offset for the
@@ -7176,8 +7187,18 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
     // passage sweeps up the set and back down, and the wheel still states exactly
     // the circle, member for member. The canon keeps the squaring order: that is
     // where the relation must be heard.
+    // (12.09, author: «омега арпеджио играется не по возрастанию и убыванию, а по
+    // возведению в квадрат») THE WHEEL'S TWO ORDERS. `cyc` already arrives in the
+    // circle's own order — each member is the square of the one before, which is what
+    // a circle of the squaring map IS. The harp used to re-sort it by pitch and run up
+    // and back; that reading stays, and the circle's own joins it. In the squaring
+    // order the run never turns: the circle closes, so it simply comes round again —
+    // and the canon underneath, which has always kept this order, is finally saying
+    // the same succession as the harp above it.
     const _byPitch=cyc.slice().sort((a2,b2)=>freqForIndex(a2,p)-freqForIndex(b2,p));
-    const _sweep=_byPitch.concat(_byPitch.slice(1,-1).reverse());   // up, then back without repeating the turns
+    const _sweep=(state.omArpOrd==='square')
+      ? cyc.slice()                                                 // the squaring order: r → r² → r⁴ … and round
+      : _byPitch.concat(_byPitch.slice(1,-1).reverse());            // up, then back without repeating the turns
     const K=Math.max(2,Math.min(512,_sweep.length));                // one pass, and its length is the circle's
     R.next=time+(K+2)*per+Math.min(30,per*8);                       // the next wheel waits for this one's last note
     R.end=time+(K+1)*per;
@@ -12404,6 +12425,14 @@ setInterval(()=>{ if(typeof _applyPrimeFreqRatio==='function') _applyPrimeFreqRa
 
 // ---- Playback order symbol buttons (R order / A order) ----
 function _setOrder(grp,val){
+  if(grp==='OM'){   // (12.09) the omega wheel's succession — its own level, and it has no QR/NQR toggles
+    state.omArpOrd=(val===1)?'square':'sweep';
+    document.querySelectorAll('.ord-btn[data-grp="OM"]').forEach(b=>{ b.classList.toggle('active', parseInt(b.dataset.val)===val); });
+    try{ if(typeof _fl==='function') _fl('omega', (val===1)
+      ? 'the wheel takes the squaring order — each member the square of the one before, round and round; the harp now states what the canon states'
+      : 'the wheel takes the pitch order — up the circle and back, without repeating the turns'); }catch(e){}
+    return;
+  }
   if(grp==='R') state.reorderR=val; else if(grp==='PP') state.reorderPP=val; else state.reorderA=val;
   // the contrary order (9) is defined by its QR/NQR split, so default it to QR = −NQR
   // (the crossing) the instant it is picked — the coupling toggle still flips it afterwards.
@@ -12436,6 +12465,8 @@ function _paintArch(){
   const usesCouple=(lvl,o)=> lvl==='PP' ? true : (o===1||o===2||o===4||o===5||o===9);   // PP: postlude pitch follows the coupling for EVERY order
   const usesOrd=(o)=> (o===1||o===2||o===4||o===5);
   const setEnabled=(el,on)=>{ if(!el) return; el.disabled=!on; el.style.opacity=on?'':'0.38'; el.style.pointerEvents=on?'':'none'; };
+  { const _om=(state.omArpOrd==='square')?1:0;   // (12.09) the omega level has no toggles — only its two successions
+    document.querySelectorAll('.ord-btn[data-grp="OM"]').forEach(b=>{ b.classList.toggle('active', parseInt(b.dataset.val)===_om); }); }
   for(const lvl of ['PP','R','A']){
     const t=_archTag(lvl), o=ordOf[lvl];
     const QR=state['arch'+lvl+'QR'], NQR=state['arch'+lvl+'NQR'], ORD=state['arch'+lvl+'Ord'];
@@ -12727,6 +12758,7 @@ for(const k of VOL_LAYERS){
 { const ab=document.getElementById('om-arp');
   if(ab){ const paintA=()=>{ ab.textContent=(state.omArp!==false)?'∿':'≡'; };
     ab.onclick=()=>{ state.omArp=(state.omArp===false); paintA(); }; paintA(); }
+
   const sp=document.getElementById('om-speed');
   if(sp && typeof _OM_STEPS!=='undefined'){
     _OM_STEPS.forEach((v,i)=>{ const o=document.createElement('option'); o.value=i;
@@ -18150,7 +18182,7 @@ startRenderLoop();
     if(document.getElementById('engine-play')) return;
     const lbl=document.createElement('span'); lbl.id='td-label'; lbl.textContent='QR ENGINE';
     lbl.title='build 07.08c — the note-for-note palindrome, retro self-heal, honest score';
-    const _bst=document.createElement('span'); _bst.textContent='08.09k · the one that rings';
+    const _bst=document.createElement('span'); _bst.textContent='12.09 · the circle’s own order';
     _bst.style.cssText='font-size:9px;color:var(--muted,#667);margin-left:4px;letter-spacing:1px';
     _bst.title='build stamp — if this does not match what Claude just shipped, the tab is serving a stale copy (hard reload: Cmd+Shift+R)';
     const play=document.createElement('button'); play.id='engine-play'; play.className='primary';
