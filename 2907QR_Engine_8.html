@@ -7056,7 +7056,6 @@ function _omChainDose(s,p,cyc,time,dur){
 const _OM_STEPS=(function(){ const a=[]; for(let n=13;n>=1;n--) a.push(n); for(let d=2;d<=13;d++) a.push(1/d); return a; })();
 function _omStepBeats(){ const i=Math.max(0,Math.min(_OM_STEPS.length-1,(state.omSpeed!=null?state.omSpeed:12)|0)); return _OM_STEPS[i]; }
 function _omSpeedName(){ const v=_omStepBeats(); return (v>=1)?(v+'/1'):('1/'+Math.round(1/v)); }
-let _omNqrP=0, _omNqrG=2;   // the world's smallest non-residue — the door into her half
 const _OM_UP=1.34;        // one step of the Legendre crescendo; the diminuendo is its exact inverse
 const _OM_FLOOR=0.004;    // a strike below this is never scheduled — and so must never be drawn
 function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
@@ -7104,9 +7103,9 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
 
     // THE VOICE BUDGET (21.08, his ear: «глитчит и звук пропадает»). With every
     // strike ringing p/4 beats, the wheel keeps its whole cycle alive at once: at
-    // p=127 on the 1/7 grid that is 222 strikes and 222 shadows, and rings overlap
-    // two deep — some nine hundred oscillators, each with its filter, panner and
-    // sends. The audio thread cannot carry it, and it drops out.
+    // p=127 on the 1/7 grid that is 222 strikes, and rings overlap two deep — some
+    // four hundred oscillators, each with its filter, panner and sends. The audio
+    // thread cannot carry it, and it drops out.
     // The law is not touched: the note still rings p/4 beats. What thins is the
     // GRID — at fast speeds the wheel takes every n-th strike, so the cloud stays
     // inside a budget while every stroke keeps its full length and its χ weight.
@@ -7138,8 +7137,8 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
       try{ const FB=_famBuses['pluck']; if(FB&&FB.in) mg.connect(FB.in); }catch(e){}   // the harp's own soundboard, once for the whole wheel
       return g;
     };
-    const _sQR=_sink(-0.22), _sNQR=_sink(0.22), _sMist=_sink(0);
-    try{ window._omSinks=[_sQR,_sNQR,_sMist]; }catch(e){}   // (08.09) the damp hand needs them: a p-change calls no flushVoices, and the old wheel went on stating the OLD prime's circle over a field that showed none of it
+    const _sQR=_sink(-0.22), _sNQR=_sink(0.22);
+    try{ window._omSinks=[_sQR,_sNQR]; }catch(e){}   // (08.09) the damp hand needs them: a p-change calls no flushVoices, and the old wheel went on stating the OLD prime's circle over a field that showed none of it
     const _wave=(typeof _vw==='function')?_vw('pluck'):null;
     // one strike: an oscillator and its fall, nothing else
     // A HARP, NOT A BUZZ (21.08, author: «нужны изящные арфовые пассажи»). Dropping
@@ -7168,7 +7167,7 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
         o.start(t); o.stop(t+dur2+0.03);
       }catch(err){}
     };
-    const _stride=1, _shadowOK=true;                // full resolution: every strike sounds
+    const _stride=1;                                // full resolution: every strike sounds
     const arp=(state.omArp!==false);               // the author's default: arpeggio
     const n=cyc.length;
     // THE PASSAGE (21.08). The circle is a SET; the order in which a hand runs it is
@@ -7186,7 +7185,7 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
     // forty lines above the count it needs — a temporal-dead-zone throw that the
     // function's own try/catch swallowed, so the wheel simply never sounded.
     const _ringEnd=time+(K+2)*per+Math.min(30,per*8)+1.5;
-    setTimeout(()=>{ for(const s2 of [_sQR,_sNQR,_sMist]){ try{ s2.disconnect(); }catch(e){} } },
+    setTimeout(()=>{ for(const s2 of [_sQR,_sNQR]){ try{ s2.disconnect(); }catch(e){} } },
                Math.max(2000,(_ringEnd-ctx.currentTime)*1000));
     const freqs=_sweep.map(v=>freqForIndex(v,p));
     const nS=_sweep.length;
@@ -7229,10 +7228,9 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
       if(g<_OM_FLOOR) continue;                    // one floor for both the ear and the eye
       // (21.08, author: «как-то дилей не мистический и короткий») three things were
       // making it dry and small: the note fell to half within a fifth of its length,
-      // it lasted under two steps, and it was one bare pitch. Now it rings across
-      // several strikes, holds its body far longer — and each stroke pulls its own
-      // SQUARE behind it, quiet and a moment later: the r² line the engine already
-      // holds all sweep. The veil is the lattice's, not an effect's.
+      // and it lasted under two steps. Now it rings across several strikes and holds
+      // its body far longer. (The third answer tried here — a shadow dragged behind
+      // each stroke — was never asked for and is gone; see the note below.)
       // The STRIKE's own length was never ruled — «каждый удар звучит p/4 долей»
       // turned out to be about the cloud as a whole (author, 21.08), and I had
       // invented a per-note law twice from it. It is set here for one purpose: a
@@ -7241,31 +7239,15 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
       // in the clear. The cloud's own length stays sqrt(p) beats.
       const t=time+k*per, len=Math.max(0.35, Math.min(12, per*6));
       const lean=(q?-0.22:0.22)*(1-0.4*k/K);
-      // (21.08, author: «нота тянет за собой квадрат — это просто шаг арпеджио в
-      // нашем случае») — and he is right: inside a squaring circle the square of a
-      // member IS the next member, so that shadow was the arpeggio doubling itself.
-      // The veil has to be something the circle cannot contain. Every circle lives
-      // wholly in the residues — each member is somebody's square — so the shadow
-      // is HER half: the same rung carried across by the world's smallest
-      // non-residue. It can never land in the circle, and it always carries the
-      // opposite character. The wheel is his; the mist under it is hers.
-      const shade=(v,gg,dt)=>{
-        try{
-          if(_omNqrP!==p){ _omNqrP=p; _omNqrG=2; for(let x=2;x<p;x++){ if(!isQR(x,p)){ _omNqrG=x; break; } } }
-          const her=(v*_omNqrG)%p; if(her<1) return;
-          _strike(t+dt, freqForIndex(her,p), gg, len*1.35, _sMist);
-        }catch(e){}
-      };
+      // (08.09, author: «нет этого я не предлагал») THE VEIL IS GONE. Two shadows were tried under the wheel and neither was asked for: the squaring shadow (which was only the arpeggio doubling itself) and then the mist — her half, the rung carried across by the smallest non-residue, on its own centred sink. Both are out, sound and ink together. The wheel states the circle; nothing accompanies it.
       const sink=q?_sQR:_sNQR;
       if(arp){
         const vv=_sweep[(k-1)%nS];
         _strike(t,freqs[(k-1)%nS],g,len,sink);
         try{ _gvNote('omega', t, g, freqs[(k-1)%nS], q?1:-1); }catch(e){}   // (17.08) the passage joins the honest score
-        if(g>0.05) shade(vv,g*0.26,per*0.34);
       } else {
         for(let j=0;j<n;j++){ _strike(t,freqForIndex(cyc[j],p),g*(j===0?1:0.72),len,sink);
           try{ _gvNote('omega', t, g*(j===0?1:0.72), freqForIndex(cyc[j],p), q?1:-1); }catch(e){} }
-        if(g>0.05) shade(cyc[0],g*0.22,per*0.34);
       }
     }
     try{ if(state.voiceInst) state.voiceInst.omega=(_prevInst||'str');
@@ -7283,7 +7265,7 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
         // squaring order, wrapped modulo a shorter list: the same count of marks and
         // a different set of notes. cyc stays for the chord branch, which really does
         // state the whole circle at once.
-        window._omEchoVis.push({p:p, ng:(_omNqrP===p?_omNqrG:0), beat:beat|0, t0:time, dur:dur, per:per, m:m, K:K, sq:sq,
+        window._omEchoVis.push({p:p, beat:beat|0, t0:time, dur:dur, per:per, m:m, K:K, sq:sq,
                                 cyc:cyc.slice(), sw:_sweep.slice(), arp:arp, dir:_dir, top:top, sb:_sb});
         if(window._omEchoVis.length>4) window._omEchoVis.splice(0,window._omEchoVis.length-3);
       }
@@ -10689,15 +10671,6 @@ function _drawOmegaCell(cc,pad,iW,iH,p,yFor,C){
             if(q){ cc.beginPath(); cc.arc(x,y,1.9*_inkScale,0,Math.PI*2); cc.fill(); } };
           if(e.arp!==false) draw(SW[(k-1)%n]);
           else for(let j=0;j<nC;j++) draw(cyc[j]);
-          // (08.09) THE MIST — the same rung carried into her half by the world's smallest
-          // non-residue, sounding on its own centred sink and never drawn: a thin, dotless
-          // stroke at 0.42, arriving a third of a step late as the ear hears it. Not the
-          // strike's ink — the mist always carries the OPPOSITE character to the strike.
-          if(e.ng && now>=tk+per*0.34){
-            const _v=(e.arp!==false)?SW[(k-1)%n]:cyc[0], _her=(_v*e.ng)%e.p;
-            if(_her>=1){ const my=yFor(axisMap(_her,e.p));
-              cc.globalAlpha=al*(off?0.5:1)*0.42; cc.lineWidth=Math.max(1,0.9*_inkScale);
-              cc.beginPath(); cc.moveTo(x,my-2.0*_inkScale); cc.lineTo(x,my+2.0*_inkScale); cc.stroke(); } }
         }
         cc.restore();
       }
