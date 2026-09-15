@@ -21982,7 +21982,7 @@ startRenderLoop();
     try{ var _acc=document.getElementById('acc-learner'); if(_acc) _acc.open=true; }catch(e){}
     // (07.08 author: «верни классический PLAY и отдельно добавляемую +IMPRO»)
     // the boot is bare again — the improviser joins only by the explicit +impro hand
-    if(IS_LEADER && !IS_PHONE && !/solo/.test(HASH)){
+    if(IS_LEADER && !IS_PHONE && !/solo|musrara/.test(HASH)){   // (15.09) the Musrara demonstration is one engine: the ladder needs the whole width on a shared screen, and a machine that is also encoding Zoom should not render two
       setTimeout(function(){
         try{ if(btnOpen && btnOpen.textContent.indexOf('open')===0) btnOpen.onclick({stopPropagation:function(){}}); }catch(e){}
       },700);
@@ -22482,6 +22482,24 @@ body.face-manual #face-back { display: block; }
       var b=document.createElement('button'); b.textContent=window._demoOn?'■ stop':'∴ begin';
       b.onclick=function(){ try{ if(window._qrDemo){ var on=window._qrDemo(); b.textContent=on?'■ stop':'∴ begin'; } }catch(e){} };
       row.appendChild(b);
+      // (15.09) THE TRANSITION, ON ONE KEY. _qrFormStart stops the autopilot, calls
+      // _qrDemoStop(TRUE) — which keeps the sound alive — and hands the stage to a score
+      // the Markovs just composed. Nothing restarts, nothing cuts: the improvisation
+      // yields to a written form while the air keeps moving. That is a musical event and
+      // not a parameter change, and it is the only one that needs no beat and no fill.
+      var fm=document.createElement('button'); fm.textContent='◆ the form takes over';
+      fm.title='the Markovs compose a score of three minutes and it takes the stage — the improvisation yields, and the sound does not stop';
+      fm.onclick=function(){
+        try{ if(window._qrFormCreate) window._qrFormCreate(180); }catch(e){}
+        setTimeout(function(){
+          try{
+            var Fp=window._qrFormPlan;
+            if(Fp && Fp.plan && Fp.plan.length){ window._qrFormStart(); fm.textContent='◆ form running'; }
+            else { fm.textContent='◆ no score — press again'; }
+          }catch(e){}
+        },160);
+      };
+      row.appendChild(fm);
       var g=document.createElement('button'); g.textContent='her configurations';
       g.title='the theorem this instrument sounds';
       g.onclick=function(){ try{ var acc=document.getElementById('acc-goncharova');
@@ -22530,6 +22548,31 @@ body.face-manual #face-back { display: block; }
     if(window._qrStrangerTest){ pref='face'; try{ window._lorePath=null; }catch(e){} }   // a stranger test starts at the door, path unchosen
     paintPlay();
     if(pref==='manual') toManual(); else toFace();
+    // (15.09) #musrara — the demonstration door, armed, from a cold page. Three things
+    // happen here so that nothing has to happen at 11:00: the face opens on ∴ demo
+    // instead of ◆ form (one click instead of two), qr_face is overridden so last
+    // night's visit to the cockpit cannot change this morning's opening, and the four
+    // classes that must not drift are pinned to his hand.
+    //   freq   — the 165 Hz floor survives every scene the Markovs generate
+    //   vols   — the kick stays at zero (38–64 Hz, the one voice that ignores the floor)
+    //   groove — the beat stays off; the generated scenes' groove blocks are dropped
+    //   prime  — p and r belong to the arrows, and the autopilot never takes them back
+    //   bpm    — measured: within five seconds the improviser doubled 84 to 168 and stayed
+    //            there. The events in these ten minutes are his hand and the form; the
+    //            tempo is not one of them, and it must not compete with them.
+    //   master — 'vols' deliberately excludes the master fader, and measured, the
+    //            improviser walked it from 0.72 down to 0.35 inside the first minute.
+    //            Over a Zoom share that is the demonstration quietly fading out.
+    // The pins live in memory only, so they are re-armed on every load, which is exactly
+    // what a reload during the call needs.
+    if(/musrara/.test((location.hash||'').toLowerCase())){
+      try{ toFace(); paintDemo(); _fitViz(); }catch(e){}
+      try{ ['freq','vols','master','groove','prime','bpm'].forEach(function(k){ if(typeof apPin==='function') apPin(k); }); }catch(e){}
+      // state.showGrid is undefined on load and _drawGrid returns early, so without this
+      // the ladder has no rungs to stand on — and the rungs are what make it read as
+      // arithmetic rather than as scattered dots.
+      try{ var _g=document.getElementById('grid-toggle'); if(_g && !_g.classList.contains('active')) _g.click(); }catch(e){}
+    }
     setInterval(function(){ paintGo(); _frameQuiet(document.body.classList.contains('face-on')); }, 700);
     setInterval(paintGo, 250);   // the countdown reads as a clock only if it ticks like one
     window.addEventListener('resize', _fitViz);
@@ -22540,6 +22583,37 @@ body.face-manual #face-back { display: block; }
 </script>
 
 <script>
+/* THE PREPARED SCENE (15.09) — for the Musrara demonstration, 16.09.2026, 11:00.
+   The scripted demonstration below used to open on the last ♥ in localStorage. On a
+   fresh profile, a cleared origin or another browser that read returns nothing, and the
+   engine opens at p = 3: two residues, a world with nothing to hear. No error, no notice.
+   So the opening is carried HERE, in the file, where a reload cannot lose it.
+   Measured on this scene, output energy below 150 Hz: 0.08 % in the worst of fourteen
+   samples, thirteen of them exactly zero — it arrives whole through a laptop speaker.
+   What makes it so: minFreq 165, since every pitched voice is confined to [minFreq,
+   maxFreq] through freqForIndex; kick volume 0; the groove off with its kick and bass
+   lanes at zero, because the drums are the only voices that ignore the range (38–64 Hz,
+   hard-coded). No 'duo' key — a captured duo block would put the pair into a palindrome
+   nobody asked for. No solo — a stored solo set silently gates every other voice to zero.
+   maxFreq 1155 = 165 × 7, already a fixed point of the prime-ratio rule, so nothing
+   snaps under his hand 0.7 s after the page settles.
+   WHY p = 41. Changing p does not move the frequency window: freqForIndex maps the
+   indices 1..p−1 into the fixed [minFreq, maxFreq] span, so the prime decides only HOW
+   MANY rungs the ladder has and what fractions they are. That makes a change of p a pure
+   change of tuning — and it makes 41 a compromise measured, not guessed.
+   The engine walks the primes BY ITSELF: when the flow of sections is exhausted it takes
+   nextPrime or prevPrime (the 'next-prime' phase), and no pin stops that — apStripPinned
+   only guards the scenes the improviser generates. Measured at 84 bpm: at p = 13 it
+   stepped down twice inside the first fifteen seconds, so the opening would never be the
+   opening he rehearsed; at p = 41 it did not move once in 67 seconds, because the flow at
+   41 is that much longer. 41 is also ≡ 1 (mod 4), so −1 is a residue and her
+   configurations exist in it — the demonstration can show one.
+   Twenty squares and twenty non-squares is a ladder with structure a listener can still
+   read. The audible move is then DOWNWARD, by hand: each press shortens the scale, and
+   the caption counts the rungs out loud at the moment they can be heard. */
+const QR_MUSRARA_SCENE = {"p":41,"r":1,"bpm":84,"dir":1,"harmMode":1,"spiralRatio":1.5,"minFreq":165,"maxFreq":1155,"pitchFlip":false,"pitchCouple":false,"glissA":false,"glissB":false,"reorderR":0,"reorderPP":0,"reorderA":0,"archAQR":1,"archANQR":1,"archAOrd":0,"archRQR":1,"archRNQR":1,"archROrd":0,"archPPQR":1,"archPPNQR":1,"archPPOrd":0,"shiftAByR":false,"markova":false,"bgDark":"#110910","bgLight":"#d7c2d9","secMask":{"pre":true,"main":true,"post":true},"motion":"linear","solo":[],"sustainOn":true,"pnNMode":"sqrt","pnNFixed":6,"primeArch":false,"mainAnchorsOnly":false,"vol":{"qr":0.18,"nqr":0.18,"r2":0.12,"a":0.17,"b":0.18,"diag":0.3,"hat":0.18,"kick":0,"prelude":0.24,"postlude":0.24,"sustain":0.24,"susA":0.12,"susB":0.12,"chord":0.24,"glue":0.12,"omega":0.5,"master":0.72},"send":{"qr":0.64,"nqr":0.68,"r2":0.66,"a":0.24,"b":0.23,"diag":0.62,"hat":0.57,"kick":0,"prelude":0.26,"postlude":0.26,"sustain":0.34,"susA":0.2,"susB":0.2,"chord":0.43,"glue":0.61,"omega":0.3},"bright":{"qr":0.35,"nqr":0.35,"r2":0.35,"a":0.35,"b":0.35,"diag":0.35,"hat":0.35,"kick":0.35,"prelude":0.35,"postlude":0.35,"sustain":0.35,"susA":0.35,"susB":0.35,"chord":0.35,"glue":0.35,"omega":0.35},"pan":{"qr":0,"nqr":0,"r2":0,"a":0,"b":0,"diag":0,"hat":0,"kick":0,"prelude":0,"postlude":0,"sustain":0,"susA":0,"susB":0,"chord":0,"glue":0,"omega":0},"vib":{"qr":1,"nqr":1,"r2":1,"a":1,"b":1,"diag":1,"hat":1,"kick":1,"prelude":1,"postlude":1,"sustain":1,"susA":1,"susB":1,"chord":1,"glue":1,"omega":1},"voiceInst":{"qr":"str","a":"str","susA":"str","sustain":"str","chord":"str","omega":"str","nqr":"wood","b":"wood","susB":"wood","r2":"flute","prelude":"flute","postlude":"flute","diag":"bell","glue":"bell"},"sendPreFader":false,"exprTimbreOn":true,"exprTimbreDepth":0.5,"exprArticOn":true,"exprArticDepth":0.5,"exciteOn":true,"exciteDepth":0.5,"modDepth":0.35,"depthPan":0.35,"depthSend":0.35,"modSwap":false,"attackMorph":0,"tremDepth":0.1,"vibDepth":10,"floorsDepth":0,"pulseDepth":0,"fxRevSend":0,"fxRevBypass":false,"fxSat":1,"fxSatBypass":true,"fxCompThresh":-1.5,"fxCompRatio":20,"fxCompBypass":false,"autoHeadroom":true,"headroomTarget":1,"postOffsetBeats":0,"abOffsetBeats":0,"typeId":"complete","trig":[],"chordDir":1,"arp":false,"tie":false,"arpSub":14,"arpOrd":"pitch","durIdx":15,"inset":false,"rules":{"primeFreqRatio":true,"freqLockInScene":true,"sustainHold":true,"transAtAnchors":false},"track":{"pre":1,"post":1},"morphCh":{},"fxSatMode":"tanh","autoLevel":false,"mood":null,"activity":null,"claude":false,"groove":{"on":false,"arch":"floor","level":0.7,"swing":0.1,"rot":true,"floor":true,"zeroCrash":true,"pump":true,"solo":false,"arith":true,"autoMode":false,"densMul":1,"meter":13,"den":13,"lanes":{"kick":{"on":true,"mode":"fib","p":7,"dens":0.3,"lvl":0},"snare":{"on":true,"mode":"chifib","p":13,"dens":0.34,"lvl":0.95},"clap":{"on":true,"lvl":1.05},"hatC":{"on":true,"mode":"chi","p":29,"dens":1,"lvl":0.7},"hatO":{"on":true,"mode":"chi","p":29,"dens":1,"lvl":0.56},"tom":{"on":true,"mode":"fib","p":19,"dens":0.22,"lvl":0.7},"zap":{"on":false,"mode":"fib","p":37,"dens":0.16,"lvl":0.7},"click":{"on":false,"mode":"fib","p":41,"dens":0.5,"lvl":0.6},"bass":{"on":true,"mode":"fib","p":17,"dens":0.42,"lvl":0},"crash":{"on":true,"lvl":0.7}}}};
+const _MUSRARA = /musrara/.test((typeof location!=='undefined' && location.hash || '').toLowerCase());
+
 /* THE DEMONSTRATION (author 16.08: «отдельно кнопка демонстрация и изложение
    математических оснований»). It does not lecture and it is not a recording: the
    engines play LIVE, started from a moment the author himself once loved, and the
@@ -22549,11 +22623,17 @@ body.face-manual #face-back { display: block; }
   function say(text, dur){ try{ window._demoMsg={t0:performance.now(), text:text, dur:dur||6}; }catch(e){} }
   function chi(r,p){ try{ return isQR(((r%p)+p)%p, p) ? 1 : -1; }catch(e){ return 0; } }
   function lovedState(){
+    // (15.09) Under #musrara the prepared scene wins outright: the ten minutes must sound
+    // the same on any machine and in any profile, and the book's last ♥ is whatever he
+    // happened to love yesterday. Everywhere else the author's own rule stands — the last
+    // loved moment — and only the EMPTY case changed: it used to return null, and the
+    // demonstration then opened on the default state, which is p = 3.
+    if(_MUSRARA) return QR_MUSRARA_SCENE;
     try{
       var bk=JSON.parse(localStorage.getItem('qr_likes')||'[]')||[];
       if(bk.length){ var x=bk[bk.length-1]; if(x && x.state) return x.state; }
     }catch(e){}
-    return null;
+    return QR_MUSRARA_SCENE;
   }
   function stop(keepSound){
     if(iv){ clearInterval(iv); iv=null; }
