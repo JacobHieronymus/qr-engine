@@ -794,7 +794,7 @@ details.acc[open] { padding-bottom: 0; }
     <div class="vrow" data-layer="omega"><input type="checkbox" class="solo" id="s-omega"><label title="omega — the circles of the squaring map: sets where each rung is the square of the one before and the circle closes. Length 2 is the mutuality pair ω/ω² (needs 3 | p−1); longer circles are strict canons the arithmetic wrote. Unity belongs to none of them.">omega (ω)</label><button id="om-arp" title="omega — arpeggio (∿) or chord (≡): the arpeggio takes the circle's next member each strike, the chord sounds them together" style="width:20px;padding:0 2px">∿</button><select id="om-speed" title="the arpeggio's speed: beats per strike, from thirteen beats each down to thirteen a beat" style="width:52px;font:10px ui-monospace,monospace;padding:0"></select><button id="om-echo" title="omega on / off" style="width:20px;padding:0 2px">⏻</button><input type="range" id="v-omega" min="0" max="0.6" step="0.005" value="0.35" style="display:none"></div>
     <div class="row" style="margin-top:6px"><button id="vol-normalize" title="scale every layer fader up so the loudest sits near its top, lower master to keep the same loudness — full faders = full brightness">⤒ normalize faders ↔ brightness</button>
     <button id="auto-level" class="active" title="auto-level: slowly rides the internal mix to a steady listening loudness (target −16 dBFS). Measured before the master fader, so silence frames, fades and drift remain untouched">⊙ auto-level</button></div>
-    <div class="row" style="margin-top:5px"><label>master</label> <input type="range" id="v-master" min="0" max="1.0" step="0.01"  value="0.72"></div>
+    <div class="row" style="margin-top:5px"><label>master</label> <input type="range" id="v-master" min="0" max="2.0" step="0.01"  value="0.90"></div>
   </details>
 
   <!-- ============================ GROOVE (collapsible) ============================ -->
@@ -3339,7 +3339,7 @@ const state={
   pnNMode:'sqrt',    // 'fixed' (use pnNFixed) | 'sqrt' (n up to floor(sqrt(p)))
   pnNFixed:6,        // n-max when pnNMode==='fixed'
   mainAnchorsOnly:false,   // MAIN section reduction: keep only sections whose r is a p/n sustain anchor (n≤√p). a/b still sweep all residues per section; prelude/postlude untouched. (headless flag — set via session JSON)
-  vol:{qr:0.18,nqr:0.18,r2:0.12,a:0.17,b:0.18,diag:0.30,hat:0.18,kick:0.28,prelude:0.24,postlude:0.24,sustain:0.24,susA:0.12,susB:0.12,chord:0.24,glue:0.12,omega:0.50,master:0.72},
+  vol:{qr:0.18,nqr:0.18,r2:0.12,a:0.17,b:0.18,diag:0.30,hat:0.18,kick:0.28,prelude:0.24,postlude:0.24,sustain:0.24,susA:0.12,susB:0.12,chord:0.24,glue:0.12,omega:0.50,master:0.90},
   omSpeed:15,            // index into _OM_STEPS: 15 = 1/4 of a beat per strike — the author's default (21.08)
   topHz:1250,            // (21.08) nothing is composed above this — the whole map lives under it
   omArp:true,            // the ring spins the circle as an ARPEGGIO by default; false = struck as a chord (author 21.08)
@@ -4004,7 +4004,7 @@ function buildQRChain(ac, finalNode, p){
       // finally moves it (pp…ff, a knob that until today did nothing at any legal
       // value), and only a genuinely extreme load pulls further down.
       const h=(typeof estimateMixHeadroom==='function') ? estimateMixHeadroom(state) : {trim:1,load:0,dyn:1};
-      const PAD=0.16, EXTREME=8;
+      const PAD=0.32, EXTREME=8;   // (16.09) 0.16 → 0.32, +6 dB on everything, at the author's request: over a laptop and a Zoom share the instrument was barely audible. Measured at 0.32 with the master at 1.0: peak −17.4 dBFS, limiter cutting 0 dB — the master's ceiling was raised to 2.0 instead of padding further, so the hand decides. The limiter at −1.5 dB remains the only protection, as designed on 08.09.
       const hg=PAD*(h.dyn||1)*((state.autoHeadroom===false)?1:Math.min(1, EXTREME/Math.max(EXTREME, h.load||0)));
       if(headroom.gain.setTargetAtTime) headroom.gain.setTargetAtTime(hg,now,0.02); else headroom.gain.value=hg;
       // A SAFETY LIMITER, NOT A PROGRAMME COMPRESSOR. It ran at −12 dB / 12:1 on every
@@ -4117,6 +4117,24 @@ function _drawCaption(cc,W,H){
   cc.fillText(t, W/2, H*0.5);
   cc.restore();
 }
+// (16.09) THE SCORE'S PITCH AXIS, in one place. The omega's two drawers placed their
+// marks by yFor(axisMap(v,p)) — the lattice's VALUE axis, linear in the residue index
+// over the whole height — while the score places every sounding note by log frequency,
+// 30 Hz to 12 kHz. Two vertical coordinate systems on one field: the omega's zigzag
+// spanned the full height while its notes sounded inside the 165–1155 Hz band. The
+// author saw it: «они не совпадают по диапазону». Now the omega is drawn where it sounds.
+// (16.09, author: «и то и то во всю высоту») The axis is the SCENE'S RANGE, not the
+// audible spectrum: [minFreq, maxFreq] with 6 % of air at each end fills the field, so
+// the notes and the omega together use the whole height and stay on one axis. A note
+// outside the range (a drum) is held at the edge. When the range changes, the whole
+// picture rescales with it, every mark being redrawn from its frequency each frame.
+function _yHzOnScore(f,H){
+  let lo=30, hi=12000;
+  try{ if(typeof state!=='undefined' && state && state.minFreq>0 && state.maxFreq>state.minFreq){ lo=state.minFreq/1.06; hi=state.maxFreq*1.06; } }catch(e){}
+  const FLO=Math.log(lo), FHI=Math.log(hi);
+  const l=Math.log(Math.max(lo,Math.min(hi,f||lo)));
+  return H-10-(l-FLO)/(FHI-FLO)*(H-20);
+}
 function _drawScoreLayer(cc,W,H){
   // (06.08 author: «только ноты, на весь экран, честно в частотных координатах, по
   // долям») — shared by the LIVE stage and every film renderer (9:16 mirror, duet
@@ -4125,7 +4143,7 @@ function _drawScoreLayer(cc,W,H){
     const gq=state.scoreVis;
     if(!(gq && gq.length && (state.running || window._palPhaseB) && typeof ctx!=='undefined' && ctx)) return;   // (08.09) paused is NOT erased: ~0.4–1.5 s of exhale and reverb still ring past the ⏸, and the eye should hold what the ear holds   // (17.08) the score draws whatever sounded — groove is a contributor, not a gatekeeper · (08.09) and it draws through the mirror's reading, whose transport is parked on purpose
     const _pz=(state.paused && state._pauseAt)?state._pauseAt:0;   // (08.09) frozen at the pause — ctx.currentTime keeps running under a pause, and an unfrozen clock would scroll the held score into its own future
-    const nowH=(_pz||ctx.currentTime)-((ctx.outputLatency||ctx.baseLatency||0));
+    const nowH=(_pz||ctx.currentTime)-((typeof _avLat==='function')?_avLat():((ctx.outputLatency||ctx.baseLatency||0)));
     const spb=60/Math.max(24,Math.min(240,state.bpm||60));
     const BEATS_PAST=12, BEATS_FUT=4;
     if(!_pz) while(gq.length && gq[0].t<nowH-BEATS_PAST*spb-1) gq.shift();
@@ -4144,7 +4162,7 @@ function _drawScoreLayer(cc,W,H){
       cc.beginPath(); cc.moveTo(playX,8); cc.lineTo(playX,H-8); cc.stroke();
       cc.strokeStyle=_ink+'0.10)'; cc.lineWidth=1;
       for(let f=55; f<12000; f*=2){                       // A octaves — the only fixed rungs a log-frequency axis has
-        const yr=H-10-(Math.log(f)-FLO)/(FHI-FLO)*(H-20);
+        const yr=_yHzOnScore(f,H);   // (16.09) the scene's range fills the height
         cc.beginPath(); cc.moveTo(6,yr); cc.lineTo(W-6,yr); cc.stroke(); } }
     for(const h of gq){
       const dB=(h.t-nowH)/spb;
@@ -4152,7 +4170,7 @@ function _drawScoreLayer(cc,W,H){
       const x=playX+_sgn*((dB<0)? dB/BEATS_PAST*pastW : dB/BEATS_FUT*futW);
       if(x<4||x>W-4) continue;
       const l=Math.log(Math.max(30,Math.min(12000,h.f||100)));
-      const y=H-10-(l-FLO)/(FHI-FLO)*(H-20);
+      const y=_yHzOnScore(Math.exp(l),H);   // (16.09) the scene's range fills the height
       const r=(2.0+4.0*Math.min(1,h.v))*k;
       const flash=Math.abs(dB)<0.12;
       const warm=h.q>0;
@@ -4298,7 +4316,63 @@ function _drawDemoLine(cc,W,H){
   cc.textAlign='center'; cc.textBaseline='middle';
   cc.font=`${Math.max(13,Math.round(u*0.026))}px 'IBM Plex Mono','SF Mono',monospace`;
   cc.fillStyle=(_bgIsLight?'rgba(11,7,5,':'rgba(246,237,228,')+(0.62*Math.max(0,Math.min(1,a))).toFixed(3)+')';
-  cc.fillText(m.text, W/2, H*0.09);
+  // (16.09) wrap on words only when the line would be cut at the field's edges — a
+  // title clipped at both ends names nothing. Untouched when it fits.
+  var lines=[m.text], maxW=W*0.92;
+  if(cc.measureText(m.text).width>maxW){
+    var words=m.text.split(' '), cur='', out=[];
+    for(var i=0;i<words.length;i++){ var t2=cur?cur+' '+words[i]:words[i];
+      if(cc.measureText(t2).width>maxW && cur){ out.push(cur); cur=words[i]; } else cur=t2; }
+    if(cur) out.push(cur); lines=out;
+  }
+  var fpx=Math.max(13,Math.round(u*0.026));
+  for(var k=0;k<lines.length;k++) cc.fillText(lines[k], W/2, H*0.09+k*fpx*1.3);
+  cc.restore();
+}
+function _drawDemoCue(cc,W,H){
+  // (16.09) THE CUE — a second line under the caption: what the hand does next, for
+  // him and for the listeners at once. Set and cleared by the #musrara cue machine at
+  // the end of the file; nothing else writes it. Stands until replaced, no fade-out.
+  var c=window._demoCue; if(!c||!c.text) return;
+  var t=(performance.now()-c.t0)/1000, a=t<0.5? t/0.5 : 1;
+  cc.save();
+  var u=Math.min(W,H), px=Math.max(12,Math.round(u*0.023)), top=Math.max(13,Math.round(u*0.026));
+  cc.textAlign='center'; cc.textBaseline='middle';
+  cc.font=px+"px 'IBM Plex Mono','SF Mono',monospace";
+  cc.fillStyle=(_bgIsLight?'rgba(11,7,5,':'rgba(246,237,228,')+(0.48*Math.max(0,Math.min(1,a))).toFixed(3)+')';
+  // wrap on words when the field is narrower than the line — a shared screen is not
+  // always the whole screen, and a cue cut off at both ends guides nobody
+  var lines=[c.text], maxW=W*0.92;
+  if(cc.measureText(c.text).width>maxW){
+    var words=c.text.split(' '), cur='', out=[];
+    for(var i=0;i<words.length;i++){ var t2=cur?cur+' '+words[i]:words[i];
+      if(cc.measureText(t2).width>maxW && cur){ out.push(cur); cur=words[i]; } else cur=t2; }
+    if(cur) out.push(cur); lines=out;
+  }
+  var y=H*0.09+top*1.75;
+  for(var k=0;k<lines.length;k++) cc.fillText(lines[k], W/2, y+k*px*1.35);
+  cc.restore();
+}
+var _MEET_HINT_OFF=/musrara/.test((typeof location!=='undefined' && location.hash || '').toLowerCase());
+function _drawDemoVoices(cc,W,H){
+  // (16.09) THE VOICE LINE — bottom right, up to three entries, newest lowest: what has
+  // just begun to sound, named at the moment it can be heard. Fed only by the #musrara
+  // hooks at the end of the file (window._demoVoices); nothing else writes it.
+  var V=window._demoVoices; if(!V||!V.length) return;
+  var now=performance.now(), u=Math.min(W,H), px=Math.max(12,Math.round(u*0.021));
+  cc.save(); cc.textAlign='right'; cc.textBaseline='bottom';
+  cc.font=px+"px 'IBM Plex Mono','SF Mono',monospace";
+  var y=H-Math.max(34,Math.round(u*0.10)), k=0, maxW=W*0.9;
+  for(var i=V.length-1;i>=0;i--){
+    var t=(now-V[i].t0)/1000; if(t>7) continue;
+    var a=t<0.12? t/0.12 : (t>5.6? (7-t)/1.4 : 1);
+    cc.font=px+"px 'IBM Plex Mono','SF Mono',monospace";
+    var w=cc.measureText(V[i].text).width;
+    if(w>maxW){ cc.font=Math.max(10,Math.floor(px*maxW/w))+"px 'IBM Plex Mono','SF Mono',monospace"; }   // a narrow field shrinks the line rather than cutting it
+    cc.fillStyle=(_bgIsLight?'rgba(11,7,5,':'rgba(246,237,228,')+(0.7*Math.max(0,Math.min(1,a))).toFixed(3)+')';
+    cc.fillText(V[i].text, W-Math.round(u*0.03), y-k*px*1.4); k++;
+    if(k>=3) break;
+  }
   cc.restore();
 }
 function _drawMeetHint(cc,W,H){
@@ -4308,6 +4382,7 @@ function _drawMeetHint(cc,W,H){
   // answers it. Then it dies forever with qr_met. Still dosed: one line, one origin,
   // one lifetime.
   if(document.body.classList.contains('mk-embedded')) return;
+  if(_MEET_HINT_OFF || window._demoOn) return;   // (16.09) while the demonstration runs the cue line owns this place on the field; the visitor's hint would sit on top of it
   if(!window._qrMeetVirgin){ _meetGlow(false); return; }
   if(!window._hadSound) return;
   if(window._meetT0==null) window._meetT0=performance.now();
@@ -10043,9 +10118,16 @@ try{ setInterval(()=>{ try{ _meterTick(); }catch(e){} }, 120); }catch(e){}
 // 170, vizBeat stood at 22 while the walk was on its 82nd slot. So the door is one
 // function, called from the render loop as before AND from its own interval; the
 // while-loop drains idempotently, so two callers cannot apply a frame twice.
+// (16.09) ONE LATENCY FOR THE WHOLE PICTURE. Chrome reports outputLatency (0.2 s here,
+// a Bluetooth figure); the needle and the frame release both subtract it, so a mark
+// crosses the needle when its sound reaches the speaker — IF the report is right. It
+// is not always: codecs and rooms differ. state.avOffset is a by-ear correction in
+// seconds, kept in localStorage 'qr_av_offset', turned with [ and ] under #musrara.
+function _avLat(){ try{ return (ctx.outputLatency||ctx.baseLatency||0)+((typeof state!=='undefined'&&state&&state.avOffset)||0); }catch(e){ return 0; } }
+try{ const _o=parseFloat(localStorage.getItem('qr_av_offset')); if(isFinite(_o)&&Math.abs(_o)<=0.6) state.avOffset=_o; }catch(e){}
 function _vizApply(now){
   if(!(ctx && state && state.visQueue)) return;
-      const avLat=(ctx.outputLatency||ctx.baseLatency||0);
+      const avLat=_avLat();
       let applied=null;
       while(state.visQueue.length>0 && ((state.visQueue[0].pt!=null)?state.visQueue[0].pt:state.visQueue[0].time)+avLat<=now+0.008){
         applied=state.visQueue.shift();
@@ -10706,7 +10788,7 @@ function _drawOmegaCell(cc,pad,iW,iH,p,yFor,C){
           const al=Math.max(0.06, A*Math.min(1,gg/Math.max(0.001,e.top||1))*(q?1:0.75))*live;
           const x=_xBeatSlot(pad,iW,p,Math.max(0,Math.min(p-1,slot)));
           cc.globalAlpha=al*(off?0.5:1);
-          const draw=(v)=>{ const y=yFor(axisMap(v,p));
+          const draw=(v)=>{ const y=_yHzOnScore(freqForIndex(v,p), iH+2*pad);   // (16.09) on the score's pitch axis, where it sounds; the canvas height is iH + 2·pad, the frame's own convention
             cc.lineWidth=Math.max(1,(q?1.9:1.1)*_inkScale);
             cc.beginPath(); cc.moveTo(x,y-(q?4.5:2.6)*_inkScale); cc.lineTo(x,y+(q?4.5:2.6)*_inkScale); cc.stroke();
             if(q){ cc.beginPath(); cc.arc(x,y,1.9*_inkScale,0,Math.PI*2); cc.fill(); } };
@@ -10735,7 +10817,7 @@ function _drawOmegaCell(cc,pad,iW,iH,p,yFor,C){
         cc.save();
         const ex=[], ey=[];
         for(let j=0;j<n;j++){
-          const y=yFor(axisMap(g.vals[j],p));
+          const y=_yHzOnScore(freqForIndex(g.vals[j],p), iH+2*pad);   // (16.09) on the score's pitch axis, where it sounds
           const xa=x0+dirv*w*g.offs[j], xb=xa+dirv*w*g.lens[j];
           const wgt=(j===0)?1:Math.max(0.30,1-0.15*j);
           cc.globalAlpha=al*(0.45+0.5*wgt); cc.strokeStyle=C.OMEGA;
@@ -11021,7 +11103,7 @@ function drawFrameOnContext(cc,W,H,vs){
 // picture falls back to a fader-position estimate (scaled by master) so the
 // schematic stays readable while editing. Zero/solo still hide via vget().
 const _VOL_MAX={qr:0.5,nqr:0.5,r2:0.4,a:0.4,b:0.4,diag:0.5,hat:0.3,kick:0.5,prelude:0.6,postlude:0.6,sustain:0.6,susA:0.6,susB:0.6,chord:0.6,glue:0.6,omega:0.6};
-const _MASTER_MAX=1.0;
+const _MASTER_MAX=2.0;   // (16.09) was 1.0: the master's ceiling, and the reason the volume knob stopped working upward once a scene had put it there
 const _DYN_POINTS=[
   {n:'pp', x:0.10, a:0.34},
   {n:'p',  x:0.24, a:0.48},
@@ -11098,6 +11180,8 @@ function drawFrame(){
   try{ _drawMeetEcho(cctx,W,H); }catch(e){}
   try{ _drawMeetHint(cctx,W,H); }catch(e){}
   try{ _drawDemoLine(cctx,W,H); }catch(e){}
+  try{ _drawDemoCue(cctx,W,H); }catch(e){}
+  try{ _drawDemoVoices(cctx,W,H); }catch(e){}
   if(typeof cfg!=='undefined' && cfg.overlay) cfgDrawOverlay(cctx,W,H);
   _followCamera();
 }
@@ -13730,6 +13814,11 @@ function cfgSound(quad0){
 }
 
 // ---- overlay drawing (called from drawFrame) -------------------------------
+// (16.09) Under #musrara the chord graph is the way a Goncharova configuration is
+// SHOWN — not as text — every time one sounds: twice the size, readable labels, the
+// type's name in place of the edge count, and placed under the two title lines.
+const _CFG_BIG=/musrara/.test((typeof location!=='undefined' && location.hash || '').toLowerCase());
+function _cfgBig(){ return _CFG_BIG || !!window._demoOn; }   // (16.09) the demonstration is a state of the main file now, not an address
 function cfgDrawOverlay(cc,W,H){
   const ov=cfg.overlay; if(!ov) return;
   const p=ov.p; if(!isPrime(p)) return;
@@ -13823,7 +13912,7 @@ function cfgDrawOverlay(cc,W,H){
   // trigger (and audible), queued, the standalone sequence running, or still ringing —
   // so it isn't a static square hanging over silent scenes.
   const _chordsActive=(()=>{ try{
-    if(!state.running) return true;                                            // stopped: honour the toggle for static inspection of the selected config
+    if(!state.running) return !_cfgBig();                                       // stopped: honour the toggle for static inspection of the selected config (under #musrara: nothing until it sounds)
     if(cfg._demoTimer) return true;                                            // standalone sequence playing
     if(cfg.chordQueue && cfg.chordQueue.length) return true;                   // chords queued to sound imminently
     // A chord is genuinely SOUNDING only while one of its flash onsets sits inside its
@@ -13836,10 +13925,10 @@ function cfgDrawOverlay(cc,W,H){
     if(ctx && _lastChordSoundT>0 && (ctx.currentTime-_lastChordSoundT)<1.5) return true;
   }catch(e){} return false; })();
   _insetRect=null;   // cleared each frame; set only when the inset is actually drawn (so hidden = not draggable)
-  if(_cfgInsetOn && _chordsActive){
-    const S=Math.max(96, Math.min(150, Math.round(W*0.13)));
-    // position: draggable; default just below the top-right zoom controls
-    if(_insetPos.x==null){ _insetPos.x=W-S-10; _insetPos.y=52; }
+  if((_cfgInsetOn || _cfgBig()) && _chordsActive){   // (16.09) under #musrara the graph is not a toggle: the improviser's scenes carry no 'inset' and switched it off 1.2 s after begin
+    const S=_cfgBig() ? Math.max(170, Math.min(280, Math.round(W*0.2))) : Math.max(96, Math.min(150, Math.round(W*0.13)));
+    // position: draggable; default just below the top-right zoom controls (under #musrara: below the title lines)
+    if(_insetPos.x==null){ _insetPos.x=W-S-10; _insetPos.y=_cfgBig()?Math.max(52,Math.round(H*0.17)):52; }
     const x0=Math.max(0,Math.min(W-S,_insetPos.x)), y0=Math.max(0,Math.min(H-S,_insetPos.y));
     _insetRect={x:x0,y:y0,s:S};   // remember for hit-testing in the drag handler
     cc.save();
@@ -13858,10 +13947,10 @@ function cfgDrawOverlay(cc,W,H){
       if(ii.some(v=>v>0)){ inten=ii; quadShown=fl.quad; edgesShown=fl.edges||ov.info.edges; }   // most recent active wins — (08.09) with ITS edges: in the squaring orbit the four that sound are not the selected type's lattice
     }
     // title
-    cc.fillStyle=C.FG; cc.font="bold 9px 'SF Mono',monospace"; cc.textAlign='left';
-    cc.fillText('chord graph', x0+8, y0+13);
+    cc.fillStyle=C.FG; cc.font=(_cfgBig()?"bold 13px":"bold 9px")+" 'SF Mono',monospace"; cc.textAlign='left';
+    cc.fillText(_cfgBig()?'Goncharova':'chord graph', x0+8, y0+(_cfgBig()?18:13));
     // edges (the lattice topology is fixed by the selected type)
-    cc.lineWidth=2.5; cc.strokeStyle=C.RING_B;
+    cc.lineWidth=_cfgBig()?4:2.5; cc.strokeStyle=C.RING_B;
     edgesShown.forEach(e=>{
       const lit=Math.max(inten[e[0]],inten[e[1]]);
       cc.globalAlpha=0.45+0.55*lit;
@@ -13871,16 +13960,23 @@ function cfgDrawOverlay(cc,W,H){
     // nodes — labels are the LIVE sounding values when a chord is playing
     corners.forEach((c,i)=>{
       const lit=inten[i];
-      if(lit>0){ cc.globalAlpha=0.30*lit; cc.fillStyle=C.CYAN; cc.beginPath(); cc.arc(c.x,c.y,9+12*lit,0,Math.PI*2); cc.fill(); }
+      const _nr=_cfgBig()?12:7;
+      if(lit>0){ cc.globalAlpha=0.30*lit; cc.fillStyle=C.CYAN; cc.beginPath(); cc.arc(c.x,c.y,_nr+2+(_cfgBig()?18:12)*lit,0,Math.PI*2); cc.fill(); }
       cc.globalAlpha=1; cc.fillStyle = lit>0?C.CYAN:C.FG;
-      cc.beginPath(); cc.arc(c.x,c.y,7,0,Math.PI*2); cc.fill();
+      cc.beginPath(); cc.arc(c.x,c.y,_nr,0,Math.PI*2); cc.fill();
       cc.lineWidth=1.5; cc.strokeStyle=C.BG; cc.stroke();
-      cc.fillStyle=C.BG; cc.font="bold 9px 'SF Mono',monospace"; cc.textAlign='center'; cc.textBaseline='middle';
+      cc.fillStyle=C.BG; cc.font=(_cfgBig()?"bold 12px":"bold 9px")+" 'SF Mono',monospace"; cc.textAlign='center'; cc.textBaseline='middle';
       cc.fillText(String(quadShown[i]), c.x, c.y);
     });
     cc.textAlign='left'; cc.textBaseline='alphabetic';
-    cc.globalAlpha=0.8; cc.fillStyle=C.FG; cc.font="9px 'SF Mono',monospace";
-    cc.fillText(`${ov.info.edges.length} edge(s) · drag to move`, x0+8, y0+S-8);
+    cc.globalAlpha=0.8; cc.fillStyle=C.FG; cc.font=(_cfgBig()?"12px":"9px")+" 'SF Mono',monospace";
+    if(_cfgBig()){
+      // the name of the type of the quadruple that is SOUNDING, from its own edges
+      let _nm=''; try{ const dg=[0,0,0,0]; edgesShown.forEach(e=>{ dg[e[0]]++; dg[e[1]]++; }); const kk=dg.slice().sort((a,b)=>b-a).join(''); _nm=(CFG_BY_KEY[kk]||{}).name||''; }catch(e){}
+      cc.fillText(_nm || (edgesShown.length+' edge(s)'), x0+8, y0+S-9);
+    } else {
+      cc.fillText(`${ov.info.edges.length} edge(s) · drag to move`, x0+8, y0+S-8);
+    }
     cc.globalAlpha=1;
     cc.restore();
   }
@@ -14728,7 +14824,11 @@ const scenes = (()=>{
     // p / r — jump live
     setNum('p-num', s.p);
     if(state.running){
-      state.reqP=s.p; state.reqSkip=true;
+      // (16.09) A HAND'S REQUEST OUTRANKS A SCENE'S. With 'prime' pinned every generated
+      // scene carries the CURRENT p, and applying it here used to overwrite a request the
+      // hand had just made and the scheduler had not yet taken: the arrow pressed, nothing
+      // happened, and only a reload seemed to help. If a different prime is pending, keep it.
+      if(!(state.reqP!=null && (state.reqP|0)!==(s.p|0) && typeof apPinned==='function' && apPinned('prime'))){ state.reqP=s.p; state.reqSkip=true; }
       // fromStart: play the WHOLE prime from its prelude (session 'full' steps).
       // Takes precedence over the similar-position / jump-to-main transitions,
       // which are for morphing scene changes, not full-structure traversals.
@@ -22026,14 +22126,14 @@ startRenderLoop();
     w.onmouseenter=function(){ w.style.opacity='1'; };
     w.onmouseleave=function(){ w.style.opacity='.55'; };
     var lb=document.createElement('span'); lb.textContent='\u266a'; lb.style.cssText='color:var(--muted,#888);font-size:12px';
-    var sl=document.createElement('input'); sl.type='range'; sl.min='0'; sl.max='127'; sl.step='1';
+    var sl=document.createElement('input'); sl.type='range'; sl.min='0'; sl.max='200'; sl.step='1';   // (16.09) the knob reaches 2.0 now; the limiter is the ceiling, not the slider
     sl.title='volume of THIS half';
     sl.style.cssText='width:110px;height:14px;accent-color:var(--accent,#6cf)';
     var v0=NaN; try{ v0=parseFloat(localStorage.getItem(KEY)); }catch(e){}
-    try{ if(isFinite(v0)&&v0>=0&&v0<=1.27) state.vol.master=v0; }catch(e){}
+    try{ if(isFinite(v0)&&v0>=0&&v0<=2.0) state.vol.master=v0; }catch(e){}
     try{ sl.value=Math.round((state.vol.master||1)*100); }catch(e){ sl.value=100; }
     sl.addEventListener('input',function(){
-      var v=Math.max(0,Math.min(1.27,sl.value/100));
+      var v=Math.max(0,Math.min(2.0,sl.value/100));
       try{ state.vol.master=v; }catch(e){}
       try{ if(typeof masterGain!=='undefined'&&masterGain&&typeof ctx!=='undefined'&&ctx) masterGain.gain.setTargetAtTime(v,ctx.currentTime,0.04); }catch(e){}
       try{ localStorage.setItem(KEY,String(v)); }catch(e){}
@@ -22222,6 +22322,7 @@ body.face-manual #face-back { display: block; }
     }
 
     function paintPlay(){
+      try{ if(!window._demoOn) window._demoCue=null; }catch(e){}   // (16.09) the demo door's cue belongs to the demo door
       clearBody(); setDoor('door-play');
       // genre — all six visible at once
       var gen=document.createElement('div'); gen.id='face-gen';
@@ -22478,19 +22579,39 @@ body.face-manual #face-back { display: block; }
 
     function paintDemo(){
       clearBody(); setDoor('door-demo');
+      try{ if(!window._demoOn) window._demoCue={t0:performance.now(), text:'press  ∴ begin  below  —  the sound starts at once'}; }catch(e){}
       var row=document.createElement('div'); row.id='face-row';
       var b=document.createElement('button'); b.textContent=window._demoOn?'■ stop':'∴ begin';
       b.onclick=function(){ try{ if(window._qrDemo){ var on=window._qrDemo(); b.textContent=on?'■ stop':'∴ begin'; } }catch(e){} };
       row.appendChild(b);
+      // (16.09) THE ARROWS AS BUTTONS. He pressed the arrow keys and nothing happened —
+      // the keys had gone to another window, or a field held the focus. A visitor who
+      // knows nothing must be able to do the whole walk with the mouse alone. Each
+      // button dispatches the very keydown the keyboard would, so the engine's own
+      // handler and the cue machine see one and the same press.
+      var _key=function(k){ try{ window.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true})); }catch(e){} };
+      var pd=document.createElement('button'); pd.textContent='↓ prime';
+      pd.title='the same as the ↓ key: the previous prime — fewer rungs, another scale';
+      pd.onclick=function(){ try{ pd.blur(); }catch(e){} _key('ArrowDown'); };
+      row.appendChild(pd);
+      var pu=document.createElement('button'); pu.textContent='↑ prime';
+      pu.title='the same as the ↑ key: the next prime — more rungs, another scale';
+      pu.onclick=function(){ try{ pu.blur(); }catch(e){} _key('ArrowUp'); };
+      row.appendChild(pu);
+      var rr=document.createElement('button'); rr.textContent='→ root';
+      rr.title='the same as the → key: the next root inside this prime';
+      rr.onclick=function(){ try{ rr.blur(); }catch(e){} _key('ArrowRight'); };
+      row.appendChild(rr);
       // (15.09) THE TRANSITION, ON ONE KEY. _qrFormStart stops the autopilot, calls
       // _qrDemoStop(TRUE) — which keeps the sound alive — and hands the stage to a score
       // the Markovs just composed. Nothing restarts, nothing cuts: the improvisation
       // yields to a written form while the air keeps moving. That is a musical event and
       // not a parameter change, and it is the only one that needs no beat and no fill.
       var fm=document.createElement('button'); fm.textContent='◆ the form takes over';
-      fm.title='the Markovs compose a score of three minutes and it takes the stage — the improvisation yields, and the sound does not stop';
+      fm.title='the Markovs compose a score of one minute and it takes the stage — the improvisation yields, and the sound does not stop';
       fm.onclick=function(){
-        try{ if(window._qrFormCreate) window._qrFormCreate(180); }catch(e){}
+        window._demoFormOn=true;   // (16.09) this form is the demonstration's: the cues and the voice line stay with it
+        try{ if(window._qrFormCreate) window._qrFormCreate(60); }catch(e){}   // (16.09) the whole demonstration is three minutes; the form is pressed at ~1:35 and must land before 3:00
         setTimeout(function(){
           try{
             var Fp=window._qrFormPlan;
@@ -22513,6 +22634,7 @@ body.face-manual #face-back { display: block; }
     }
 
     function toManual(){
+      try{ if(!window._demoOn) window._demoCue=null; }catch(e){}
       document.body.classList.remove('face-on');
       document.body.classList.add('face-manual');
       try{ localStorage.setItem('qr_face','manual'); }catch(e){}
@@ -22566,12 +22688,7 @@ body.face-manual #face-back { display: block; }
     // The pins live in memory only, so they are re-armed on every load, which is exactly
     // what a reload during the call needs.
     if(/musrara/.test((location.hash||'').toLowerCase())){
-      try{ toFace(); paintDemo(); _fitViz(); }catch(e){}
-      try{ ['freq','vols','master','groove','prime','bpm'].forEach(function(k){ if(typeof apPin==='function') apPin(k); }); }catch(e){}
-      // state.showGrid is undefined on load and _drawGrid returns early, so without this
-      // the ladder has no rungs to stand on — and the rungs are what make it read as
-      // arithmetic rather than as scattered dots.
-      try{ var _g=document.getElementById('grid-toggle'); if(_g && !_g.classList.contains('active')) _g.click(); }catch(e){}
+      try{ toFace(); paintDemo(); _fitViz(); }catch(e){}   // (16.09) pins and grid now arm on ∴ begin, inside _qrDemo, for every tab and every address
     }
     setInterval(function(){ paintGo(); _frameQuiet(document.body.classList.contains('face-on')); }, 700);
     setInterval(paintGo, 250);   // the countdown reads as a clock only if it ticks like one
@@ -22610,8 +22727,13 @@ body.face-manual #face-back { display: block; }
    configurations exist in it — the demonstration can show one.
    Twenty squares and twenty non-squares is a ladder with structure a listener can still
    read. The audible move is then DOWNWARD, by hand: each press shortens the scale, and
-   the caption counts the rungs out loud at the moment they can be heard. */
-const QR_MUSRARA_SCENE = {"p":41,"r":1,"bpm":84,"dir":1,"harmMode":1,"spiralRatio":1.5,"minFreq":165,"maxFreq":1155,"pitchFlip":false,"pitchCouple":false,"glissA":false,"glissB":false,"reorderR":0,"reorderPP":0,"reorderA":0,"archAQR":1,"archANQR":1,"archAOrd":0,"archRQR":1,"archRNQR":1,"archROrd":0,"archPPQR":1,"archPPNQR":1,"archPPOrd":0,"shiftAByR":false,"markova":false,"bgDark":"#110910","bgLight":"#d7c2d9","secMask":{"pre":true,"main":true,"post":true},"motion":"linear","solo":[],"sustainOn":true,"pnNMode":"sqrt","pnNFixed":6,"primeArch":false,"mainAnchorsOnly":false,"vol":{"qr":0.18,"nqr":0.18,"r2":0.12,"a":0.17,"b":0.18,"diag":0.3,"hat":0.18,"kick":0,"prelude":0.24,"postlude":0.24,"sustain":0.24,"susA":0.12,"susB":0.12,"chord":0.24,"glue":0.12,"omega":0.5,"master":0.72},"send":{"qr":0.64,"nqr":0.68,"r2":0.66,"a":0.24,"b":0.23,"diag":0.62,"hat":0.57,"kick":0,"prelude":0.26,"postlude":0.26,"sustain":0.34,"susA":0.2,"susB":0.2,"chord":0.43,"glue":0.61,"omega":0.3},"bright":{"qr":0.35,"nqr":0.35,"r2":0.35,"a":0.35,"b":0.35,"diag":0.35,"hat":0.35,"kick":0.35,"prelude":0.35,"postlude":0.35,"sustain":0.35,"susA":0.35,"susB":0.35,"chord":0.35,"glue":0.35,"omega":0.35},"pan":{"qr":0,"nqr":0,"r2":0,"a":0,"b":0,"diag":0,"hat":0,"kick":0,"prelude":0,"postlude":0,"sustain":0,"susA":0,"susB":0,"chord":0,"glue":0,"omega":0},"vib":{"qr":1,"nqr":1,"r2":1,"a":1,"b":1,"diag":1,"hat":1,"kick":1,"prelude":1,"postlude":1,"sustain":1,"susA":1,"susB":1,"chord":1,"glue":1,"omega":1},"voiceInst":{"qr":"str","a":"str","susA":"str","sustain":"str","chord":"str","omega":"str","nqr":"wood","b":"wood","susB":"wood","r2":"flute","prelude":"flute","postlude":"flute","diag":"bell","glue":"bell"},"sendPreFader":false,"exprTimbreOn":true,"exprTimbreDepth":0.5,"exprArticOn":true,"exprArticDepth":0.5,"exciteOn":true,"exciteDepth":0.5,"modDepth":0.35,"depthPan":0.35,"depthSend":0.35,"modSwap":false,"attackMorph":0,"tremDepth":0.1,"vibDepth":10,"floorsDepth":0,"pulseDepth":0,"fxRevSend":0,"fxRevBypass":false,"fxSat":1,"fxSatBypass":true,"fxCompThresh":-1.5,"fxCompRatio":20,"fxCompBypass":false,"autoHeadroom":true,"headroomTarget":1,"postOffsetBeats":0,"abOffsetBeats":0,"typeId":"complete","trig":[],"chordDir":1,"arp":false,"tie":false,"arpSub":14,"arpOrd":"pitch","durIdx":15,"inset":false,"rules":{"primeFreqRatio":true,"freqLockInScene":true,"sustainHold":true,"transAtAnchors":false},"track":{"pre":1,"post":1},"morphCh":{},"fxSatMode":"tanh","autoLevel":false,"mood":null,"activity":null,"claude":false,"groove":{"on":false,"arch":"floor","level":0.7,"swing":0.1,"rot":true,"floor":true,"zeroCrash":true,"pump":true,"solo":false,"arith":true,"autoMode":false,"densMul":1,"meter":13,"den":13,"lanes":{"kick":{"on":true,"mode":"fib","p":7,"dens":0.3,"lvl":0},"snare":{"on":true,"mode":"chifib","p":13,"dens":0.34,"lvl":0.95},"clap":{"on":true,"lvl":1.05},"hatC":{"on":true,"mode":"chi","p":29,"dens":1,"lvl":0.7},"hatO":{"on":true,"mode":"chi","p":29,"dens":1,"lvl":0.56},"tom":{"on":true,"mode":"fib","p":19,"dens":0.22,"lvl":0.7},"zap":{"on":false,"mode":"fib","p":37,"dens":0.16,"lvl":0.7},"click":{"on":false,"mode":"fib","p":41,"dens":0.5,"lvl":0.6},"bass":{"on":true,"mode":"fib","p":17,"dens":0.42,"lvl":0},"crash":{"on":true,"lvl":0.7}}}};
+   the caption counts the rungs out loud at the moment they can be heard.
+   trig ['a','prelude'] (16.09): a Goncharova configuration sounds when voice a, or the
+   prelude, reaches one of its four nodes, and every one is SHOWN as its graph while it
+   sounds. With no trigger the chords barely fired at all — one in sixty-six seconds,
+   measured; with 'a' alone none before the main section, so the graph came only after
+   the first minute. */
+const QR_MUSRARA_SCENE = {"p":41,"r":1,"bpm":84,"dir":1,"harmMode":1,"spiralRatio":1.5,"minFreq":165,"maxFreq":1155,"pitchFlip":false,"pitchCouple":false,"glissA":false,"glissB":false,"reorderR":0,"reorderPP":0,"reorderA":0,"archAQR":1,"archANQR":1,"archAOrd":0,"archRQR":1,"archRNQR":1,"archROrd":0,"archPPQR":1,"archPPNQR":1,"archPPOrd":0,"shiftAByR":false,"markova":false,"bgDark":"#110910","bgLight":"#d7c2d9","secMask":{"pre":true,"main":true,"post":true},"motion":"linear","solo":[],"sustainOn":true,"pnNMode":"sqrt","pnNFixed":6,"primeArch":false,"mainAnchorsOnly":false,"vol":{"qr":0.18,"nqr":0.18,"r2":0.12,"a":0.17,"b":0.18,"diag":0.3,"hat":0.18,"kick":0,"prelude":0.24,"postlude":0.24,"sustain":0.24,"susA":0.12,"susB":0.12,"chord":0.24,"glue":0.12,"omega":0.5,"master":1.0},"send":{"qr":0.64,"nqr":0.68,"r2":0.66,"a":0.24,"b":0.23,"diag":0.62,"hat":0.57,"kick":0,"prelude":0.26,"postlude":0.26,"sustain":0.34,"susA":0.2,"susB":0.2,"chord":0.43,"glue":0.61,"omega":0.3},"bright":{"qr":0.35,"nqr":0.35,"r2":0.35,"a":0.35,"b":0.35,"diag":0.35,"hat":0.35,"kick":0.35,"prelude":0.35,"postlude":0.35,"sustain":0.35,"susA":0.35,"susB":0.35,"chord":0.35,"glue":0.35,"omega":0.35},"pan":{"qr":0,"nqr":0,"r2":0,"a":0,"b":0,"diag":0,"hat":0,"kick":0,"prelude":0,"postlude":0,"sustain":0,"susA":0,"susB":0,"chord":0,"glue":0,"omega":0},"vib":{"qr":1,"nqr":1,"r2":1,"a":1,"b":1,"diag":1,"hat":1,"kick":1,"prelude":1,"postlude":1,"sustain":1,"susA":1,"susB":1,"chord":1,"glue":1,"omega":1},"voiceInst":{"qr":"str","a":"str","susA":"str","sustain":"str","chord":"str","omega":"str","nqr":"wood","b":"wood","susB":"wood","r2":"flute","prelude":"flute","postlude":"flute","diag":"bell","glue":"bell"},"sendPreFader":false,"exprTimbreOn":true,"exprTimbreDepth":0.5,"exprArticOn":true,"exprArticDepth":0.5,"exciteOn":true,"exciteDepth":0.5,"modDepth":0.35,"depthPan":0.35,"depthSend":0.35,"modSwap":false,"attackMorph":0,"tremDepth":0.1,"vibDepth":10,"floorsDepth":0,"pulseDepth":0,"fxRevSend":0,"fxRevBypass":false,"fxSat":1,"fxSatBypass":true,"fxCompThresh":-1.5,"fxCompRatio":20,"fxCompBypass":false,"autoHeadroom":true,"headroomTarget":1,"postOffsetBeats":0,"abOffsetBeats":0,"typeId":"complete","trig":["a","prelude"],"chordDir":1,"arp":false,"tie":false,"arpSub":14,"arpOrd":"pitch","durIdx":15,"inset":true,"rules":{"primeFreqRatio":true,"freqLockInScene":true,"sustainHold":true,"transAtAnchors":false},"track":{"pre":1,"post":1},"morphCh":{},"fxSatMode":"tanh","autoLevel":false,"mood":null,"activity":null,"claude":false,"groove":{"on":false,"arch":"floor","level":0.7,"swing":0.1,"rot":true,"floor":true,"zeroCrash":true,"pump":true,"solo":false,"arith":true,"autoMode":false,"densMul":1,"meter":13,"den":13,"lanes":{"kick":{"on":true,"mode":"fib","p":7,"dens":0.3,"lvl":0},"snare":{"on":true,"mode":"chifib","p":13,"dens":0.34,"lvl":0.95},"clap":{"on":true,"lvl":1.05},"hatC":{"on":true,"mode":"chi","p":29,"dens":1,"lvl":0.7},"hatO":{"on":true,"mode":"chi","p":29,"dens":1,"lvl":0.56},"tom":{"on":true,"mode":"fib","p":19,"dens":0.22,"lvl":0.7},"zap":{"on":false,"mode":"fib","p":37,"dens":0.16,"lvl":0.7},"click":{"on":false,"mode":"fib","p":41,"dens":0.5,"lvl":0.6},"bass":{"on":true,"mode":"fib","p":17,"dens":0.42,"lvl":0},"crash":{"on":true,"lvl":0.7}}}};
 const _MUSRARA = /musrara/.test((typeof location!=='undefined' && location.hash || '').toLowerCase());
 
 /* THE DEMONSTRATION (author 16.08: «отдельно кнопка демонстрация и изложение
@@ -22620,24 +22742,19 @@ const _MUSRARA = /musrara/.test((typeof location!=='undefined' && location.hash 
    arithmetic names itself at the instant it becomes audible. Stop at any time. */
 (function(){
   var iv=null, last={p:null,r:null,quad:null}, said={}, t0=0;
+  var _DEMO_CUES=true;   // (16.09) the cue machine below names things; the interval's own single-shot lines are retired
   function say(text, dur){ try{ window._demoMsg={t0:performance.now(), text:text, dur:dur||6}; }catch(e){} }
   function chi(r,p){ try{ return isQR(((r%p)+p)%p, p) ? 1 : -1; }catch(e){ return 0; } }
   function lovedState(){
-    // (15.09) Under #musrara the prepared scene wins outright: the ten minutes must sound
-    // the same on any machine and in any profile, and the book's last ♥ is whatever he
-    // happened to love yesterday. Everywhere else the author's own rule stands — the last
-    // loved moment — and only the EMPTY case changed: it used to return null, and the
-    // demonstration then opened on the default state, which is p = 3.
-    if(_MUSRARA) return QR_MUSRARA_SCENE;
-    try{
-      var bk=JSON.parse(localStorage.getItem('qr_likes')||'[]')||[];
-      if(bk.length){ var x=bk[bk.length-1]; if(x && x.state) return x.state; }
-    }catch(e){}
+    // (16.09) The demonstration opens on the prepared scene, always: it must sound the
+    // same on any machine, in any profile, from any tab. It used to open on the last ♥
+    // in this browser's book, and on an empty book on nothing at all, p = 3.
     return QR_MUSRARA_SCENE;
   }
   function stop(keepSound){
     if(iv){ clearInterval(iv); iv=null; }
     window._demoOn=false; window._demoMsg=null;
+    if(!keepSound){ try{ (window._demoPins||[]).forEach(function(k){ apUnpin(k); }); window._demoPins=[]; }catch(e){} window._demoCue=null; }
     try{ if(typeof learner!=='undefined' && learner.isAutoOn && learner.isAutoOn()) learner.toggleAuto(); }catch(e){}
     if(!keepSound){ try{ if(state.running && !state.paused) pauseAudio(); }catch(e){} }
   }
@@ -22647,7 +22764,19 @@ const _MUSRARA = /musrara/.test((typeof location!=='undefined' && location.hash 
     window._demoOn=true; said={}; t0=performance.now();
     var loved=lovedState();
     try{ if(loved) scenes.restore(loved,{sim:true}); }catch(e){}
-    say(loved ? 'a moment its author once loved — the engines take it from here'
+    // (16.09) THE DEMONSTRATION OWNS SIX CLASSES WHILE IT RUNS — the floor, the faders,
+    // the master, the beat, the prime and the tempo — and the lattice grid is raised. Armed
+    // here, on begin, and released on a real stop below (not on the handover to the form,
+    // which must keep the master where it is). Only pins the demonstration itself set are
+    // released; a pin his hand had already placed stays his.
+    try{ window._demoPins=[]; ['freq','vols','master','groove','prime','bpm'].forEach(function(k){ if(!(state.apPins&&state.apPins.has(k))){ apPin(k); window._demoPins.push(k); } }); }catch(e){}
+    try{ var _g=document.getElementById('grid-toggle'); if(_g && !_g.classList.contains('active')) _g.click(); }catch(e){}
+    // (16.09) THE DEMONSTRATION IS ONE ENGINE. A desktop tab opens Markova's frame 700 ms
+    // after load, and the ladder then gets half a screen. On begin her frame is closed
+    // through its own ✕ — the author's _frClose, which hands Markov his width back and
+    // re-measures every canvas. Reopening is his hand: «open Markova ⊞» on the pair panel.
+    try{ var _x=document.querySelector('#duo-frame-wrap button[title^="close Markova"]'); if(_x) _x.click(); }catch(e){}
+    say(true ? 'Nothing here is recorded.  All of it is computed right now, from one prime number.' : loved ? 'a moment its author once loved — the engines take it from here'
               : 'two engines, one prime, playing live', 7);
     // sound first, words after: start, then let the improviser carry it
     try{ if(!state.running) startAudio(); else if(state.paused) pauseAudio(); }catch(e){}
@@ -22661,14 +22790,14 @@ const _MUSRARA = /musrara/.test((typeof location!=='undefined' && location.hash 
         // 1 — a new world: the prime says how many squares live in it
         if(p!==last.p){
           last.p=p; last.r=null;
-          if(!busy && p>=5){ say('p = '+p+' — '+((p-1)/2)+' squares, '+((p-1)/2)+' non-squares, and that is the whole scale', 7); busy=true; }
+          if(!busy && !_DEMO_CUES && p>=5){ say('p = '+p+' — '+((p-1)/2)+' squares, '+((p-1)/2)+' non-squares, and that is the whole scale', 7); busy=true; }
         }
         // 2 — the walk crosses the split: this very note is on one side of it
         if(r!==last.r && r>0){
           last.r=r;
-          if(!busy && !said.chi){ said.chi=1;
+          if(!busy && !_DEMO_CUES && !said.chi){ said.chi=1;
             say('r = '+r+' '+(chi(r,p)>0?'is a square here ○ — the warm side':'is not a square here × — the cool side'), 6); busy=true; }
-          else if(!busy && !said.mirror && p>7){ said.mirror=1;
+          else if(!busy && !_DEMO_CUES && !said.mirror && p>7){ said.mirror=1;
             say('r = '+r+' and its mirror '+(p-r)+' — the answer plays the far side of the same law', 6); busy=true; }
         }
         // 3 — her configurations, only while one is actually standing on the field
@@ -22677,18 +22806,134 @@ const _MUSRARA = /musrara/.test((typeof location!=='undefined' && location.hash 
           if(ov && ov.quad){
             var key=ov.quad.join(',');
             if(key!==last.quad){ last.quad=key;
-              if(!busy && !said.quad){ said.quad=1;
+              if(!busy && !_DEMO_CUES && !said.quad){ said.quad=1;
                 say('{'+ov.quad.join(', ')+'} — all six differences are squares · Goncharova’s theorem, proved 2025', 8); busy=true; }
             }
           }
         }catch(e){}
         // 4 — the last word, once, about what the ♥ does
-        if(!busy && !said.heart && (performance.now()-t0)>52000){ said.heart=1;
+        if(!busy && !_DEMO_CUES && !said.heart && (performance.now()-t0)>52000){ said.heart=1;
           say('♥ any moment you love — they keep it, and the next one leans that way', 7); }
       }catch(e){}
     }, 400);
     return true;
   };
+
+  // (16.09) THE CUES — for the Musrara demonstration only. He asked for the show to
+  // speak in titles and to prompt the hand — «now the down arrow changes the prime.
+  // once more…» — so that nothing has to be said over the sound. Everything here
+  // follows his ACTUAL presses, not a clock: a demonstration is played by a person, and
+  // the titles wait for the prime to land (about 1.7 s) before they name it.
+  {
+    var _sq=function(p){ return (p-1)/2; };
+    var cue=function(text){ window._demoCue=text?{t0:performance.now(), text:text}:null; };
+    var fact=function(text,dur){ window._demoMsg={t0:performance.now(), text:text, dur:dur||6}; };
+    var downs=0, rights=0, wasOn=false, wasForm=false, openT=null, legT=null;
+    window.addEventListener('keydown', function(e){
+      if(!window._demoOn && !window._demoFormOn) return;
+      var tag=(document.activeElement&&document.activeElement.tagName||'').toLowerCase();
+      if(tag==='input'||tag==='select'||tag==='textarea'){
+        // The engine's own arrow handler refuses to act while a field has focus, so the
+        // press just died — the one on-air failure the reading predicted. Free the field
+        // and say what to do; the NEXT press will land.
+        if(/^Arrow/.test(e.key)){ try{ document.activeElement.blur(); }catch(e2){} cue('click on the picture once, then press the arrow again'); }
+        return;
+      }
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+        downs++;
+        // belt and braces: if 2.5 s later the prime has not moved and no request is
+        // pending, the press was swallowed — issue it once more, never twice
+        (function(dir,p0){ setTimeout(function(){ try{ if(live() && _liveP()===p0 && state.reqP==null && state.running && !state.paused && typeof stepPrime==='function'){ stepPrime(dir); cue((dir<0?'\u2193':'\u2191')+'  \u2014  again: the first press was lost to a scene change'); } }catch(e2){} }, 2500); })(e.key==='ArrowDown'?-1:1, (typeof _liveP==='function')?_liveP():state.p);
+        setTimeout(function(){
+          var p=(typeof _liveP==='function')?_liveP():state.p;
+          if(p===23){ fact('p = 23  ·  11 squares, 11 non-squares  ·  22 degrees, 22 letters', 9);
+                      cue('press  →  (the key, or the  → root  button below)  —  it moves the root: where you stand inside the prime'); }
+          else { fact('p = '+p+'  ·  '+_sq(p)+' squares, '+_sq(p)+' non-squares  ·  that is the whole scale', 6);
+                 cue(p>23 ? '↓  once more' : '↑  back up, to 23'); }
+        }, 1700);
+      }
+      if(e.key==='['||e.key===']'){
+        // picture ↔ sound, by ear: ] moves the needle later (sound arrives later than
+        // the system claims), [ earlier. 20 ms a press, ±600 ms, remembered per device.
+        var o=(state.avOffset||0)+(e.key===']'?0.02:-0.02); o=Math.max(-0.6,Math.min(0.6,Math.round(o*1000)/1000)); state.avOffset=o;
+        try{ localStorage.setItem('qr_av_offset',String(o)); }catch(e2){}
+        fact('picture ↔ sound offset  '+(o>=0?'+':'')+Math.round(o*1000)+' ms   ( ]  later ·  [  earlier )', 3);
+        return;
+      }
+      if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+        rights++;
+        setTimeout(function(){
+          var p=(typeof _liveP==='function')?_liveP():state.p, r=(typeof _liveR==='function')?_liveR():0;
+          var q=0; try{ q=isQR(((r%p)+p)%p,p)?1:-1; }catch(e2){}
+          fact('r = '+r+'  ·  '+(q>0?'a square here  ○':'not a square here  ×'), 5);
+          cue(rights<3 ? '→  once more' : 'press  ◆ the form takes over  below  —  they stop improvising and play a score they compose now');
+        }, 1400);   // the root lands on the next beat after the flush; 0.9 s could still name the old one
+      }
+    });
+    setInterval(function(){
+      try{
+        var on=!!window._demoOn, fo=!!(window._formOn&&window._demoFormOn);
+        if(on && !wasOn){ downs=0; rights=0; openT=performance.now(); legT=openT; cue(null); }
+        if(on && legT!=null && (performance.now()-legT)>9000){ legT=null;
+          fact('Warm dots: squares.  Blue crosses: non-squares.  Height is pitch.', 8); }
+        if(on && openT!=null && (performance.now()-openT)>22000){ openT=null;
+          cue('press  ↓  (the key, or the  ↓ prime  button below)  —  it changes the prime number, and with it the whole scale'); }
+        if(fo && !wasForm){ fact('They stop improvising and play a score they just composed.  Nothing restarts.', 9);
+          cue('listen  —  it ends by itself in about a minute'); }
+        if(!fo && wasForm){ fact('The form has ended by itself.', 7); cue('∴ begin  plays it again'); window._demoFormOn=false;
+          try{ (window._demoPins||[]).forEach(function(k){ apUnpin(k); }); window._demoPins=[]; }catch(e2){}
+          try{ Array.from(document.querySelectorAll('#face-row button')).forEach(function(b){ if(/form running/.test(b.textContent)) b.textContent='◆ the form takes over'; }); }catch(e2){} }
+        wasOn=on; wasForm=fo;
+      }catch(e){}
+    }, 300);
+
+    // (16.09) THE VOICES, NAMED AS THEY ENTER. He asked that a line explaining what
+    // sounds appear at the moment the sound appears, for every voice and chord, and
+    // that a Goncharova configuration be named every single time one sounds. There is
+    // no one tap every note passes through, so three existing functions are wrapped
+    // where they stand: _gvNote (the score's ink: omega, glue, diag), _tapeNote (the
+    // sustained anchors and glissandi). Each wrapper calls the original untouched
+    // and only schedules a line for the moment the note becomes audible. A voice is
+    // re-announced at most every twenty seconds; a configuration every time.
+    // (16.09) every line below was read against the scheduling code by a second and a
+    // third reader before the call; where they corrected the first reading, theirs stands.
+    var VOICE_TEXT={
+      omega:'omega — a circle: squaring mod p turns these notes into each other',
+      glue:'glue — a soft tone for each pair whose difference is a square mod p',
+      diag:'the diagonal bell — a = b, so a² ≡ r: a square root of the root',
+      sustain:'drone — the roots nearest p/n for n ≤ √p, held to the next anchor',
+      susA:'a, held — an anchor near p/n, n ≤ √p, rings to the next',
+      susB:'b, held — an anchor near p/n, n ≤ √p, rings to the next',
+      gliss:'glissando — the line slides between rungs'
+    };
+    var SECTION_TEXT={
+      prelude:'prelude — r counts 1…p−1; each beat sounds r² mod p, a square',
+      main:'main — two voices, a and b; a × b ≡ r, the root',
+      postlude:'postlude — each square r² swapped for a non-square of the same rank',
+      dual:'two streams — one direct, one reversed'
+    };
+    window._demoVoices=[]; var _lastSaid={}, _lastNote={};
+    var voice=function(key,text,gap,at){ var now=performance.now(); if(_lastSaid[key]!=null && now-_lastSaid[key]<(gap==null?20000:gap)) return; _lastSaid[key]=now; var ct=0; try{ ct=ctx.currentTime; }catch(e){} window._demoVoices.push({t0:now,ct:ct,at:(at||0),text:text}); if(window._demoVoices.length>6) window._demoVoices.shift(); };
+    // AN ENTRANCE, NOT A THROTTLE. A voice is named when it begins to sound after its own
+    // silence of 2.5 s or more — never on an arbitrary note in the middle of a phrase,
+    // which is what a time-based throttle produced. Judged on the note's audio time.
+    // The silence is measured from the END of the layer's previous note, not its start:
+    // a drone held for eight seconds and renewed is one voice, not eight entrances.
+    var entrance=function(L,t,dur){ var prevEnd=_lastNote[L]; _lastNote[L]=Math.max(prevEnd||0, t+(dur>0?dur:0)); return (prevEnd==null) || (t-prevEnd)>=2.5; };
+    // the line waits for the note's own audio time, however far ahead it was scheduled
+    var atAudio=function(t,fn){ var dms=0; try{ if(typeof ctx!=='undefined'&&ctx&&t>0) dms=Math.max(0,(t-ctx.currentTime)*1000); }catch(e){} setTimeout(fn,Math.min(dms,60000)); };
+    var live=function(){ try{ return !!(state.running&&!state.paused&&(window._demoOn||window._demoFormOn)); }catch(e){ return false; } };
+    try{ var _g0=_gvNote; _gvNote=function(lane,t,v,f,q){ try{ var L=String(lane).replace(/·/g,''); if(VOICE_TEXT[L]&&live()&&entrance(L,t)) atAudio(t,function(){ voice(L,VOICE_TEXT[L],0,t); }); }catch(e){} return _g0.apply(this,arguments); }; }catch(e){}
+    try{ var _t0=_tapeNote; _tapeNote=function(k,args,durX){ try{
+      var L=k; if(k==='sus'){ try{ L=(typeof _emitLayer!=='undefined'&&_emitLayer&&VOICE_TEXT[_emitLayer])?_emitLayer:'sustain'; }catch(e2){ L='sustain'; } }   // scheduleSustainVoice serves sustain, susA and susB alike; _emitLayer says which
+      if(VOICE_TEXT[L]&&live()){ var t=(args&&args[0])||0, du=+((args&&args[1])||durX||0); if(entrance(L,t,du)) atAudio(t,function(){ voice(L,VOICE_TEXT[L],0,t); }); } }catch(e){} return _t0.apply(this,arguments); }; }catch(e){}
+    // A Goncharova configuration is not named in text: its GRAPH is shown, every time
+    // one sounds, by the chord-graph inset (cfgDrawOverlay, enlarged under #musrara).
+    var lastMode=null, modeSince=0, modeSaid=null;
+    setInterval(function(){ try{ if(!live()) return; var m=state.vizMode, now=performance.now();
+      if(m!==lastMode){ lastMode=m; modeSince=now; return; }                      // a mode must hold for 0.5 s before it is named — converge frames flap
+      if(m!==modeSaid && (now-modeSince)>=500 && SECTION_TEXT[m]){ modeSaid=m; voice('mode:'+m, SECTION_TEXT[m], 12000); } }catch(e){} },150);
+  }
 })();
 </script>
 </body>
