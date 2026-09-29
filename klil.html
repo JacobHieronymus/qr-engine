@@ -118,7 +118,7 @@
   body.pv { overflow:auto; }
   body.pv #deck { position:static; max-width:820px; margin:0 auto; padding:20px 18px 80px; }
   body.pv .slide { display:block; position:static; padding:22px 0 26px; border-top:1px solid var(--border); text-align:right; animation:none; }
-  body.pv .slide:first-child { border-top:0; }
+  body.pv .pre + .slide { border-top:0; }
   body.pv .big { font-size:34px; }
   body.pv .line { font-size:26px; }
   body.pv .small, body.pv .lead { font-size:20px; }
@@ -140,7 +140,7 @@
   body.pv .notes ul { margin:.3em 0 .6em 1.2em; }
   body.pv .notes li { margin:.25em 0; }
   body.pv .notes .warn { color:var(--accent2); }
-  body.pv .stamp { font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase;
+  body.pv .stamp { display:block; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase;
     direction:ltr; text-align:left; margin-bottom:8px; }
   body.pv .pre { display:block; padding:22px 0; border-bottom:2px solid var(--fg); }
   body.pv .pre h2 { font-size:28px; font-weight:500; direction:rtl; text-align:right; }
@@ -154,12 +154,14 @@
   @media print {
     :root { --bg:#fff; --fg:#111; --muted:#555; --faint:#bbb; --panel:#f4f4f4; --border:#ccc; --accent:#1d5c7a; --accent2:#7a5a10;
       --qr:#8a3b00; --nqr:#062f57; --notes-bg:#f7f5ef; }
-    body { overflow:visible; }
-    body.pv .slide, .slide { display:block; position:static; page-break-inside:avoid; border-top:1px solid #ccc; padding:14px 0; text-align:right; }
+    html, body { height:auto; overflow:visible; }
+    #deck { position:static; }
+    body.pv .slide, .slide, .slide.on { display:block; position:static; animation:none; page-break-inside:avoid; border-top:1px solid #ccc; padding:14px 0; text-align:right; }
     .notes { display:block; direction:ltr; text-align:left; font-family:Georgia, serif; font-size:12px; line-height:1.4; margin-top:8px;
       padding:8px 10px; border-left:3px solid var(--accent2); }
     .notes .say { direction:rtl; unicode-bidi:isolate; }
     .pre { display:block; }
+    .stamp { display:block; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; direction:ltr; text-align:left; margin-bottom:6px; }
     .big { font-size:26px; } .line { font-size:20px; } .small, .lead { font-size:16px; } ol.steps { font-size:18px; } .en { font-size:10px; }
     svg.orn { max-width:360px; }
     #hud, #bar, #hint, #live { display:none !important; }
@@ -178,16 +180,16 @@
   <h2>לפני <span class="lat">before · the checklist</span></h2>
   <aside class="notes">
     <p><span class="t">до 04/10</span> — письмо Амиру: что показываю и что нужно. Готовые фразы:
-      <span class="say block">אציג עבודה חדשה — דף אינטרנט שמנגן מתמטיקה בלייב, כעשר דקות. אני אצטרך מקרן, וכבל מהמחשב הנייד למיקסר (מיני ג׳ק). כרטיס קול ומיקרופון לא צריך.</span>
+      <span class="say block">אציג עבודה חדשה — דף אינטרנט שמנגן מתמטיקה בלייב, כעשר דקות. אני אצטרך מקרן וכבל מהמחשב הנייד למיקסר (מיני ג׳ק). כרטיס קול ומיקרופון לא צריך.</span>
       Без проектора колода мертва: запасной вариант — экран ноутбука к залу и слайды вслух.</p>
     <p><span class="t">ноутбук</span> — от сети, зарядку взять; Chrome; проектор <b>зеркалом</b> (mirror), не расширенным столом — иначе подсказок движка не видно на ноутбуке. Окно развёрнуто, не F11 (чтобы Ctrl+Tab работал). Дом в Клиль — матрасы, не столы: где стоят ноутбук и две колонки, решить до 20:00.</p>
     <p><span class="t">звук</span> — провод mini-jack → микшер школы, не Bluetooth (0,2 с задержки — картинка уедет от звука). После HDMI проверить, что вывод звука не ушёл в проектор: настройки → вывод → jack/USB; проверять после каждого перетыкания. Мастер движка 1.0; громкость — ручкой микшера во время прогона, не во время показа. Сцена без низа (пол 165 Гц, kick 0): через колонки будет тонко, но чисто.</p>
     <p><span class="t">сеть</span> — Wi-Fi <b>выключить</b>: полусеть подвешивает запрос шрифтов у движка, без сети он падает мгновенно. Оба файла лежат в одной папке, всё работает с диска. Корень сайта не открывать: <code>index.html</code> теряет <code>#musrara</code> и приземляется на дверь ◆ form.</p>
-    <p><span class="t">две вкладки</span> — 1: <code>klil.html</code> (эта колода, слайд 1). 2: <code>2907QR_Engine_8.html#musrara</code> — дверь ∴ demo уже выбрана, внизу поля строка «press ∴ begin below». Или без второй вкладки: клавиша <b>E</b> / большой ∴ на слайде 6 открывает движок поверх колоды; назад — ✕ в левом верхнем углу.</p>
-    <p><span class="t">прогон</span> (обязательно) — ∴ begin → услышать в колонках → ■ stop → F5 (хэш переживает перезагрузку, пины взводятся заново). Оставить на двери ∴ demo. Между выступлениями ноутбук мог уснуть: перед слотом разбудить, F5, короткий begin/stop, F5 ещё раз.</p>
-    <p><span class="t">в движке</span> — только мышью по нижней панели: <b>∴ begin · ↓ prime · → root · ◆ the form takes over</b>. Клавиатуру не трогать, ни в какое поле не щёлкать, «her configurations» не нажимать (уводит в кокпит). ↓ никогда дважды подряд: проглоченное нажатие движок сам повторит через 2,5 с, второе твоё — перескочит простое.</p>
+    <p><span class="t">две вкладки</span> — 1: <code>klil.html</code> (эта колода, слайд 1). 2: <code>2907QR_Engine_8.html#musrara</code> — дверь ∴ demo уже выбрана: вверху поля, первой строкой, — «press ∴ begin below — the sound starts at once»; сами кнопки — в панели внизу. Или без второй вкладки: клавиша <b>E</b> / большой ∴ на слайде 6 открывает движок поверх колоды; назад — ✕ в левом верхнем углу.</p>
+    <p><span class="t">прогон</span> (обязательно) — ∴ begin → услышать в колонках → ■ stop → F5 (хэш переживает перезагрузку; страница откроется тихой на двери ∴ demo; пины живут в памяти и взводятся при каждом ∴ begin, не при загрузке). Если движок открыт поверх колоды (E) — вместо F5 кнопка ↻ слева вверху: F5 перезагрузит саму колоду. Оставить на двери ∴ demo. На пробном ∴ begin: если картинка и звук разошлись — клавиши [ / ] по 20 мс (звук раньше картинки → [ , картинка раньше звука → ] ); значение запоминается на этой машине. Между выступлениями ноутбук мог уснуть: перед слотом разбудить, F5, короткий begin/stop, F5 ещё раз.</p>
+    <p><span class="t">в движке</span> — только мышью по нижней панели: <b>∴ begin · ↓ prime · → root · ◆ the form takes over</b>. Клавиатуру не трогать, ни в какое поле не щёлкать, «her configurations» не нажимать (уводит в кокпит; если всё-таки нажал — кнопка «✎ ← back» слева внизу возвращает на лицо, панель ∴ demo и звук на месте, ничего не перезапускать). После ◆ первая кнопка панели ещё подписана «■ stop» — это не стоп, а перезапуск демо с p = 41: не трогать. ↓ никогда дважды подряд: проглоченное нажатие движок сам повторит через 2,5 с, второе твоё — перескочит простое.</p>
     <p><span class="t">свет</span> — если слот перенесут на утро 17/10 (11:00): задёрнуть шторы, тёмное поле на свету выцветает; для колоды есть светлая тема — клавиша <b>T</b>.</p>
-    <p><span class="t">хронометраж</span> — слайды 1–5 ≈ 3:15 · живой блок ≈ 3:30 · слайды 7–10 ≈ 2:10 · всего ≈ 9:00, запас ≈ 1:00. Если опаздываешь — пропустить три → root: ◆ работает в любой момент, не дожидаясь p = 23. ◆ — не позже 2:30 живого времени.</p>
+    <p><span class="t">хронометраж</span> — слайды 1–5 ≈ 3:15 · живой блок ≈ 3:30 · слайды 7–10 ≈ 2:10 · всего ≈ 9:00, запас ≈ 1:00. Если опаздываешь — пропустить три → root: ◆ работает в любой момент, не дожидаясь p = 23 — но только ОДИН щелчок. ◆ — по плану ~1:20; чтобы уложиться в 3:30 — не позже 1:45 (форма = ровно 60 с + ~3 с затухания: тишина через ~64 с после щелчка, ещё ~6 с на «זהו» и ✕). Крайний предел — 2:30: тогда живой блок ≈ 4:10, весь показ ≈ 9:35, запаса ≈ 0:25.</p>
     <p><span class="t">клавиши колоды</span> — → / пробел — дальше · ← — назад · N — эти заметки (на телефоне: <code>klil.html#notes</code>) · T — тема · E — движок поверх слайда · ✕ в левом верхнем углу (или Esc, пока фокус в колоде) — закрыть движок. Стрелки ↑ ↓ колода не трогает.</p>
   </aside>
 </section>
@@ -245,8 +247,8 @@
   <svg class="orn" data-orn="ladder" viewBox="0 0 1400 420" aria-hidden="true"></svg>
   <div class="en">p = 41 · <span class="k">20 squares ○</span> · <span class="k">20 non-squares ×</span> · height is pitch · that is the whole scale</div>
   <aside class="notes">
-    <p>На экране лесенка: 40 знаков, тёплые точки ○ — квадраты, синие крестики × — не-квадраты; чем выше знак, тем выше звук. Сказать: <span class="say block">לוקחים מספר ראשוני, למשל 41. חצי מהמספרים ריבועים, חצי לא. כל מספר — שלב בסולם. זה כל הסולם.</span> (סולם — и лестница, и гамма: картинка читается без математики.)</p>
-    <p>Показать пальцем на одну точку и один крестик. Если спросят, что такое ריבוע: 2·2, 3·3 … и по кругу, как на часах: <span class="say">עברנו את 41? מתחילים מהתחלה, כמו בשעון.</span> Не углубляться: 45 секунд. Нажать →.</p>
+    <p>На экране лесенка: 40 знаков, тёплые точки ○ — квадраты, синие крестики × — не-квадраты; чем выше знак, тем выше звук. Сказать: <span class="say block">לוקחים מספר ראשוני, למשל ארבעים ואחת. חצי מהמספרים ריבועים, חצי לא. כל מספר — שלב בסולם. זה כל הסולם.</span> (סולם — и лестница, и гамма: картинка читается без математики.)</p>
+    <p>Показать пальцем на одну точку и один крестик. Если спросят, что такое ריבוע: 2·2, 3·3 … и по кругу, как на часах: <span class="say">עברנו את ארבעים ואחת? מתחילים מהתחלה, כמו בשעון.</span> (Число без существительного — в женском роде: ארבעים ואחת, не ארבעים ואחד.) Не углубляться: 45 секунд. Нажать →.</p>
   </aside>
 </section>
 
@@ -261,15 +263,15 @@
   <svg class="orn" data-orn="k4" viewBox="0 0 400 260" aria-hidden="true" style="width:min(46vmin,420px)"></svg>
   <div class="en">the last theorem of Lydia Goncharova · proved 2025 (Kiritchenko · Tsfasman · Vlăduț · Zakharevich) · arXiv:2403.16326<br>{1, 5, 9, 10} mod 41 — all six differences are squares · 25 such quadruples in 41 · every one sounds as a chord of four voices</div>
   <aside class="notes">
-    <p>На экране граф: четыре точки, все шесть рёбер — «полный» K4: все шесть разностей — квадраты (1, 5, 9, 10 по модулю 41: разности 4, 8, 9, 4, 5, 1 — все квадраты). Сказать: <span class="say block">למה? הדף מנגן משפט מתמטי: המשפט האחרון של לידיה גונצ׳רובה. היא מצאה נוסחה ולא הספיקה לפרסם. הוכיחו אותו ב-2025. לזכרה.</span></p>
-    <p>Пауза. Имя медленно: Ли-ди-я Гон-ча-ро-ва. Если одна улыбка о музыке: <span class="say">כל רביעייה כזאת — אקורד.</span> (רביעייה — и четвёрка, и квартет.) По-английски, если нужно: “proved in 2025, sounded here.” Больше ничего о математике. Нажать →.</p>
+    <p>На экране граф: четыре точки, все шесть рёбер — «полный» K4: все шесть разностей — квадраты (1, 5, 9, 10 по модулю 41: разности 4, 8, 9, 4, 5, 1 — все квадраты). Сказать: <span class="say block">למה? הדף מנגן משפט מתמטי: המשפט האחרון של לידיה גונצ׳רובה. היא מצאה נוסחה ולא הספיקה לפרסם. הוכיחו אותו באלפיים עשרים וחמש. לזכרה.</span> (משפט — здесь «теорема», не «предложение»; נוסחה — нус-ХА, формула; לא הספיקה לפרסם — не успела опубликовать; הוכיחו אותו — хо-ХИ-ху, доказали её; לזכרה — ле-зих-РА, в её память; год — אלפיים עשרים וחמש.)</p>
+    <p>Пауза. Имя медленно: Ли-ди-я Гон-ча-ро-ва. Если одна улыбка о музыке: <span class="say">כל רביעייה כזאת — אקורד.</span> (רביעייה — ре-ви-и-Я: и четвёрка, и квартет.) По-английски, если нужно: “proved in 2025, sounded here.” Больше ничего о математике. Нажать →.</p>
   </aside>
 </section>
 
 <!-- ======== 6 · live ======== -->
 <section class="slide" data-sec="210" id="live-slide">
   <div class="stamp">6 · 3:30 (0:30 words · ~3:00 sound)</div>
-  <div class="line he"><b>עכשיו מקשיבים.</b> שום דבר לא מוקלט.</div>
+  <div class="line he"><b>עכשיו מקשיבים.</b> אין הקלטה.</div>
   <ol class="steps he">
     <li>מתחילים.</li>
     <li>מורידים את המספר, מ-<span class="num">41</span> ל-<span class="num">23</span>.</li>
@@ -279,15 +281,15 @@
   <a class="door" id="door" href="2907QR_Engine_8.html?v=klil#musrara" target="_blank" rel="noopener"><span class="tri">∴</span> begin</a>
   <div class="en"><span class="k">∴ begin</span> → <span class="k">↓ prime</span> ×4 (41 → 37 → 31 → 29 → 23) → <span class="k">→ root</span> ×3 → <span class="k">◆ the form takes over</span> · about three minutes</div>
   <aside class="notes">
-    <p><b>Живой блок:</b> ~30 с слов + ~3 мин звука. Сначала прочесть со слайда: <span class="say block">עכשיו מקשיבים. שום דבר לא מוקלט. מתחילים. מורידים את המספר, מ-41 ל-23. מזיזים את השורש — איפה עומדים בתוך המספר. בסוף: תווים, לא אלתור.</span></p>
-    <p>Затем — в движок: Ctrl+Tab (Mac: Cmd+Option+→) во вкладку 2, <b>или</b> клавиша E — движок поверх колоды (щелчок по ∴ на слайде открывает его новой вкладкой — запасной путь, холодная загрузка). Дверь ∴ demo уже выбрана, внизу поля «press ∴ begin below». Дальше — ТОЛЬКО МЫШЬЮ по нижней панели.</p>
+    <p><b>Живой блок:</b> ~30 с слов + ~3 мин звука. Сначала прочесть со слайда: <span class="say block">עכשיו מקשיבים. אין הקלטה. מתחילים. מורידים את המספר, מארבעים ואחת לעשרים ושלוש. מזיזים את השורש — איפה עומדים בתוך המספר. בסוף: תווים, לא אלתור.</span></p>
+    <p>Затем — в движок: Ctrl+Tab (Mac: Cmd+Option+→) во вкладку 2, <b>или</b> клавиша E — движок поверх колоды (щелчок по ∴ на слайде — то же, что E; новой вкладкой — только Ctrl/Cmd+щелчок: запасной путь, холодная загрузка). Дверь ∴ demo уже выбрана: вверху поля — строка «press ∴ begin below». Мелкие строки внизу справа — названия голосов, когда они вступают; не читать. Дальше — ТОЛЬКО МЫШЬЮ по нижней панели.</p>
     <p><span class="t">0:00</span> щёлкнуть <b>∴ begin</b>. Звук сразу; титр «Nothing here is recorded. All of it is computed right now, from one prime number.» Молчать.<br>
     <span class="t">0:09</span> титр «Warm dots: squares. Blue crosses: non-squares. Height is pitch.» — можно сказать: <span class="say">נקודות — ריבועים, איקסים — לא.</span><br>
-    <span class="t">0:22</span> строка-подсказка «press ↓ …». Щёлкнуть <b>↓ prime</b> ОДИН раз и ждать ~2 с: титр «p = 37 · 18 squares, 18 non-squares · that is the whole scale», подсказка «↓ once more». Ещё раз — p = 31 (15/15), ещё — 29 (14/14), ещё — 23: титр «p = 23 · 11 squares, 11 non-squares · 22 degrees, 22 letters» (9 с) и подсказка «press → …». Четыре щелчка, каждый — только после того, как титр назвал новое p; ~12 с между ними, 41 пусть позвучит ~35 с. Между щелчками одно слово: <span class="say">פחות.</span> На 23 — сказать вслух: <span class="say">עשרים ושתיים דרגות — כמו עשרים ושתיים אותיות.</span> Никто с матраса не читает титр — эта фраза и есть момент.<br>
+    <span class="t">0:22</span> строка-подсказка «press ↓ …». Щёлкнуть <b>↓ prime</b> ОДИН раз и ждать ~2 с: титр «p = 37 · 18 squares, 18 non-squares · that is the whole scale», подсказка «↓ once more». Ещё раз — p = 31 (15/15), ещё — 29 (14/14), ещё — 23: титр «p = 23 · 11 squares, 11 non-squares · 22 degrees, 22 letters» (9 с) и подсказка «press → …». Четыре щелчка, каждый — только после того, как титр назвал новое p; ~12 с между ними. 41 звучит ~22 с — до подсказки, не дольше; тогда 37 ≈ 0:24, 31 ≈ 0:36, 29 ≈ 0:48, 23 ≈ 1:00. Между щелчками одно слово: <span class="say">פחות.</span> На 23 — сказать вслух: <span class="say">עשרים ושתיים דרגות — כמו עשרים ושתיים אותיות.</span> (דרגות — дра-ГОТ, ступени гаммы; и דרגות, и אותיות женского рода — дважды «эсрим у-штаим».) Никто с матраса не читает титр — эта фраза и есть момент.<br>
     <span class="t">~1:00</span> <b>→ root</b> три раза, каждый после титра «r = N · a square here ○ / not a square here ×» и подсказки «→ once more». После третьего — «press ◆ the form takes over below».<br>
-    <span class="t">~1:20</span> щёлкнуть <b>◆ the form takes over</b> (не позже 2:30 живого времени). Кнопка станет «◆ form running»; титр «They stop improvising and play a score they just composed. Nothing restarts.», подсказка «listen — it ends by itself in about a minute». Одна фраза: <span class="say">תווים, לא אלתור.</span> — и МОЛЧАТЬ минуту. Если кнопка показала «◆ no score — press again» — щёлкнуть ещё раз.<br>
-    <span class="t">~2:25–2:45</span> форма кончается сама: затухание ~3 с в тишину, движок стоит на паузе, титр «The form has ended by itself.», подсказка «∴ begin plays it again». <b class="warn">НЕ нажимать ∴ begin</b> — это заново три минуты. Выдержать 3 с тишины, сказать: <span class="say">זהו.</span> щёлкнуть <b>✕ back to the cards</b> в левом верхнем углу (или Ctrl+Tab во вкладку 1) — обратно в колоду; она стоит на слайде 6, нажать → на слайд 7. (Esc закрывает движок, только пока фокус в колоде, а после щелчков по кнопкам он в движке.)</p>
-    <p><b>Если что-то не так.</b> Подсказка «click on the picture once, then press the arrow again» — щёлкнуть по картинке и нажать кнопку снова. ↓ никогда дважды подряд — машина сама повторит через 2,5 с («↓ — again: the first press was lost to a scene change»). Если p перескочил через одно простое (движок иногда шагает сам, когда поток секций исчерпан) — ничего страшного: подсказка скажет «↓ once more» или «↑ back up, to 23», просто следуй ей. Тишина на старте — оверлей «tap to enable sound»: щёлкнуть по нему, проверить mute и канал микшера. Картинка отстаёт от звука — клавиши ] / [ по 20 мс. Опаздываешь — ◆ можно нажать в любой момент, не дожидаясь p = 23. В двери ◆ form кнопка «■ stop · ∴» — это полный стоп; оставаться на двери ∴ demo.</p>
+    <span class="t">~1:20</span> щёлкнуть <b>◆ the form takes over</b> (по бюджету — не позже 1:45; крайний предел 2:30: тишина наступает через ~64 с после щелчка). Кнопка станет «◆ form running»; титр «They stop improvising and play a score they just composed. Nothing restarts.», подсказка «listen — it ends by itself in about a minute». Одна фраза: <span class="say">תווים, לא אלתור.</span> — и МОЛЧАТЬ минуту. Если кнопка показала «◆ no score — press again» — щёлкнуть ещё раз. Если показала «◆ form running» — больше НЕ нажимать: движок второй щелчок не блокирует и сочинит вторую партитуру поверх первой; нажал дважды случайно — ничего не трогать, кончится само. <b class="warn">После ◆ первая кнопка панели по-прежнему подписана «■ stop» — это НЕ стоп</b>: щелчок по ней запустит демонстрацию заново с p = 41. До титра «The form has ended by itself.» в панели не трогать ничего.<br>
+    <span class="t">~2:25–2:45</span> форма кончается сама: сразу титр «The form has ended by itself.» (держится 7 с), подсказка «∴ begin plays it again» и кнопка снова «◆ the form takes over»; звук гаснет ~3 с, затем движок встаёт на паузу и молчит. <b class="warn">Первую кнопку панели не трогать</b>: она всё ещё показывает «■ stop», но это не стоп — щелчок запустит всю демонстрацию заново с p = 41, ещё три минуты. Выдержать 3 с тишины — считать от тишины, не от титра, — сказать: <span class="say">זהו.</span> щёлкнуть <b>✕ back to the cards</b> в левом верхнем углу (или Ctrl+Tab во вкладку 1) — обратно в колоду; она стоит на слайде 6, нажать → на слайд 7. (Esc закрывает движок, только пока фокус в колоде, а после щелчков по кнопкам он в движке.)</p>
+    <p><b>Если что-то не так.</b> Подсказка «click on the picture once, then press the arrow again» — щёлкнуть по картинке и нажать кнопку снова. ↓ никогда дважды подряд — машина сама повторит через 2,5 с («↓ — again: the first press was lost to a scene change»). Сам движок p в эти минуты не меняет (полный круг на 23 — ~6 мин). Если p перескочил через одно простое — второй щелчок лёг после того, как первый уже сработал; ничего страшного: ~2 с после последнего щелчка титр назовёт p, подсказка скажет «↓ once more» или «↑ back up, to 23» — следуй ей, по одному щелчку, не раньше титра. Тишина на старте — оверлей «tap to enable sound»: щёлкнуть по нему, проверить mute и канал микшера. Картинка и звук разошлись — клавиши [ / ] по 20 мс (только пока демо идёт и при фокусе в движке — щёлкнуть по картинке): звук раньше картинки → [ , картинка раньше звука → ] ; титр «picture ↔ sound offset ±N ms» подтвердит, значение запоминается в этом браузере — лучше выставить на саундчеке. Опаздываешь — ◆ можно нажать в любой момент, не дожидаясь p = 23. В двери ◆ form большая кнопка «■ stop …» («■ stop · ∴» пока идёт импровизация, «■ stop · 0:45 left» пока идёт форма) — полный и мгновенный стоп; оставаться на двери ∴ demo.</p>
   </aside>
 </section>
 
@@ -295,10 +297,10 @@
 <section class="slide" data-sec="10">
   <div class="stamp">7 · 0:10</div>
   <div class="line he">זה נגמר לבד.</div>
-  <div class="small he">הם הפסיקו לאלתר וניגנו לפי תווים שכתבו הרגע.</div>
-  <div class="en">it ended by itself — they stopped improvising and played a score they had just written</div>
+  <div class="small he">הקולות הפסיקו לאלתר וניגנו לפי תווים שכתבו הרגע.</div>
+  <div class="en">it ended by itself — the voices stopped improvising and played a score they had just written</div>
   <aside class="notes">
-    <p>Сразу после тишины, чтобы зал знал: тишина — это конец, а не сбой. Тихо: <span class="say">זה נגמר לבד. הם הפסיקו לאלתר וניגנו לפי תווים שכתבו הרגע.</span> Нажать →.</p>
+    <p>Сразу после тишины, чтобы зал знал: тишина — это конец, а не сбой. Тихо: <span class="say">זה נגמר לבד. הקולות הפסיקו לאלתר וניגנו לפי תווים שכתבו הרגע.</span> Нажать →.</p>
   </aside>
 </section>
 
@@ -331,7 +333,7 @@
   <div class="en">tell me what you heard — not what is right · and whoever wants to press the buttons is welcome</div>
   <aside class="notes">
     <p>На экране нарисована нижняя панель движка. Сказать: <span class="say block">מה אני מבקש מכם: תגידו לי מה שמעתם. לא מה נכון — מה שמעתם. ומי שרוצה ללחוץ על הכפתורים — מוזמן.</span></p>
-    <p>Показать на кнопки: “these five buttons, with the mouse — anyone can do the whole walk.” После выступления оставить ноутбук на движке: он молчит, пока кто-то не нажмёт ∴ begin. Нажать →.</p>
+    <p>Показать на кнопки: “these five buttons, with the mouse — anyone can do the whole walk.” После выступления (после слайда 10) оставить ноутбук на движке — но сначала ↻ слева вверху (или F5 во вкладке 2): после доигравшей формы первая кнопка ещё читает «■ stop», после перезагрузки — снова «∴ begin». Движок молчит, пока кто-то не нажмёт ∴ begin; сцена взводится заново при каждом begin. Нажать →.</p>
   </aside>
 </section>
 
@@ -341,14 +343,14 @@
   <div class="small he muted">מספר ראשוני אחד: חצי ריבועים, חצי לא — זה כל הסולם.</div>
   <div class="gap"></div>
   <div class="lead he">שאלה אליכם:</div>
-  <div class="big he">מה חסר כאן כדי שזה יהפוך ליצירה?</div>
+  <div class="big he">מה חסר כאן כדי שזה יהיה יצירה?</div>
   <div class="gap"></div>
   <div class="line he">תודה.</div>
   <svg class="orn" data-orn="row" viewBox="0 0 1400 60" aria-hidden="true"></svg>
   <div class="url"><a href="https://jacobhieronymus.github.io/qr-engine/2907QR_Engine_8.html#musrara" target="_blank" rel="noopener">jacobhieronymus.github.io/qr-engine/2907QR_Engine_8.html#musrara</a></div>
   <div class="en">What is missing here for this to become a work? · thank you</div>
   <aside class="notes">
-    <p>Прочесть вопрос и замолчать: <span class="say">שאלה אליכם: מה חסר כאן כדי שזה יהפוך ליצירה?</span> Ждать ответов — это и есть цель семинара, היכרות. Если зал молчит — второй вопрос: <span class="say">מה שמעתם — מתמטיקה, או מוזיקה?</span> и честный ответ: <span class="say">אני עוד לא יודע. בשביל זה באתי.</span> Потом: <span class="say">תודה.</span></p>
+    <p>Прочесть вопрос и замолчать: <span class="say">שאלה אליכם: מה חסר כאן כדי שזה יהיה יצירה?</span> Ждать ответов — это и есть цель семинара, היכרות. Если зал молчит — второй вопрос: <span class="say">מה שמעתם — מתמטיקה, או מוזיקה?</span> и честный ответ: <span class="say">אני עוד לא יודע. בשביל זה באתי.</span> Потом: <span class="say">תודה.</span></p>
     <p>Внизу адрес движка для телефонов — именно файл с #musrara, не корень сайта. На телефоне: снять беззвучный режим, нажать ∴ begin. Колоду не закрывать, движок не трогать.</p>
   </aside>
 </section>
@@ -360,8 +362,8 @@
 <div id="hint" class="mono">→ next · ← back · N notes · T theme · E engine</div>
 
 <div id="live" hidden>
-  <div class="x"><button id="live-back" title="Esc">✕ back to the cards</button><button id="live-reload" title="reload the engine">↻</button></div>
-  <iframe id="engine" title="QR Engine — the ∴ demo door" allow="autoplay; fullscreen"></iframe>
+  <div class="x"><button id="live-back" title="Esc — only until the first click in the engine">✕ back to the cards</button><button id="live-reload" title="reload the engine">↻</button></div>
+  <iframe id="engine" title="QR Engine — the ∴ demo door" allow="autoplay *; fullscreen *; screen-wake-lock *"></iframe>
 </div>
 
 <script>
@@ -416,21 +418,27 @@
     else { slides.forEach(function(s,j){ s.classList.toggle('on', j===cur); }); var c=cur; cur=-1; show(c<0?0:c); } }
   function fromHash(){ var h=(location.hash||'').replace('#','').toLowerCase();
     if(h==='notes'){ setNotes(true); return; }
-    if(document.body.classList.contains('pv')) setNotes(false);
+    if(document.body.classList.contains('pv')){ document.body.classList.remove('pv'); cur=-1; }   // leaving the notes by a numeric hash: show() below re-syncs every card
     var n=parseInt(h,10); show(isFinite(n)?n-1:0, false); }
 
   /* ---- theme ---- */
-  function setTheme(t){ if(t==='light') document.documentElement.setAttribute('data-theme','light'); else document.documentElement.removeAttribute('data-theme');
-    try{ localStorage.setItem('klil_theme', t||'dark'); }catch(e){} }
-  try{ setTheme(/light/.test(location.search) ? 'light' : (localStorage.getItem('klil_theme')||'dark')); }catch(e){}
+  function setTheme(t, save){ if(t==='light') document.documentElement.setAttribute('data-theme','light'); else document.documentElement.removeAttribute('data-theme');
+    if(save!==false){ try{ localStorage.setItem('klil_theme', t||'dark'); }catch(e){} } }
+  try{ setTheme(/light/.test(location.search) ? 'light' : (localStorage.getItem('klil_theme')||'dark'), false); }catch(e){}   // ?light is for a look, never remembered
 
   /* ---- the engine over the deck ---- */
   var live=document.getElementById('live'), frame=document.getElementById('engine');
   var reloads=0;
   function hookEsc(){ try{ frame.contentWindow.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLive(); }); }catch(e){} }   // same-origin only (the site); from disk the ✕ is the way back
   frame.addEventListener('load', hookEsc);
-  function openLive(){ if(!frame.getAttribute('src')) frame.setAttribute('src', ENGINE); live.hidden=false; setTimeout(function(){ try{ frame.focus(); }catch(e){} },50); }
-  function closeLive(){ live.hidden=true; try{ frame.blur(); }catch(e){} window.focus(); }
+  // the screen must not sleep while the engine plays under the deck; the frame's own lock needs delegation, this one does not
+  var wl=null;
+  function wlAcq(){ try{ if(!wl && navigator.wakeLock && !live.hidden && document.visibilityState==='visible') navigator.wakeLock.request('screen').then(function(w){ wl=w; w.addEventListener('release', function(){ wl=null; }); }).catch(function(){}); }catch(e){} }
+  function wlRel(){ try{ if(wl){ wl.release(); wl=null; } }catch(e){} }
+  document.addEventListener('visibilitychange', wlAcq);
+  // focus stays in the deck: Esc closes until the first click lands in the engine (from disk the frame is a foreign origin; the ✕ is the way back)
+  function openLive(){ if(!frame.getAttribute('src')) frame.setAttribute('src', ENGINE); live.hidden=false; wlAcq(); }
+  function closeLive(){ live.hidden=true; wlRel(); try{ frame.blur(); }catch(e){} window.focus(); }
   document.getElementById('live-back').onclick=closeLive;
   document.getElementById('live-reload').onclick=function(){ reloads++; frame.setAttribute('src', ENGINE.replace('#','&r='+reloads+'#')); };   // a fresh src: cross-origin frames refuse location.reload()
   var door=document.getElementById('door');
@@ -439,31 +447,31 @@
   /* ---- keys: never ↑ ↓ — those belong to the engine's prime ---- */
   window.addEventListener('keydown', function(e){
     if(e.metaKey||e.ctrlKey||e.altKey) return;
-    var k=e.key;
+    var k=e.key, c=e.code||'';   // the physical key too: under the Hebrew layout N is מ, T is א, E is ק, F is כ
     if(!live.hidden){ if(k==='Escape'){ e.preventDefault(); closeLive(); } return; }
     var notes=document.body.classList.contains('pv');
-    if(k==='n'||k==='N'||k==='ת'||k==='מ'){ e.preventDefault(); setNotes(!notes); return; }
-    if(k==='t'||k==='T'||k==='א'){ e.preventDefault(); setTheme(document.documentElement.getAttribute('data-theme')==='light'?'dark':'light'); return; }
-    if(k==='e'||k==='E'||k==='ק'){ e.preventDefault(); if(notes) setNotes(false); openLive(); return; }
+    if(k==='n'||k==='N'||c==='KeyN'){ e.preventDefault(); setNotes(!notes); return; }
+    if(k==='t'||k==='T'||c==='KeyT'){ e.preventDefault(); setTheme(document.documentElement.getAttribute('data-theme')==='light'?'dark':'light'); return; }
+    if(k==='e'||k==='E'||c==='KeyE'){ e.preventDefault(); if(notes) setNotes(false); openLive(); return; }
     if(notes) return;
     if(k==='ArrowRight'||k===' '||k==='PageDown'||k==='Enter'){ e.preventDefault(); next(); }
     else if(k==='ArrowLeft'||k==='PageUp'||k==='Backspace'){ e.preventDefault(); prev(); }
     else if(k==='Home'){ e.preventDefault(); show(0); }
     else if(k==='End'){ e.preventDefault(); show(N-1); }
     else if(k==='Escape'){ if(document.fullscreenElement) return; }
-    else if(k==='f'||k==='F'){ e.preventDefault(); try{ if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); }catch(err){} }
+    else if(k==='f'||k==='F'||c==='KeyF'){ e.preventDefault(); try{ if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); }catch(err){} }
   });
 
   /* ---- touch: swipe, and a tap on the field (not on a link) goes forward ---- */
-  var tx=null, ty=null;
+  var tx=null, ty=null, lastTouch=0;
   document.addEventListener('touchstart', function(e){ if(document.body.classList.contains('pv')||!live.hidden) return; var t=e.touches[0]; tx=t.clientX; ty=t.clientY; }, {passive:true});
-  document.addEventListener('touchend', function(e){ if(tx==null||document.body.classList.contains('pv')||!live.hidden) return;
+  document.addEventListener('touchend', function(e){ lastTouch=Date.now(); if(tx==null||document.body.classList.contains('pv')||!live.hidden) return;
     var t=e.changedTouches[0], dx=t.clientX-tx, dy=t.clientY-ty; tx=ty=null;
     if(Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)*1.5){ if(dx<0) next(); else prev(); return; }
     if(Math.abs(dx)<10 && Math.abs(dy)<10){ var a=e.target.closest && e.target.closest('a,button'); if(a) return;
       if(t.clientX<window.innerWidth*0.2) prev(); else next(); } }, {passive:true});
   document.addEventListener('click', function(e){ if(document.body.classList.contains('pv')||!live.hidden) return;
-    if(e.target.closest && e.target.closest('a,button')) return; if('ontouchstart' in window) return;
+    if(e.target.closest && e.target.closest('a,button')) return; if(Date.now()-lastTouch<700) return;   // the synthetic click after a tap, not a touch-capable laptop's mouse
     if(e.clientX<window.innerWidth*0.2) prev(); else next(); });
 
   window.addEventListener('hashchange', fromHash);
