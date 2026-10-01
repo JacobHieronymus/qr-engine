@@ -66,6 +66,10 @@
   #hud .row { display:flex; justify-content:space-between; gap:8px; }
   /* the film: drafts of the visuals to come, laid over the engine's field as light — black is transparent, white stays. Silent: the sound is the room's. */
   #film { position:fixed; inset:0; width:100%; height:100%; object-fit:contain; z-index:3; pointer-events:none; opacity:0; transition:opacity 2s; mix-blend-mode:screen; background:transparent; }
+  /* stills: single frames or combinations of frames, side by side, on black */
+  #stills { position:fixed; inset:0; z-index:3; display:flex; align-items:center; justify-content:center; gap:1.2vw; padding:6vh 3vw 26vh; background:#000;
+    pointer-events:none; opacity:0; transition:opacity 2s; }
+  #stills img { flex:0 1 auto; min-width:0; max-width:100%; max-height:100%; object-fit:contain; }
   /* the door: in the room, the numbers the machine may read and a line it may write — for Claude in the browser's side panel */
   #door { position:fixed; left:12px; top:16vh; z-index:7; width:min(46vw, 520px); font-family:'IBM Plex Mono', monospace; font-size:clamp(10px, 1.3vmin, 14px);
     line-height:1.6; color:var(--muted); letter-spacing:.03em; opacity:0; pointer-events:none; transition:opacity 1.6s; text-shadow:0 1px 8px rgba(0,0,0,.9); }
@@ -85,6 +89,7 @@
 <iframe id="stage" title="QR Engine — the ∴ demo door" allow="autoplay *; fullscreen *; screen-wake-lock *; microphone *; camera *"></iframe>
 
 <video id="film" muted playsinline preload="auto"></video>
+<div id="stills"></div>
 <div id="titles"></div>
 <div id="mark"></div>
 <form id="door" autocomplete="off">
@@ -128,6 +133,10 @@
   var $=function(id){ return document.getElementById(id); };
 
   /* ================= THE SCORE =================
+     Texts taken from the author's earlier works: «The sounds you hear…» and the ritual with his mother (Multiplication of
+     Light, 2025), the five words (shana tova, the school's first film), «Consciousness holds the unstable in balance» and
+     «Here everyone may insert their own response» (Collective Reality), «Indeed is the beauty of flight» (the school's second film).
+     film: {src} a silent clip, or {img:[…], dur} one frame or a combination of frames from video/stills/, side by side.
      film: silent pictures from video/ beside this page (a local folder, not in the repository) — at a second of
      the chapter, at a level 0–1; blend 'normal' (the picture takes the whole field for its seconds) or 'screen'
      (black is transparent — only while the engine's field is dark: its ground turns light on a residue, and
@@ -142,29 +151,36 @@
               [36,'thought','One law. Two voices. Nothing else is needed.'],
               [50,'thought','Noble simplicity.'],
               [64,'',      'Nothing here is recorded. It is all computed now, from one prime number. Only the room is being recorded.'] ] },
-    { name:'the descent', engine:[ {at:2,cmd:'key',key:'ArrowDown'}, {at:26,cmd:'key',key:'ArrowDown'}, {at:50,cmd:'key',key:'ArrowDown'}, {at:74,cmd:'key',key:'ArrowDown'} ],
+    { name:'the descent', film:[ {at:40, img:['mol-dots-67.jpg'], dur:12} ], engine:[ {at:2,cmd:'key',key:'ArrowDown'}, {at:26,cmd:'key',key:'ArrowDown'}, {at:50,cmd:'key',key:'ArrowDown'}, {at:74,cmd:'key',key:'ArrowDown'} ],
       lines:[ [0,'',      'The number changes. Not the height — the number of rungs between the floor and the sky.'],
               [34,'verse','Fewer rungs. Not less sky.'],
+              [56,'thought','Joy. Truth. Beauty. Freedom. Love.'],
               [80,'',     'Twenty-three. Twenty-two degrees — twenty-two letters.'] ] },
-    { name:'the root', film:[ {at:44, src:'video/multiplication-of-light.mp4', level:1, blend:'normal'} ], engine:[ {at:3,cmd:'key',key:'ArrowRight'}, {at:24,cmd:'key',key:'ArrowRight'}, {at:45,cmd:'key',key:'ArrowRight'}, {at:66,cmd:'key',key:'ArrowRight'}, {at:87,cmd:'key',key:'ArrowRight'} ],
+    { name:'the root', film:[ {at:23, img:['mol-face.jpg','mol-eyes.jpg'], dur:12}, {at:76, img:['mol-eyes-dark.jpg'], dur:12} ], engine:[ {at:3,cmd:'key',key:'ArrowRight'}, {at:24,cmd:'key',key:'ArrowRight'}, {at:45,cmd:'key',key:'ArrowRight'}, {at:66,cmd:'key',key:'ArrowRight'}, {at:87,cmd:'key',key:'ArrowRight'} ],
       lines:[ [0,'',       'The root: where you stand on the vertical.'],
-              [16,'',      'Four numbers, six differences between them — and all six are squares.'],
-              [36,'',      'Lydia Goncharova found the formula and did not live to publish it. It was proved in 2025. This is for her.'],
-              [54,'thought','Truth is not composed. It is found — and not found alone.'],
-              [72,'thought','One voice — of beauty and of reason. What reason counts, beauty hears.'],
+              [12,'',      'Four numbers, six differences between them — and all six are squares.'],
+              [24,'',      'The sounds you hear are the mathematics of my mother.'],
+              [37,'',      'Lydia Goncharova, 1946–2020. She found the formula and did not live to publish it. It was proved in 2025.'],
+              [52,'thought','Truth is not composed. It is found — and not found alone.'],
+              [64,'thought','One voice — of beauty and of reason. What reason counts, beauty hears.'],
+              [77,'verse', '— Are you exactly my mom? — Yes, I’m exactly your mom.', 10],
               [90,'thought','A clear image: the law seen at once, whole, in one glance.'],
-              [106,'',     'If you like — sing one word. Any note you hear.', 24, 'sing'] ] },
-    { name:'the room', film:[ {at:26, src:'video/bcb-balance.mp4', level:1, blend:'normal'} ], engine:[], reverse:true, machineAt:50,
+              [102,'',     'Here everyone may insert their own response — absolutely anything.', 8],
+              [112,'',     'If you like — sing one word. Any note you hear.', 24, 'sing'] ] },
+    { name:'the room', film:[ {at:22, img:['mol-split.jpg','bcb-one-leg.jpg'], dur:14} ], engine:[], reverse:true, machineAt:50,
       lines:[ [1,'',       'This is the room, played backwards. Everything the microphone has heard since the first snap.'],
               [20,'',      'Balance. The number runs forward, the room runs back — they meet in this minute.'],
-              [36,'',      'Eleven squares, eleven not. In every prime the two halves are equal — exactly.'],
+              [30,'thought','Consciousness holds the unstable in balance.'],
+              [40,'',      'Eleven squares, eleven not. In every prime the two halves are equal — exactly.'],
               [66,'thought','It sounds like this because you are here. Every breath in this room is in this scale.'],
               [84,'thought','Music is the spirit of the time. Not about time — it is the now: eighty-four beats a minute, this evening, this room.'] ] },
-    { name:'the form', film:[ {at:96, src:'video/bcb-white-birds.mp4', level:1, blend:'normal'}, {at:106, src:'video/bfs-6.mp4', level:1, blend:'normal'} ], engine:[ {at:0, cmd:'form', seconds:150} ], reverseFade:25,
+    { name:'the form', film:[ {at:42, img:['bloomfield.jpg','beach-lights.jpg'], dur:13}, {at:72, img:['ory-white.jpg','mol-arms.jpg','beach-raised.jpg'], dur:16},
+                           {at:96, src:'video/bcb-white-birds.mp4', level:1, blend:'normal'}, {at:106, src:'video/bfs-6.mp4', level:1, blend:'normal'} ], engine:[ {at:0, cmd:'form', seconds:150} ], reverseFade:25,
       lines:[ [3,'',      'They stop improvising and play a score they have just written. Nothing restarts.'],
               [45,'verse','All that was — now an order. All that will be — already here.'],
               [100,'bird','A white bird.'],
-              [112,'bird','No rungs. The whole sky.'] ] },
+              [112,'bird','No rungs. The whole sky.'],
+              [132,'bird','Indeed is the beauty of flight.'] ] },
     { name:'silence', engine:[], final:true,
       lines:[ [6,'last','This is a draft.'] ] }
   ];
@@ -327,8 +343,18 @@
   doorLine.addEventListener('change', doorSay);
   /* the film */
   var film=$('film'), filmOut=null;
-  function hideFilm(sec){ clearTimeout(filmOut); film.style.transitionDuration=sec+'s'; film.style.opacity=0; $('h-film').textContent='—'; }
+  var stills=$('stills');
+  function hideFilm(sec){ clearTimeout(filmOut); film.style.transitionDuration=sec+'s'; film.style.opacity=0; stills.style.transitionDuration=sec+'s'; stills.style.opacity=0; $('h-film').textContent='—'; }
+  function showStills(f){
+    clearTimeout(filmOut); film.style.opacity=0; stills.innerHTML=''; var left=f.img.length, ok=0;
+    f.img.forEach(function(src){ var im=new Image(); im.onload=function(){ ok++; done(); }; im.onerror=function(){ try{ im.remove(); }catch(e){} done(); }; im.src='video/stills/'+src; stills.appendChild(im); });
+    function done(){ if(--left>0) return; if(!ok){ $('h-film').textContent='missing stills'; return; }
+      stills.style.transitionDuration='2s'; stills.style.opacity=f.level==null?1:f.level; $('h-film').textContent=f.img.join(' + ').replace(/\.jpg/g,'')+' · '+(f.dur||10)+'s';
+      filmOut=setTimeout(function(){ hideFilm(2); }, ((f.dur||10)-2)*1000); }
+  }
   function showFilm(f){
+    if(f.img){ showStills(f); return; }
+    stills.style.opacity=0;
     clearTimeout(filmOut); film.onerror=function(){ hideFilm(0.3); $('h-film').textContent='missing: '+f.src; };
     film.onloadedmetadata=function(){ var d=film.duration||0; film.style.transitionDuration='2s'; film.style.mixBlendMode=f.blend||'screen'; film.style.opacity=f.level==null?1:f.level; $('h-film').textContent=f.src.replace('video/','')+' · '+d.toFixed(0)+'s';
       filmOut=setTimeout(function(){ hideFilm(2); }, Math.max(0,(d-2))*1000); };
