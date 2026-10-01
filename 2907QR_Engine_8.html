@@ -22936,5 +22936,33 @@ const _MUSRARA = /musrara/.test((typeof location!=='undefined' && location.hash 
   }
 })();
 </script>
+
+<script>
+/* (01.10) THE BRIDGE — for tiyuta.html, the ten minutes in Klil. The piece runs the engine
+   inside a frame; from disk the frame is a foreign origin, so nothing in it can be touched
+   from outside except by message. These are the only words it understands: begin, stop,
+   key (one of the arrows, as a press), form (a score of N seconds takes over), cues (the
+   «press ↓» prompts on or off — the piece has its own hand and its own titles), state (a
+   reply: p, r, running, the demonstration, the form). Nothing here starts by itself. */
+(function(){
+  var quiet=null;
+  function rowButton(prefix){ try{ var bs=document.querySelectorAll('#face-row button'); for(var i=0;i<bs.length;i++) if(bs[i].textContent.indexOf(prefix)===0) return bs[i]; }catch(e){} return null; }
+  window.addEventListener('message', function(ev){
+    var m=ev&&ev.data; if(!m || m.qr!=='tiyuta') return;
+    try{
+      if(m.cmd==='begin'){ if(!window._demoOn){ var b=rowButton('∴ begin'); if(b) b.click(); else if(window._qrDemo) window._qrDemo(); } }
+      else if(m.cmd==='stop'){ if(window._qrDemoStop) window._qrDemoStop(); var s=rowButton('■ stop'); if(s) s.textContent='∴ begin'; }
+      else if(m.cmd==='key'){ try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){} window.dispatchEvent(new KeyboardEvent('keydown',{key:String(m.key),bubbles:true})); }
+      else if(m.cmd==='form'){ var T=Math.max(20, Math.min(600, +m.seconds||60)); if(window._formOn) return;
+        window._demoFormOn=true; if(window._qrFormCreate) window._qrFormCreate(T);
+        setTimeout(function(){ try{ var Fp=window._qrFormPlan; if(Fp&&Fp.plan&&Fp.plan.length){ window._qrFormStart(); var f=rowButton('◆'); if(f) f.textContent='◆ form running'; } }catch(e){} },160); }
+      else if(m.cmd==='cues'){ if(m.on){ if(quiet){ clearInterval(quiet); quiet=null; } } else if(!quiet){ quiet=setInterval(function(){ window._demoCue=null; },80); } }
+      else if(m.cmd==='state'){ var st={qr:'tiyuta', state:{ p:(typeof _liveP==='function')?_liveP():(state&&state.p), r:(typeof _liveR==='function')?_liveR():(state&&state.r),
+          running:!!(typeof state!=='undefined'&&state&&state.running&&!state.paused), demo:!!window._demoOn, form:!!window._formOn, msg:(window._demoMsg&&window._demoMsg.text)||null }};
+        if(ev.source && ev.source.postMessage) ev.source.postMessage(st, '*'); }
+    }catch(e){}
+  });
+})();
+</script>
 </body>
 </html>
