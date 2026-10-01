@@ -22942,7 +22942,8 @@ const _MUSRARA = /musrara/.test((typeof location!=='undefined' && location.hash 
    inside a frame; from disk the frame is a foreign origin, so nothing in it can be touched
    from outside except by message. These are the only words it understands: begin, stop,
    key (one of the arrows, as a press), form (a score of N seconds takes over), cues (the
-   «press ↓» prompts on or off — the piece has its own hand and its own titles), state (a
+   «press ↓» prompts on or off — the piece has its own hand and its own titles), bare (the
+   bottom bar away, the field takes the whole window), state (a
    reply: p, r, running, the demonstration, the form). Nothing here starts by itself. */
 (function(){
   var quiet=null;
@@ -22956,6 +22957,7 @@ const _MUSRARA = /musrara/.test((typeof location!=='undefined' && location.hash 
       else if(m.cmd==='form'){ var T=Math.max(20, Math.min(600, +m.seconds||60)); if(window._formOn) return;
         window._demoFormOn=true; if(window._qrFormCreate) window._qrFormCreate(T);
         setTimeout(function(){ try{ var Fp=window._qrFormPlan; if(Fp&&Fp.plan&&Fp.plan.length){ window._qrFormStart(); var f=rowButton('◆'); if(f) f.textContent='◆ form running'; } }catch(e){} },160); }
+      else if(m.cmd==='bare'){ var f=document.getElementById('face'); if(f){ f.style.display=m.on?'none':''; document.documentElement.style.setProperty('--face-h', m.on?'0px':Math.round(f.getBoundingClientRect().height)+'px'); } try{ window.dispatchEvent(new Event('resize')); }catch(e){} }   // the bar is the hand's; the piece has another hand
       else if(m.cmd==='cues'){ if(m.on){ if(quiet){ clearInterval(quiet); quiet=null; } } else if(!quiet){ quiet=setInterval(function(){ window._demoCue=null; },80); } }
       else if(m.cmd==='state'){ var st={qr:'tiyuta', state:{ p:(typeof _liveP==='function')?_liveP():(state&&state.p), r:(typeof _liveR==='function')?_liveR():(state&&state.r),
           running:!!(typeof state!=='undefined'&&state&&state.running&&!state.paused), demo:!!window._demoOn, form:!!window._formOn, msg:(window._demoMsg&&window._demoMsg.text)||null }};
