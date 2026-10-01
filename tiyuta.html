@@ -16,6 +16,7 @@
      At the end of the root the room is invited to sing a word; the turn into the room returns it reversed.
      In the room, if tiyuta.key.js lies beside this page and there is a network, Claude is sent the numbers
      of the evening (never the sound) and may say one line. No key, no network, no answer — no line.
+     Film: silent excerpts of the author's earlier works come over the field as light (see SCORE: film) — drafts of the visuals to come.
      The same numbers also stand on the page in the room (top left) with one input under them — the door:
      a Claude in the browser's side panel can read them and type its line there; Enter puts it on the field.
      Keys: space = a snap (rehearsal) · H = the hand's panel · B = the engine's bar, shown / hidden · R = reset · F = fullscreen. */
@@ -32,6 +33,7 @@
 
   /* the titles: the piece's own words, low on the field — the engine's captions live at the top */
   #titles { position:fixed; left:0; right:0; bottom:9vh; padding:0 8vw; text-align:center; pointer-events:none; z-index:5; }
+  body.barred #titles { bottom:23vh; }   /* the engine's bar is shown: the words stand above it */
   #titles .line { font-size:clamp(18px, 3.2vmin, 48px); line-height:1.3; color:var(--fg); opacity:0; transition:opacity 1.2s;
     text-shadow:0 1px 14px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.9); max-width:1100px; margin:0 auto; }
   #titles .line.on { opacity:1; }
@@ -62,6 +64,8 @@
   #hud .snap { color:var(--accent2); }
   #hud input[type=range] { width:100%; }
   #hud .row { display:flex; justify-content:space-between; gap:8px; }
+  /* the film: drafts of the visuals to come, laid over the engine's field as light — black is transparent, white stays. Silent: the sound is the room's. */
+  #film { position:fixed; inset:0; width:100%; height:100%; object-fit:contain; z-index:3; pointer-events:none; opacity:0; transition:opacity 2s; mix-blend-mode:screen; background:transparent; }
   /* the door: in the room, the numbers the machine may read and a line it may write — for Claude in the browser's side panel */
   #door { position:fixed; left:12px; top:16vh; z-index:7; width:min(46vw, 520px); font-family:'IBM Plex Mono', monospace; font-size:clamp(10px, 1.3vmin, 14px);
     line-height:1.6; color:var(--muted); letter-spacing:.03em; opacity:0; pointer-events:none; transition:opacity 1.6s; text-shadow:0 1px 8px rgba(0,0,0,.9); }
@@ -80,6 +84,7 @@
 
 <iframe id="stage" title="QR Engine — the ∴ demo door" allow="autoplay *; fullscreen *; screen-wake-lock *; microphone *; camera *"></iframe>
 
+<video id="film" muted playsinline preload="auto"></video>
 <div id="titles"></div>
 <div id="mark"></div>
 <form id="door" autocomplete="off">
@@ -105,6 +110,7 @@
   <div class="row"><span>engine</span><b id="h-eng">—</b></div>
   <div class="row"><span>reverse</span><b id="h-rev">—</b></div>
   <div class="row"><span>claude</span><b id="h-mach">—</b></div>
+  <div class="row"><span>film</span><b id="h-film">—</b></div>
   <div class="row"><span>snap gain</span><span id="h-sens">×6</span></div>
   <input type="range" id="h-sensr" min="3" max="14" step="1" value="6" title="how much louder than the floor a snap must be">
   <div class="row"><span>reverse gain</span><span id="h-rg">0.6</span></div>
@@ -122,6 +128,10 @@
   var $=function(id){ return document.getElementById(id); };
 
   /* ================= THE SCORE =================
+     film: silent pictures from video/ beside this page (a local folder, not in the repository) — at a second of
+     the chapter, at a level 0–1; blend 'normal' (the picture takes the whole field for its seconds) or 'screen'
+     (black is transparent — only while the engine's field is dark: its ground turns light on a residue, and
+     white on light is nothing); a file that is not there is simply not shown.
      Chapters turn on a snap. Inside a chapter, time runs from the snap: titles and the
      engine's moves are listed in seconds. kind: '' explanation · 'thought' · 'verse'. */
   var SCORE=[
@@ -136,7 +146,7 @@
       lines:[ [0,'',      'The number changes. Not the height — the number of rungs between the floor and the sky.'],
               [34,'verse','Fewer rungs. Not less sky.'],
               [80,'',     'Twenty-three. Twenty-two degrees — twenty-two letters.'] ] },
-    { name:'the root', engine:[ {at:3,cmd:'key',key:'ArrowRight'}, {at:24,cmd:'key',key:'ArrowRight'}, {at:45,cmd:'key',key:'ArrowRight'}, {at:66,cmd:'key',key:'ArrowRight'}, {at:87,cmd:'key',key:'ArrowRight'} ],
+    { name:'the root', film:[ {at:44, src:'video/multiplication-of-light.mp4', level:1, blend:'normal'} ], engine:[ {at:3,cmd:'key',key:'ArrowRight'}, {at:24,cmd:'key',key:'ArrowRight'}, {at:45,cmd:'key',key:'ArrowRight'}, {at:66,cmd:'key',key:'ArrowRight'}, {at:87,cmd:'key',key:'ArrowRight'} ],
       lines:[ [0,'',       'The root: where you stand on the vertical.'],
               [16,'',      'Four numbers, six differences between them — and all six are squares.'],
               [36,'',      'Lydia Goncharova found the formula and did not live to publish it. It was proved in 2025. This is for her.'],
@@ -144,13 +154,13 @@
               [72,'thought','One voice — of beauty and of reason. What reason counts, beauty hears.'],
               [90,'thought','A clear image: the law seen at once, whole, in one glance.'],
               [106,'',     'If you like — sing one word. Any note you hear.', 24, 'sing'] ] },
-    { name:'the room', engine:[], reverse:true, machineAt:50,
+    { name:'the room', film:[ {at:26, src:'video/bcb-balance.mp4', level:1, blend:'normal'} ], engine:[], reverse:true, machineAt:50,
       lines:[ [1,'',       'This is the room, played backwards. Everything the microphone has heard since the first snap.'],
               [20,'',      'Balance. The number runs forward, the room runs back — they meet in this minute.'],
               [36,'',      'Eleven squares, eleven not. In every prime the two halves are equal — exactly.'],
               [66,'thought','It sounds like this because you are here. Every breath in this room is in this scale.'],
               [84,'thought','Music is the spirit of the time. Not about time — it is the now: eighty-four beats a minute, this evening, this room.'] ] },
-    { name:'the form', engine:[ {at:0, cmd:'form', seconds:150} ], reverseFade:25,
+    { name:'the form', film:[ {at:96, src:'video/bcb-white-birds.mp4', level:1, blend:'normal'}, {at:106, src:'video/bfs-6.mp4', level:1, blend:'normal'} ], engine:[ {at:0, cmd:'form', seconds:150} ], reverseFade:25,
       lines:[ [3,'',      'They stop improvising and play a score they have just written. Nothing restarts.'],
               [45,'verse','All that was — now an order. All that will be — already here.'],
               [100,'bird','A white bird.'],
@@ -257,6 +267,7 @@
     if(ch===0){ document.body.classList.add('lit'); veil.classList.add('off'); recOn=true; recT0=performance.now(); tell({cmd:'cues', on:false}); setTimeout(function(){ tell({cmd:'bare', on:bare}); }, 400); }
     C.engine.forEach(function(m){ timers.push(setTimeout(function(){ var mm={}; for(var k in m) if(k!=='at') mm[k]=m[k]; tell(mm); }, m.at*1000)); });
     C.lines.forEach(function(L){ timers.push(setTimeout(function(){ if(L[4]==='sing') singFrom=env.length; title(L[1], L[2], L[3]); }, L[0]*1000)); });
+    hideFilm(0.6); (C.film||[]).forEach(function(f){ timers.push(setTimeout(function(){ showFilm(f); }, f.at*1000)); });
     if(C.machineAt){ machine(C.machineAt); openDoor(); } else closeDoor();
     if(C.reverse){ var ok=playReverse(); if(!ok) title('', 'The room has not yet been heard long enough — it keeps listening.'); }
     if(C.reverseFade) fadeReverse(C.reverseFade);
@@ -314,6 +325,15 @@
   }
   door.addEventListener('submit', function(e){ e.preventDefault(); doorSay(); });
   doorLine.addEventListener('change', doorSay);
+  /* the film */
+  var film=$('film'), filmOut=null;
+  function hideFilm(sec){ clearTimeout(filmOut); film.style.transitionDuration=sec+'s'; film.style.opacity=0; $('h-film').textContent='—'; }
+  function showFilm(f){
+    clearTimeout(filmOut); film.onerror=function(){ hideFilm(0.3); $('h-film').textContent='missing: '+f.src; };
+    film.onloadedmetadata=function(){ var d=film.duration||0; film.style.transitionDuration='2s'; film.style.mixBlendMode=f.blend||'screen'; film.style.opacity=f.level==null?1:f.level; $('h-film').textContent=f.src.replace('video/','')+' · '+d.toFixed(0)+'s';
+      filmOut=setTimeout(function(){ hideFilm(2); }, Math.max(0,(d-2))*1000); };
+    film.src=f.src; film.currentTime=0; var pr=film.play(); if(pr&&pr.catch) pr.catch(function(){});
+  }
   function snap(rms){ snaps++; if(ch>=0 && SCORE[ch].engine.some(function(m){ return m.cmd==='form'; })){ paintHud(); return; }   // once the form has the stage, a snap turns nothing: the last chapter opens when the form ends by itself
     mark.classList.remove('go'); void mark.offsetWidth; mark.classList.add('go'); turn(); paintHud(); }
 
@@ -328,7 +348,8 @@
   }
   $('h-dev').onchange=function(){ var id=this.value; try{ localStorage.setItem('tiyuta.mic', id); }catch(e){} useMic(id); this.blur(); };
   var bare=false;   // the engine's own bar: shown, as the hand's; B hides it for the show and brings it back
-  function setBare(on){ bare=on; tell({cmd:'bare', on:on}); $('h-bar').textContent=on?'hidden':'shown'; }
+  document.body.classList.add('barred');
+  function setBare(on){ bare=on; document.body.classList.toggle('barred', !on); tell({cmd:'bare', on:on}); $('h-bar').textContent=on?'hidden':'shown'; }
   $('h-sensr').oninput=function(){ sens=+this.value; $('h-sens').textContent='×'+sens; };
   $('h-rgr').oninput=function(){ revLevel=+this.value; $('h-rg').textContent=revLevel; if(revGain){ try{ revGain.gain.setTargetAtTime(Math.max(0.0001,revLevel), ctx.currentTime, 0.3); }catch(e){} } };
   veil.addEventListener('click', function(){ if(ctx) return; openMic().then(function(){ $('veil-s').innerHTML='the microphone is open<br><b>snap your fingers</b> — and it begins<br><span id="veil-deaf" class="err" style="display:none">this input is silent — press H and choose another microphone</span>'; }).catch(function(err){ $('veil-s').innerHTML='<span class="err">the microphone did not open: '+(err&&err.message||err)+'</span><br>space still works as a snap'; try{ if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }); });
@@ -341,6 +362,8 @@
     else if(e.key==='b'||e.key==='B'||e.code==='KeyB'){ setBare(!bare); }
     else if(e.key==='f'||e.key==='F'||e.code==='KeyF'){ try{ if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); }catch(err){} }
   });
+  // a click on the engine's bar takes the keyboard into the frame; bring it back, or space, H and B go to the engine
+  window.addEventListener('blur', function(){ setTimeout(function(){ if(document.activeElement===stage){ try{ stage.blur(); window.focus(); }catch(e){} } }, 60); });
   setInterval(paintHud, 500);
   if(/hud/.test(location.hash)) hud.classList.add('on');
 })();
