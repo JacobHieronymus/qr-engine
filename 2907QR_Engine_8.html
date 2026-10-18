@@ -23245,6 +23245,9 @@ body.qrdemo #face, body.qrdemo #face-back, body.qrdemo #controls, body.qrdemo #s
 #qrdemo-hint { position:fixed; left:50%; top:14px; transform:translateX(-50%); z-index:20000; padding:10px 16px; border-radius:12px; background:rgba(8,10,12,.85); color:#e8e4da; font:16px "SF Mono",ui-monospace,monospace; pointer-events:none; }
 #qrdemo-veil small { color:#8e97a3; font-size:14px; max-width:520px; line-height:1.5; }
 #qrdemo-bar { position:fixed; left:0; right:0; bottom:0; z-index:19000; display:flex; gap:8px; justify-content:center; padding:10px 10px calc(10px + env(safe-area-inset-bottom)); background:rgba(8,10,12,.78); }
+#qrdemo-prog { position:fixed; left:0; right:0; bottom:calc(74px + env(safe-area-inset-bottom)); z-index:19000; height:4px; background:rgba(255,255,255,.12); }
+#qrdemo-prog i { display:block; height:100%; width:0; background:#6cf; }
+#qrdemo-time { position:fixed; right:12px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:19000; font:15px "SF Mono",ui-monospace,monospace; color:#e8e4da; background:rgba(8,10,12,.6); padding:3px 8px; border-radius:8px; }
 #qrdemo-bar button { flex:1 1 0; max-width:170px; min-height:54px; font:16px "SF Mono",ui-monospace,monospace; color:#e8e4da; background:#12161b; border:1px solid #3a4452; border-radius:12px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 #qrdemo-bar button:active { background:#243041; }
 #qrdemo-bar button.on { border-color:#6cf; color:#6cf; }
@@ -23276,6 +23279,7 @@ body.qrdemo #face, body.qrdemo #face-back, body.qrdemo #controls, body.qrdemo #s
     try{ if(window._qrResetForForm) window._qrResetForForm(); }catch(e){}   // the same reset ✚ does
     try{ if(window._qrFormCreate) window._qrFormCreate(secs); }catch(e){}
     try{ if(window._qrFormStart) window._qrFormStart(); }catch(e){}       // direct, not the face's toggle button
+    acc=0; lastT=performance.now();
     herTap(); normalize(); stage(true);
     // no gesture yet (a phone): hold the transport at the first beat until the first touch
     setTimeout(function(){ try{ if(!soundOK()){ if(state.running&&!state.paused) pauseAudio(); showHint(); } }catch(e){} paint(); },150);
@@ -23284,8 +23288,14 @@ body.qrdemo #face, body.qrdemo #face-back, body.qrdemo #controls, body.qrdemo #s
   function firstTouch(){ try{ if(typeof ctx!=='undefined'&&ctx&&ctx.resume) ctx.resume(); }catch(e){} herTap();
     setTimeout(function(){ try{ if(soundOK()){ if(state.running&&state.paused&&hint) pauseAudio(); hideHint(); } }catch(e){} paint(); },120); }
   ['touchend','click','keydown'].forEach(function(ev){ document.addEventListener(ev,firstTouch,{passive:true}); });
-  var bar, bStop, bCont, bRest, bBack;
-  function paint(){ try{ var paused=!!(state.running&&state.paused); bStop.classList.toggle('on', state.running&&!state.paused); bCont.classList.toggle('on', paused); }catch(e){} }
+  var bar, bStop, bCont, bRest, bBack, prog, timeEl, acc=0, lastT=0;
+  function mmss(s){ s=Math.max(0,Math.round(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+  function paint(){ try{
+    var now=performance.now(); var on=!!(state.running&&!state.paused&&window._formOn); if(on && lastT) acc+=Math.min(2000,now-lastT); lastT=now;
+    var el=Math.min(secs, acc/1000);
+    if(prog) prog.firstChild.style.width=(100*el/secs).toFixed(1)+'%';
+    if(timeEl) timeEl.textContent=mmss(el)+' / '+mmss(secs);
+    var paused=!!(state.running&&state.paused); bStop.classList.toggle('on', state.running&&!state.paused); bCont.classList.toggle('on', paused); }catch(e){} }
   function build(){
     bar=document.createElement('div'); bar.id='qrdemo-bar';
     function btn(txt,fn){ var b=document.createElement('button'); b.textContent=txt; b.addEventListener('click',function(){ try{ fn(); }catch(e){} paint(); }); bar.appendChild(b); return b; }
@@ -23294,7 +23304,9 @@ body.qrdemo #face, body.qrdemo #face-back, body.qrdemo #controls, body.qrdemo #s
     bRest=btn('Restart',function(){ try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} setTimeout(function(){ try{ if(state.running&&state.paused) pauseAudio(); }catch(e){} begin(); },1400); });   // the stop parks with a short fermata and a release 900 ms later — begin after it
     bBack=btn('Back',function(){ try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} location.href='demos.html'; });
     document.body.appendChild(bar);
-    setInterval(paint,500);
+    prog=document.createElement('div'); prog.id='qrdemo-prog'; prog.appendChild(document.createElement('i')); document.body.appendChild(prog);
+    timeEl=document.createElement('div'); timeEl.id='qrdemo-time'; document.body.appendChild(timeEl);
+    setInterval(paint,250);
   }
   function ready(){ return !!(document.getElementById('face-gen') && window._qrFace && window._qrStageToggle); }
   function pairReady(){ try{ return !!(document.getElementById('duo-frame-wrap') && state.duo && state.duo.peer); }catch(e){ return false; } }   // a pair form must not start before Markova's frame exists and has said hello — else it falls to one engine
