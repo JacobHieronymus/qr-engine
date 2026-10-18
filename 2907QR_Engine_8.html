@@ -23242,6 +23242,7 @@ const _MUSRARA = /musrara/.test((typeof location!=='undefined' && location.hash 
 body.qrdemo #face, body.qrdemo #face-back, body.qrdemo #controls, body.qrdemo #stage-exit, body.qrdemo #phone-bar { display:none !important; }
 #qrdemo-veil { position:fixed; inset:0; z-index:20000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; background:rgba(8,10,12,.92); color:#e8e4da; font:18px "SF Mono",ui-monospace,monospace; text-align:center; padding:24px; cursor:pointer; }
 #qrdemo-veil b { font-size:30px; letter-spacing:.04em; }
+#qrdemo-hint { position:fixed; left:50%; top:14px; transform:translateX(-50%); z-index:20000; padding:10px 16px; border-radius:12px; background:rgba(8,10,12,.85); color:#e8e4da; font:16px "SF Mono",ui-monospace,monospace; pointer-events:none; }
 #qrdemo-veil small { color:#8e97a3; font-size:14px; max-width:520px; line-height:1.5; }
 #qrdemo-bar { position:fixed; left:0; right:0; bottom:0; z-index:19000; display:flex; gap:8px; justify-content:center; padding:10px 10px calc(10px + env(safe-area-inset-bottom)); background:rgba(8,10,12,.78); }
 #qrdemo-bar button { flex:1 1 0; max-width:170px; min-height:54px; font:16px "SF Mono",ui-monospace,monospace; color:#e8e4da; background:#12161b; border:1px solid #3a4452; border-radius:12px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
@@ -23250,48 +23251,54 @@ body.qrdemo #face, body.qrdemo #face-back, body.qrdemo #controls, body.qrdemo #s
 </style>
 <script>
 /* (18.10) DEMOS — ?demo=<genre>,<mode>,<seconds> : the engine opens on the stage with that genre,
-   form and length; sound at the first tap; Stop · Continue · Restart · Back over the field. */
+   form and length, already running; where the browser withholds sound until a touch (iPhone),
+   the transport waits for the first touch anywhere, with a small hint. Stop · Continue · Restart · Back. */
 (function(){
   var q=new URLSearchParams(location.search); var d=q.get('demo'); if(!d) return;
   var P=d.split(','); var genre=P[0]||'focus', mode=P[1]||'parts', secs=Math.max(20,+(P[2]||90)|0);
-  var NAMES={focus:'Focus',meditate:'Meditation',chores:'Chores',workout:'Workout',lyric:'Lyric',ascent:'Ascent'};
-  var MODES={parts:'parts',pal:'palindrome',retro:'retro',free:'free'};
   document.body.classList.add('qrdemo');
   function clickGenre(g){ var gen=document.getElementById('face-gen'); if(!gen) return false; var bs=gen.querySelectorAll('button'); for(var i=0;i<bs.length;i++) if(bs[i].textContent.trim()===g){ bs[i].click(); return true; } return false; }
   function clickMode(m){ var frm=document.getElementById('face-formp'); if(!frm) return false; var bs=frm.querySelectorAll('button'); for(var i=0;i<bs.length;i++){ if(bs[i].dataset && bs[i].dataset.m===m){ bs[i].click(); return true; } } return false; }
   function setLen(s){ var mi=document.getElementById('face-min'), si=document.getElementById('face-sec'); if(!mi||!si) return false; mi.value=String(Math.floor(s/60)); mi.dispatchEvent(new Event('change',{bubbles:true})); si.value=String(s%60); si.dispatchEvent(new Event('change',{bubbles:true})); return true; }
-  function herTap(){ try{ var fr=document.querySelector('#duo-frame-wrap iframe'); if(fr&&fr.contentWindow){ var W=fr.contentWindow; if(W.ctx&&W.ctx.resume) W.ctx.resume(); } }catch(e){} }
+  function herWin(){ try{ var fr=document.querySelector('#duo-frame-wrap iframe'); return fr&&fr.contentWindow; }catch(e){ return null; } }
+  function herTap(){ try{ var W=herWin(); if(W&&W.ctx&&W.ctx.resume) W.ctx.resume(); }catch(e){} }
   function stage(on){ try{ var is=document.body.classList.contains('viz-max'); if(on!==is && window._qrStageToggle) window._qrStageToggle(); }catch(e){} }
+  // (18.10, author: «звук нужно нормализовать под 0») the engine's own level-rider on both halves:
+  // −10.8 dBFS RMS on the bus, makeup up to 12×, the limiter at −1.5 dBFS as the ceiling
+  function normalize(){ try{ state.autoLevel=true; var al=document.getElementById('auto-level'); if(al) al.classList.add('active'); }catch(e){} try{ var W=herWin(); if(W) W.eval("try{ state.autoLevel=true; var al=document.getElementById('auto-level'); if(al) al.classList.add('active'); }catch(e){}"); }catch(e){} }
+  var hint=null;
+  function soundOK(){ try{ return !!(typeof ctx!=='undefined' && ctx && ctx.state==='running'); }catch(e){ return false; } }
+  function showHint(){ if(hint) return; hint=document.createElement('div'); hint.id='qrdemo-hint'; hint.textContent='tap anywhere for sound'; document.body.appendChild(hint); }
+  function hideHint(){ if(hint){ hint.remove(); hint=null; } }
   function begin(){
     try{ window._qrFace.show(); }catch(e){}
     clickGenre(genre); clickMode(mode); setLen(secs);
     try{ if(window._qrResetForForm) window._qrResetForForm(); }catch(e){}   // the same reset ✚ does
     try{ if(window._qrFormCreate) window._qrFormCreate(secs); }catch(e){}
-    try{ if(window._qrFormStart) window._qrFormStart(); }catch(e){}       // direct, not the face's toggle button — synchronous: the tap is the gesture the audio needs
-    herTap();
-    stage(true);
+    try{ if(window._qrFormStart) window._qrFormStart(); }catch(e){}       // direct, not the face's toggle button
+    herTap(); normalize(); stage(true);
+    // no gesture yet (a phone): hold the transport at the first beat until the first touch
+    setTimeout(function(){ try{ if(!soundOK()){ if(state.running&&!state.paused) pauseAudio(); showHint(); } }catch(e){} paint(); },150);
     paint();
   }
-  var bar, bStop, bCont, bRest, bBack, veil;
+  function firstTouch(){ try{ if(typeof ctx!=='undefined'&&ctx&&ctx.resume) ctx.resume(); }catch(e){} herTap();
+    setTimeout(function(){ try{ if(soundOK()){ if(state.running&&state.paused&&hint) pauseAudio(); hideHint(); } }catch(e){} paint(); },120); }
+  ['touchend','click','keydown'].forEach(function(ev){ document.addEventListener(ev,firstTouch,{passive:true}); });
+  var bar, bStop, bCont, bRest, bBack;
   function paint(){ try{ var paused=!!(state.running&&state.paused); bStop.classList.toggle('on', state.running&&!state.paused); bCont.classList.toggle('on', paused); }catch(e){} }
   function build(){
-    veil=document.createElement('div'); veil.id='qrdemo-veil';
-    veil.innerHTML='<b>'+(NAMES[genre]||genre)+' · '+(MODES[mode]||mode)+' · '+Math.floor(secs/60)+':'+String(secs%60).padStart(2,'0')+'</b><div>Tap to start</div><small>Sound begins at the first tap. The Markovs compose a score of this length and play it; it ends in silence by itself.</small>';
-    var started=false;
-    var onTap=function(ev){ if(started) return; started=true; try{ ev.preventDefault(); }catch(e){} veil.remove(); begin(); };
-    veil.addEventListener('touchend',onTap,{passive:false}); veil.addEventListener('click',onTap);
-    document.body.appendChild(veil);
     bar=document.createElement('div'); bar.id='qrdemo-bar';
     function btn(txt,fn){ var b=document.createElement('button'); b.textContent=txt; b.addEventListener('click',function(){ try{ fn(); }catch(e){} paint(); }); bar.appendChild(b); return b; }
     bStop=btn('Stop',function(){ if(state.running&&!state.paused) pauseAudio(); });
     bCont=btn('Continue',function(){ if(state.running&&state.paused) pauseAudio(); herTap(); });
-    bRest=btn('Restart',function(){ try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} setTimeout(function(){ try{ if(state.running&&state.paused) pauseAudio(); }catch(e){} begin(); },1400); });   // the stop parks with a short fermata and a release 900 ms later — begin after it, or the release pauses the new form
+    bRest=btn('Restart',function(){ try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} setTimeout(function(){ try{ if(state.running&&state.paused) pauseAudio(); }catch(e){} begin(); },1400); });   // the stop parks with a short fermata and a release 900 ms later — begin after it
     bBack=btn('Back',function(){ try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} location.href='demos.html'; });
     document.body.appendChild(bar);
     setInterval(paint,500);
   }
   function ready(){ return !!(document.getElementById('face-gen') && window._qrFace && window._qrStageToggle); }
-  (function wait(n){ if(ready()){ build(); } else if(n<200) setTimeout(function(){ wait(n+1); },100); })(0);
+  function pairReady(){ try{ return !!(document.getElementById('duo-frame-wrap') && state.duo && state.duo.peer); }catch(e){ return false; } }   // a pair form must not start before Markova's frame exists and has said hello — else it falls to one engine
+  (function wait(n){ if(ready() && (pairReady() || n>80)){ build(); setTimeout(begin,250); } else if(n<300) setTimeout(function(){ wait(n+1); },100); })(0);
 })();
 </script>
 </body>
