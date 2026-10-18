@@ -7,18 +7,18 @@
 <style>
   :root { color-scheme: dark; }
   html, body { margin:0; background:#0e0e0e; color:#e9e4da; font: 19px/1.55 Georgia, "Times New Roman", serif; }
-  main { max-width: 1120px; margin: 0 auto; padding: 48px 24px 64px; }
+  main { max-width: 900px; margin: 0 auto; padding: 48px 24px 64px; }
   h1 { font-size: 36px; font-weight: 400; letter-spacing: .01em; margin: 0 0 10px; }
   p.sub { color: #b9b2a6; margin: 0 0 44px; font-size: 20px; }
-  .row { display:grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .row { display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 720px; }
   a.demo { display:block; text-decoration:none; color:inherit; }
-  a.demo img { display:block; width:100%; aspect-ratio: 392/548; object-fit: cover; background:#000; border:1px solid #2a2a2a; }
+  a.demo img { display:block; width:100%; aspect-ratio: 4/5; object-fit: cover; background:#000; border:1px solid #2a2a2a; }
   a.demo:hover img, a.demo:active img { border-color:#8fb7c9; }
-  a.demo b { display:block; font-weight:400; font-size: 22px; margin: 14px 0 2px; }
+  a.demo b { display:block; font-weight:400; font-size: 20px; margin: 10px 0 0; text-align:center; }
   a.demo span { display:block; color:#9a948a; font-size: 15px; line-height:1.4; }
   footer { margin-top: 56px; color:#9a948a; font-size: 16px; }
   footer a { color:#e9e4da; }
-  @media (max-width: 720px) { .row { grid-template-columns: 1fr; } h1 { font-size: 30px; } }
+  @media (max-width: 720px) { h1 { font-size: 28px; } p.sub { font-size: 17px; } a.demo b { font-size: 17px; } .row { gap: 10px; } }
 </style>
 </head>
 <body>
@@ -30,17 +30,14 @@
     <a class="demo" href="2907QR_Engine_8.html?demo=focus,free,90">
       <img src="demo/demo1.jpg" alt="Demo 1 — Focus, free">
       <b>Demo 1</b>
-      <span>Focus · 1:30 · free — he reads the score; she improvises her own, coupled only by the tempo ratio</span>
     </a>
     <a class="demo" href="2907QR_Engine_8.html?demo=meditate,pal,150">
       <img src="demo/demo2.jpg" alt="Demo 2 — Meditation, palindrome">
       <b>Demo 2</b>
-      <span>Meditation · palindrome · 2:30 — the score plays forward on one half and back, note for note, on the other</span>
     </a>
     <a class="demo" href="2907QR_Engine_8.html?demo=chores,retro,120">
       <img src="demo/demo3.jpg" alt="Demo 3 — Chores, retro">
       <b>Demo 3</b>
-      <span>Chores · retro · 2:00 — the retrograde canon: the answer plays the same material reversed, live</span>
     </a>
   </div>
 
