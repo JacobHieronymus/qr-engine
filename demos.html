@@ -6,17 +6,19 @@
 <title>Sonification of Primes — three live demos</title>
 <style>
   :root { color-scheme: dark; }
-  html, body { margin:0; background:#0b0d10; color:#e8e4da; font: 17px/1.5 "SF Mono", ui-monospace, Menlo, monospace; }
-  main { max-width: 760px; margin: 0 auto; padding: 36px 20px 60px; }
-  h1 { font-size: 30px; font-weight: 600; letter-spacing: .02em; margin: 0 0 8px; }
-  p.sub { color: #9aa3ae; margin: 0 0 34px; }
-  a.card { display:block; text-decoration:none; color:inherit; background:#12161b; border:1px solid #2a323c; border-radius:16px; padding:22px 24px; margin:0 0 16px; }
-  a.card:hover, a.card:active { border-color:#6cf; }
-  a.card b { display:block; font-size: 24px; margin-bottom: 6px; }
-  a.card span { color:#9aa3ae; font-size: 15px; }
-  a.card em { color:#6cf; font-style: normal; }
-  footer { margin-top: 44px; color:#9aa3ae; font-size: 15px; }
-  footer a { color:#e8e4da; }
+  html, body { margin:0; background:#0e0e0e; color:#e9e4da; font: 19px/1.55 Georgia, "Times New Roman", serif; }
+  main { max-width: 1120px; margin: 0 auto; padding: 48px 24px 64px; }
+  h1 { font-size: 36px; font-weight: 400; letter-spacing: .01em; margin: 0 0 10px; }
+  p.sub { color: #b9b2a6; margin: 0 0 44px; font-size: 20px; }
+  .row { display:grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  a.demo { display:block; text-decoration:none; color:inherit; }
+  a.demo img { display:block; width:100%; aspect-ratio: 392/548; object-fit: cover; background:#000; border:1px solid #2a2a2a; }
+  a.demo:hover img, a.demo:active img { border-color:#8fb7c9; }
+  a.demo b { display:block; font-weight:400; font-size: 22px; margin: 14px 0 2px; }
+  a.demo span { display:block; color:#9a948a; font-size: 15px; line-height:1.4; }
+  footer { margin-top: 56px; color:#9a948a; font-size: 16px; }
+  footer a { color:#e9e4da; }
+  @media (max-width: 720px) { .row { grid-template-columns: 1fr; } h1 { font-size: 30px; } }
 </style>
 </head>
 <body>
@@ -24,20 +26,23 @@
   <h1>Sonification of Primes</h1>
   <p class="sub">a generative instrument built on quadratic residues modulo primes — a first attempt to let mathematics sound</p>
 
-  <a class="card" href="2907QR_Engine_8.html?demo=focus,parts,90">
-    <b>Focus — 1:30 — parts</b>
-    <span><em>parts</em>: one piece, two voices — Markov sings his voices and the shared bed, Markova hers. Focus: a proof — thesis, lemmas, conclusion; the tension climbs, never a beat.</span>
-  </a>
-
-  <a class="card" href="2907QR_Engine_8.html?demo=meditate,pal,150">
-    <b>Meditation — palindrome — 2:30</b>
-    <span><em>palindrome</em>: the score plays forward on one half and back, note for note, on the other. Meditation: a prayer in one large prime — the approach to the centre, the centre held, the thirds.</span>
-  </a>
-
-  <a class="card" href="2907QR_Engine_8.html?demo=chores,retro,120">
-    <b>Chores — retro — 2:00</b>
-    <span><em>retro</em>: the retrograde canon — the answer plays the same material reversed, live, from the mirror residue. Chores: humour and lightness — a toy kit of clicks, zaps and claps that re-arranges every scene.</span>
-  </a>
+  <div class="row">
+    <a class="demo" href="2907QR_Engine_8.html?demo=focus,parts,90">
+      <img src="demo/demo1.jpg" alt="Demo 1 — Focus, parts">
+      <b>Demo 1</b>
+      <span>Focus · 1:30 · parts — one piece, two voices: Markov sings his voices and the shared bed, Markova hers</span>
+    </a>
+    <a class="demo" href="2907QR_Engine_8.html?demo=meditate,pal,150">
+      <img src="demo/demo2.jpg" alt="Demo 2 — Meditation, palindrome">
+      <b>Demo 2</b>
+      <span>Meditation · palindrome · 2:30 — the score plays forward on one half and back, note for note, on the other</span>
+    </a>
+    <a class="demo" href="2907QR_Engine_8.html?demo=chores,retro,120">
+      <img src="demo/demo3.jpg" alt="Demo 3 — Chores, retro">
+      <b>Demo 3</b>
+      <span>Chores · retro · 2:00 — the retrograde canon: the answer plays the same material reversed, live</span>
+    </a>
+  </div>
 
   <footer>Jacob Hieronymus · <a href="https://www.jacobhieronymus.com">www.jacobhieronymus.com</a></footer>
 </main>
