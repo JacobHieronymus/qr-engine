@@ -23302,7 +23302,7 @@ body.qrdemo #face, body.qrdemo #face-back, body.qrdemo #controls, body.qrdemo #s
     bStop=btn('Stop',function(){ if(state.running&&!state.paused) pauseAudio(); });
     bCont=btn('Continue',function(){ if(state.running&&state.paused) pauseAudio(); herTap(); });
     bRest=btn('Restart',function(){ try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} setTimeout(function(){ try{ if(state.running&&state.paused) pauseAudio(); }catch(e){} begin(); },1400); });   // the stop parks with a short fermata and a release 900 ms later — begin after it
-    bBack=btn('Back',function(){ try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} location.href='demos.html'; });
+    bBack=btn('Back',function(){ try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} var r=document.referrer||''; if(r && !/2907QR_Engine/.test(r) && history.length>1) history.back(); else location.href='demos.html'; });   // back to where the visitor came from (the portfolio or demos.html)
     document.body.appendChild(bar);
     prog=document.createElement('div'); prog.id='qrdemo-prog'; prog.appendChild(document.createElement('i')); document.body.appendChild(prog);
     timeEl=document.createElement('div'); timeEl.id='qrdemo-time'; document.body.appendChild(timeEl);
