@@ -17335,7 +17335,11 @@ const learner = (()=>{
   }
   // (20.10, author: «чтобы Марковы об этом узнали» — «всех, общая память») a ♥ pressed
   // somewhere else, on another device, reaches this learner as the scene it was pressed on
-  function learnLike(s,w){ try{ if(!s||!(s.p>=3)) return false; _learnState(s,Math.max(0.5,+w||1));
+  function learnLike(s,w){ try{ if(!s||!(s.p>=3)) return false; w=Math.max(0.5,+w||1);
+    // (20.10) derekh plays the engine's lattice without its scenes: its ♥ carries only p, r and the
+    // walking tempo, so only those three are learned — nothing of a scene it never had
+    if(s.partial){ _add(_ensureFeature('p'),s.p|0,w); if(s.r>=1) _add(_ensureFeature('r'),s.r|0,w); if(s.bpm>0) _add(_ensureFeature('bpm'),Math.round(s.bpm),w); }
+    else _learnState(s,w);
     model.sourceSegments=(model.sourceSegments||0)+1; return true; }catch(e){ return false; } }
   function loveThis(){
     let s; try{ s=current(); }catch(e){ return; }
