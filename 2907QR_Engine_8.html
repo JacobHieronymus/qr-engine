@@ -17333,6 +17333,10 @@ const learner = (()=>{
       if(++_liveSaveDue>=6){ _liveSaveDue=0; saveLocal(false); }
     } else if(!natural){ _respPrev=null; }
   }
+  // (20.10, author: «чтобы Марковы об этом узнали» — «всех, общая память») a ♥ pressed
+  // somewhere else, on another device, reaches this learner as the scene it was pressed on
+  function learnLike(s,w){ try{ if(!s||!(s.p>=3)) return false; _learnState(s,Math.max(0.5,+w||1));
+    model.sourceSegments=(model.sourceSegments||0)+1; return true; }catch(e){ return false; } }
   function loveThis(){
     let s; try{ s=current(); }catch(e){ return; }
     if(!s || !s.p) return;
@@ -18158,7 +18162,7 @@ const learner = (()=>{
     saveNow();
     return n;
   }
-  return {bind,learnSessionObject,generate,applyNext,toggleAuto,reset,isAutoOn:()=>autoOn,setLiveLearn,loveThis,saveNow,exportKnowledge,importKnowledge,
+  return {bind,learnSessionObject,generate,applyNext,toggleAuto,reset,isAutoOn:()=>autoOn,setLiveLearn,loveThis,learnLike,saveNow,exportKnowledge,importKnowledge,
           isFormOn:()=>formOn, formStop:(m)=>{ if(formOn) formStop(m); },   // (05.08 audit) pal must be able to take the scene from a running form
           reassertFade:()=>{ if(_fadeRunner) _setMaster(_fadeRunner.cur); },   // (05.08 audit) _fadeRunner is closure-local — the duo block reasserts fades through this door
           mkMemory:()=>({moments:_mkModel?(_mkModel.moments||0):0, dur:_mkModel?(_mkModel.dur||0):0, divergence:+_mkDivergence().toFixed(2), features:_mkModel?_mkModel.features:null}),
@@ -18827,6 +18831,7 @@ startRenderLoop();
                     name:'\u2665 p'+state.p+' \u00b7 r'+_r+_q+(state.activity?(' \u00b7 '+state.activity):''),
                     state:_st});
           if(_bk.length>400) _bk.splice(0,_bk.length-400);
+          try{ if(window._qrLikePost) window._qrLikePost(_bk[_bk.length-1]); }catch(e){}   // (20.10) the shared memory: every ♥ reaches the Markovs everywhere
           try{ localStorage.setItem('qr_likes', JSON.stringify(_bk)); }catch(e){}
           try{ if(typeof _fl==='function') _fl('like','kept \u00b7 the book of yeses holds '+_bk.length); }catch(e){}
         }
@@ -23253,6 +23258,52 @@ body.qrdemo #face, body.qrdemo #face-back, body.qrdemo #controls, body.qrdemo #s
 #qrdemo-bar button.on { border-color:#6cf; color:#6cf; }
 </style>
 <script>
+/* (20.10, author: «лайк во всех артефактах … чтобы Марковы об этом узнали»; chosen: «всех —
+   общая память»). THE SHARED MEMORY OF LIKES. Every ♥ (the button, H on the keyboard, a squeeze
+   of the headphones' stem, the phone's heart, the demo's ♥) is posted to the site's collector;
+   every engine that opens — his, hers in the frame, a visitor's — reads the newest likes it has
+   not seen and lets the Markovs learn them, as a ♥ held for a few seconds. A like carries the
+   scene as it sounded and the time; nothing personal — the page makes a random id for itself
+   only so as not to learn its own likes twice. */
+(function(){
+  var API='https://www.jacobhieronymus.com/api/';
+  var W=((1+Math.sqrt(5))/2)*((1+Math.sqrt(5))/2)*6;   // a stranger's ♥ teaches like one of his own held six seconds
+  function cid(){ try{ var c=localStorage.getItem('qr_cid'); if(!c){ c=Math.random().toString(36).slice(2,10)+Date.now().toString(36); localStorage.setItem('qr_cid',c); } return c; }catch(e){ return 'anon'; } }
+  function src(){ try{ return ((location.protocol==='file:')?'file:':location.hostname)+location.pathname.replace(/^.*\//,'/')+(location.search||''); }catch(e){ return ''; } }
+  window._qrLikePost=function(rec){
+    try{
+      if(!rec||!rec.state) return;
+      var st=rec.state, body={cid:cid(), src:src(), p:rec.p, r:rec.r, cls:rec.cls, act:rec.act, mode:rec.mode, bpm:rec.bpm, state:st};
+      var txt=JSON.stringify(body);
+      if(txt.length>46000 && st.duo){ var s2=Object.assign({},st); delete s2.duo; body.state=s2; txt=JSON.stringify(body); }   // her half's bundle is the heavy part; the scene is what teaches
+      if(txt.length>46000) return;
+      fetch(API+'like',{method:'POST', mode:'cors', keepalive:true, headers:{'Content-Type':'text/plain'}, body:txt})
+        .then(function(r){ try{ if(typeof _fl==='function') _fl('like', r.ok?'shared — the Markovs everywhere will hear of it':'not shared ('+r.status+')'); }catch(e){} })
+        .catch(function(){ try{ if(typeof _fl==='function') _fl('like','not shared — offline; kept here'); }catch(e){} });
+    }catch(e){}
+  };
+  function learnCrowd(){
+    return new Promise(function(done){
+      try{
+        if(typeof learner==='undefined' || !learner.learnLike){ done(0); return; }
+        var since=0; try{ since=+(localStorage.getItem('qr_crowd_last')||0)||0; }catch(e){}
+        var me=cid();
+        fetch(API+'likes?since='+since,{mode:'cors', cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).then(function(j){
+          var n=0;
+          if(j && j.likes){ j.likes.forEach(function(x){ if(x && x.state && x.cid!==me){ if(learner.learnLike(x.state,W)) n++; } });
+            try{ if(j.last) localStorage.setItem('qr_crowd_last',String(j.last)); }catch(e){}
+            if(n){ try{ learner.saveNow(); }catch(e){} try{ if(typeof _fl==='function') _fl('like','the Markovs learned '+n+' like(s) from elsewhere'); }catch(e){} } }
+          done(n);
+        }).catch(function(){ done(0); });
+      }catch(e){ done(0); }
+    });
+  }
+  var first=new Promise(function(ok){ var k=0; (function wait(){ if(typeof learner!=='undefined' && learner.learnLike){ learnCrowd().then(ok); } else if(++k<100) setTimeout(wait,100); else ok(0); })(); });
+  window._qrCrowd=first;
+  setInterval(learnCrowd, 10*60*1000);
+})();
+</script>
+<script>
 /* (18.10) DEMOS — ?demo=<genre>,<mode>,<seconds> : the engine opens on the stage with that genre,
    form and length, already running; where the browser withholds sound until a touch (iPhone),
    the transport waits for the first touch anywhere, with a small hint. Stop · Continue · Restart · Back. */
@@ -23302,6 +23353,8 @@ body.qrdemo #face, body.qrdemo #face-back, body.qrdemo #controls, body.qrdemo #s
     bStop=btn('Stop',function(){ if(state.running&&!state.paused) pauseAudio(); });
     bCont=btn('Continue',function(){ if(state.running&&state.paused) pauseAudio(); herTap(); });
     bRest=btn('Restart',function(){ try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} setTimeout(function(){ try{ if(state.running&&state.paused) pauseAudio(); }catch(e){} begin(); },1400); });   // the stop parks with a short fermata and a release 900 ms later — begin after it
+    var bLike=btn('\u2665',function(){ try{ var lk=document.getElementById('tb-like'); if(lk) lk.click(); }catch(e){} bLike.classList.add('on'); setTimeout(function(){ bLike.classList.remove('on'); },700); });   // (20.10) ♥ — the Markovs everywhere hear of it
+    bLike.title='like this moment — the Markovs learn it, everywhere'; bLike.style.flex='0 0 auto'; bLike.style.minWidth='64px'; bLike.style.fontSize='24px';
     bBack=btn('Back',function(){ try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} var r=document.referrer||''; if(r && !/2907QR_Engine/.test(r) && history.length>1) history.back(); else location.href='demos.html'; });   // back to where the visitor came from (the portfolio or demos.html)
     document.body.appendChild(bar);
     prog=document.createElement('div'); prog.id='qrdemo-prog'; prog.appendChild(document.createElement('i')); document.body.appendChild(prog);
@@ -23310,7 +23363,9 @@ body.qrdemo #face, body.qrdemo #face-back, body.qrdemo #controls, body.qrdemo #s
   }
   function ready(){ return !!(document.getElementById('face-gen') && window._qrFace && window._qrStageToggle); }
   function pairReady(){ try{ return !!(document.getElementById('duo-frame-wrap') && state.duo && state.duo.peer); }catch(e){ return false; } }   // a pair form must not start before Markova's frame exists and has said hello — else it falls to one engine
-  (function wait(n){ if(ready() && (pairReady() || n>80)){ build(); setTimeout(begin,250); } else if(n<300) setTimeout(function(){ wait(n+1); },100); })(0);
+  (function wait(n){ if(ready() && (pairReady() || n>80)){ build(); var go=false; var b=function(){ if(go) return; go=true; setTimeout(begin,50); };
+    try{ (window._qrCrowd||Promise.resolve()).then(b); }catch(e){} setTimeout(b,1500); }   // the first form is composed after the Markovs have heard the others' likes (at most 1.5 s)
+    else if(n<300) setTimeout(function(){ wait(n+1); },100); })(0);
 })();
 </script>
 </body>
