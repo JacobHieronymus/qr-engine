@@ -5230,7 +5230,7 @@ function refreshLVol(){
   const anySolo=state.solo.size>0;
   for(const k of VOL_LAYERS){
     if(LVOL[k]) LVOL[k].gain.setTargetAtTime(vget(k), ctx.currentTime, 0.02);
-    if(LWET[k]){ const gate=(anySolo && !state.solo.has(k))?0:1; LWET[k].gain.setTargetAtTime((state.sendPreFader?gate:vget(k))*(_wetDoseLast||1), ctx.currentTime, 0.02); }   // volume changes keep the tempo dose
+    if(LWET[k]){ const gate=((anySolo && !state.solo.has(k)) || (k==='omega' && !state.omEcho))?0:1;   /* (20.10) ⏻ off holds omega's pre-fader send shut */ LWET[k].gain.setTargetAtTime((state.sendPreFader?gate:vget(k))*(_wetDoseLast||1), ctx.currentTime, 0.02); }   // volume changes keep the tempo dose
   }
   try{ const BG=window._bodyGate; if(BG){ for(const bk in BG){ const lk=bk.split('|')[0]; if(!lk) continue; BG[bk].gain.setTargetAtTime((anySolo && !state.solo.has(lk))?0:Math.min(1,(vget(lk)||0)/0.02), ctx.currentTime, 0.02); } } }catch(e){}   // (14.10) the instrument bodies follow solo with the faders — (16.10) a fader at zero mutes the body too; above 0.02 nothing changes
   // (08.09) THE MASTER REACHES THE NODE. VOL_LAYERS has no 'master' in it, so this
@@ -5771,7 +5771,7 @@ function schedulePnSustainIfAnchor(mode,p,r,rList,rIdx,time,beatD,gain,revRank){
   // the pulse. The beat grid is untouched — sustains never move the frame.
   const _scored=!!(state._palScore&&state._palScore.on);
   const _pr=(!_scored&&state.activity==='meditate'&&typeof synthState!=='undefined'&&synthState&&synthState._pray&&synthState._pray.stage==='hold'&&(rIdx|0)===(synthState._pray.j|0))?synthState._pray:null;
-  const _sh=(_scored&&state.activity==='meditate'&&typeof synthState!=='undefined'&&synthState&&(synthState._scoreHold|0)>0&&(rIdx|0)===(synthState.rIdx|0))?(synthState._scoreHold|0):0;   // (15.10) the written prayer: the hold's length rides in the slot
+  const _sh=(_scored&&state.activity==='meditate'&&typeof synthState!=='undefined'&&synthState&&(+synthState._scoreHold||0)>0&&(rIdx|0)===(synthState.rIdx|0))?(+synthState._scoreHold):0;   // (15.10) the written prayer: the hold's length rides in the slot
   const _susLen=_pr?Math.max(beatD,_pr.until-time):(_sh?Math.max(beatD,_sh*beatD):Math.min(span*beatD, hold?300:12));   // (14.10) under the prayer's hold the drone is the hold's length, not the distance to the next anchor
   scheduleSustainVoice(time-0.04, _susLen, freq, gain, la, ra, susTrem);
   state.ppSus={mode:mode, pidx:pidx, p:p, i0:rIdx, i1:(_pr||_sh)?(rIdx+5):(rIdx+span), t0:time, t1:time+_susLen};   // (08.09) the one anchor that RINGS — one slot, not an array: one drone per section at a time — (16.10) stamped with its p; under the hold the bright segment is the station, not the road to the next anchor
@@ -6713,8 +6713,21 @@ function _prayerScoreBeat(s,SC,sl,p,time,dur){
   try{
     if(state.activity!=='meditate'){ s._scoreHold=0; return; }
     var flag=sl[4]|0; s._scoreHold=(flag===2)?(sl[5]|0):0;
+    // (20.10) MULTIPLICITY: under ×k this half reads every k-th of his slots, its index is ⌊i/k⌋ and its beat lasts k of his.
+    // The hold is written in HIS beats (29 of mine rang 87 of his), and the drone is armed ONCE per station — on the first
+    // of my beats that stands on its index, which can be one of his last run-up slots sharing ⌊j/k⌋: a length given only
+    // on the held slots never reached that drone (37×3's third station rang 6 s). So the length is set on that first beat:
+    // from this slot to the station's last held slot, in my beats — the drone ends where his hold ends. And a harp written
+    // on one of the k−1 slots this beat steps over sounds on this beat (it was lost k−1 times in k).
+    var _Kh=Math.max(1,SC._kApplied|0), _hs=sl;
+    if(_Kh>1 && !SC.rev){
+      var _gh=SC._gi|0, _hi=(flag===2 || (flag===3 && (sl[5]|0)>0))?(sl[3]|0):-1, _o, _z;
+      if(_hi<0){ for(_o=1; _o<_Kh; _o++){ _z=SC.slots[_gh+_o]; if(_z && (_z[1]|0)===(sl[1]|0) && (_z[0]===1||_z[0]===3) && (_z[5]|0)>0 && Math.floor((_z[3]|0)/_Kh)===Math.floor((sl[3]|0)/_Kh)){ _hi=_z[3]|0; break; } } }
+      if(_hi>=0){ var _e=-1; for(var _g=_gh; _g<_gh+_Kh+64; _g++){ var _x=SC.slots[_g]; if(!_x || !(_x[0]===1||_x[0]===3)) break; if((_x[5]|0)>0 && (_x[3]|0)===_hi) _e=_g; else if(_e>=0) break; } if(_e>=_gh) s._scoreHold=(_e-_gh+1)/_Kh; }
+      if(flag!==1 && flag!==3){ for(_o=1; _o<_Kh; _o++){ _z=SC.slots[_gh+_o]; if(_z && (_z[1]|0)===(sl[1]|0) && (_z[0]===1||_z[0]===3) && ((_z[4]|0)===1 || (_z[4]|0)===3)){   /* (20.10) past a seam into another room is that room's first harp, not this beat's */ flag=_z[4]|0; _hs=_z; break; } } }
+    }
     if(flag===1 || flag===3){
-      var key=p+':'+(sl[3]|0)+':'+flag;
+      var key=p+':'+(_hs[3]|0)+':'+flag;
       if(SC._prayHarp===key) return; SC._prayHarp=key;   // once per slot, however many beats sit on it
       if(s._omPrayP!==p){ s._omPrayC=_omLongest(p); s._omPrayP=p; }
       if(s._omPrayC){ window._omRing={next:0,end:0}; _omegaSing(p,s._omPrayC,time,dur,0.5,s.rIdx|0,s); _omegaEcho(p,time,dur,s.rIdx|0,s._omPrayC,s); }
@@ -6774,7 +6787,8 @@ function _palScoreApply(s,SC,time,dur){
       try{ if(SC._kApplied){ state.bpm=Math.max(5,Math.min(999,state.bpm*SC._kApplied/K));
         var _eb=document.getElementById('bpm'), _ebn=document.getElementById('bpm-num'); if(_eb)_eb.value=state.bpm; if(_ebn)_ebn.value=state.bpm; } }catch(e){}
       SC._kApplied=K; }
-    var sl=SC.slots[SC.rev ? (seg.off+seg.n-1-j) : (seg.off+j)];
+    SC._gi=SC.rev ? (seg.off+seg.n-1-j) : (seg.off+j);   // (20.10) the slot's place in the score — under ×k _prayerScoreBeat reads the slots this beat covers
+    var sl=SC.slots[SC._gi];
     if(!sl) return;
     // THE GRID SNAP (20.08, author: «почему не сто?»): the last percents lived in
     // each window's PRIVATE beat grid — flush re-based it at its own timer's
@@ -8472,7 +8486,7 @@ function schedulerTick(){
       _wetDoseLast=K;
       const anySolo=state.solo.size>0;
       for(const k of VOL_LAYERS){ if(!LWET[k]) continue;
-        const gate=(anySolo && !state.solo.has(k))?0:1;
+        const gate=((anySolo && !state.solo.has(k)) || (k==='omega' && !state.omEcho))?0:1;   // (20.10) the same ⏻ gate as refreshLVol
         try{ LWET[k].gain.setTargetAtTime((state.sendPreFader?gate:vget(k))*K, ctx.currentTime, 0.15); }catch(e){}
       }
     }
@@ -12486,8 +12500,22 @@ function setDirection(rev){
     }
   }
 }
-document.getElementById('btn-fwd').onclick=()=>{ setDirection(false); if(typeof _instantApply==='function') _instantApply(); };
-document.getElementById('btn-rev').onclick=()=>{ setDirection(true);  if(typeof _instantApply==='function') _instantApply(); };
+// (20.10) the hand's ◀▶ is a pin class of its own ('dir'). Before, nothing pinned it: the next form seam put the
+// scene's sign back (plans force dir=1, the learner draws ±1 from p mod 4) — the reversal lasted one scene and no
+// «yours» chip ever showed. Under the written form (parts/crab score) the walk belongs to the slots: like the arrows
+// (16.10) the press is an honest no-op — no pin, no in-place reversal of the score's lists (_palScoreApply rebuilds
+// the pre/post rList only on a phase or p change, so rIdx=i would read the mirrored list until the next seam).
+function _dirHand(rev){
+  if(state.running && !state.paused && state._palScore && state._palScore.on){ try{ _fl('dir','under the written form the walk belongs to the slots — stop the form to turn it'); }catch(e){} return; }
+  setDirection(rev);
+  // (20.10) on the ANSWERING half of parts or retro the mirror carries the pair's direction (his; reversed in retro) and puts it
+  // back at every scene — a 'dir' pin pressed here could never hold her walk; it would only cross the wire and freeze HIS sign
+  var _ans=false; try{ _ans=!!(state.duo && state.duo.on && state.duo.peer && (state.duo.mode==='parts'||state.duo.mode==='retro') && window._qrIsLead && !window._qrIsLead()); }catch(e){}
+  if(!_ans && typeof apPin==='function') apPin('dir');   // the wrapped window.apPin: the baton carries it like every class
+  if(typeof _instantApply==='function') _instantApply();
+}
+document.getElementById('btn-fwd').onclick=()=>_dirHand(false);
+document.getElementById('btn-rev').onclick=()=>_dirHand(true);
 
 // ---- Structure: sections-in-playback + exclusive motion mode + sustain toggle ----
 const _secActive={pre:true,main:true,post:true};
@@ -12829,6 +12857,7 @@ state.headroomTarget=1.0;  // musical dynamics: 0.70≈piano, 1.00=reference, 1.
         const val=document.createElement('span');
         val.style.cssText='font:10px ui-monospace,monospace;color:var(--muted);min-width:42px;text-align:right';
         val.textContent=fmtv(get());
+        sl._sync=()=>{ sl.value=String(get()); val.textContent=fmtv(get()); };   // (20.10) restore repaints the row from state (a .value write fires no event, nothing pins)
         sl.addEventListener('input',()=>{ const v=parseFloat(sl.value); set(isNaN(v)?get():v); val.textContent=fmtv(get()); });
         row.appendChild(lab); row.appendChild(sl); row.appendChild(val); host.appendChild(row);
       }
@@ -12837,6 +12866,7 @@ state.headroomTarget=1.0;  // musical dynamics: 0.70≈piano, 1.00=reference, 1.
         const lab=document.createElement('label'); lab.textContent=label;
         const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!get(); if(id) cb.id=id;
         cb.addEventListener('change',()=>set(cb.checked));
+        cb._sync=()=>{ cb.checked=!!get(); };   // (20.10) as mkRow's
         const sp=document.createElement('span'); sp.style.cssText='font:10px ui-monospace,monospace;color:var(--muted)'; sp.textContent=note||'';
         row.appendChild(lab); row.appendChild(cb); row.appendChild(sp); host.appendChild(row);
       }
@@ -12864,13 +12894,13 @@ state.headroomTarget=1.0;  // musical dynamics: 0.70≈piano, 1.00=reference, 1.
       })();
       mkRow('amp mod',0,0.30,0.01,
         ()=>state.tremDepth, v=>state.tremDepth=v,
-        v=> Math.round(v*100)+'%');
+        v=> Math.round(v*100)+'%', 'fx-trem');
       mkRow('pulse · rhythm',0,1,0.01,
         ()=>state.pulseDepth, v=>state.pulseDepth=v,
-        v=> v<0.005?'off':Math.round(v*100)+'%');
+        v=> v<0.005?'off':Math.round(v*100)+'%', 'fx-pulse');
       mkRow('vibrato',0,40,1,
         ()=>state.vibDepth, v=>state.vibDepth=v,
-        v=> Math.round(v)+'¢');
+        v=> Math.round(v)+'¢', 'fx-vib');
       (function(){
         const row=document.createElement('div'); row.className='row';
         const lab=document.createElement('label'); lab.textContent='invert QR↔NQR';
@@ -12891,8 +12921,8 @@ state.headroomTarget=1.0;  // musical dynamics: 0.70≈piano, 1.00=reference, 1.
       mkChk('reverb bypass', ()=>state.fxRevBypass, b=>{ state.fxRevBypass=b; fxApply(); }, 'no global reverb');
       mkRow('saturation', 0, 2, 0.01,
         ()=>state.fxSat, v=>{ state.fxSat=v; fxApply(); },
-        v=> Math.round(v*100)+'%');
-      mkChk('sat bypass', ()=>state.fxSatBypass, b=>{ state.fxSatBypass=b; fxApply(); }, 'linear / clean');
+        v=> Math.round(v*100)+'%', 'fx-sat');
+      mkChk('sat bypass', ()=>state.fxSatBypass, b=>{ state.fxSatBypass=b; fxApply(); }, 'linear / clean', 'fx-sat-byp');
       // (spectral floors retired 10.07 — the depth row and its apply hook are gone)
       // sat curve mode selector removed — QR curves disabled, tanh is the only mode.
       mkRow('limiter thr', -60, 0, 1,
@@ -12932,7 +12962,9 @@ document.getElementById('p-num').addEventListener('change',e=>{
   if(state.running && !state.paused && state._palScore && state._palScore.on){ try{ _fl('prime','under the written form the prime belongs to the slots — pin p before ✚, or play retro / free, or stop the form'); }catch(e){} try{ e.target.value=_liveP(); }catch(e2){} return; }   // (16.10) a typed p under a score is an honest no-op too (the box shows the live p again)
   let p=parseInt(e.target.value)||11; if(p<3)p=3; if(!isPrime(p))p=nextPrime(p);
   e.target.value=p;
+  try{ if(state._landArmed){ var _ann=(state.reqP!=null)?(state.reqP|0):((state._landPend&&state._landPend.p)|0); if(_ann!==(p|0)){ state._landArmed=false; state._landTok=false; state._landPend=null; try{ if(window._duoLandCancel) window._duoLandCancel(); }catch(_e2){} } } }catch(_e){}   // (20.10) like an arrow: a typed prime re-opens the conductor's announcement
   state.reqP=p; state.reqSkip=true;
+  try{ if(state.reqGoto && state.reqGoto.seam && (state.reqGoto.p|0)!==(p|0)) state.reqGoto.p=p; }catch(_e){}   // (20.10) a typed p outranks a form seam's armed goto, like an arrow
   if(!state.running){ state.p=p; state.vizP=p; }
   // If the prelude is NOT in the playback set, land directly in main (r=1)
   // rather than starting from a section boundary.
@@ -13015,9 +13047,12 @@ for(const k of VOL_LAYERS){
   } }
 { const eb=document.getElementById('om-echo');
   if(eb){ const paint=()=>{ eb.style.opacity=state.omEcho?'1':'0.35'; eb.classList.toggle('active',!!state.omEcho); };
-    eb.onclick=()=>{ state.omEcho=!state.omEcho; paint();
-      try{ if(!state.omEcho){ if(typeof _omEchoDamp==='function') _omEchoDamp(); if(LVOL&&LVOL.omega&&ctx) LVOL.omega.gain.setTargetAtTime(0,ctx.currentTime,0.25); try{ const BG=window._bodyGate; if(BG&&ctx){ for(const bk in BG){ if(bk.indexOf('omega|')===0) BG[bk].gain.setTargetAtTime(0,ctx.currentTime,0.25); } } }catch(e){} }   /* (16.10) and the bodies: the canon entry's bowed voices (omega|str) and the wheel's soundboard (omega|pluck) pour into the corpus PAST the fader — LVOL at 0 leaves them ringing */ else if(typeof refreshLVol==='function') refreshLVol(); }catch(e){}   // (16.10) ⏻ off silences what rings: the canon is damped and the omega layer ramps to 0; on re-reads the fader
-    }; paint(); } }
+    window._omEchoSet=(on,wire)=>{ state.omEcho=!!on; paint();   // (20.10) ONE setter for the hand and the wire (his ⏻ → her frame): the same damping below; ✚ keeps its own line and sends the pair's 'on'
+      try{ if(!state.omEcho){ if(typeof _omEchoDamp==='function') _omEchoDamp(); if(LVOL&&LVOL.omega&&ctx) LVOL.omega.gain.setTargetAtTime(0,ctx.currentTime,0.25); if(LWET&&LWET.omega&&ctx) LWET.omega.gain.setTargetAtTime(0,ctx.currentTime,0.25);   /* (20.10) and the reverb send: omega is no trajectory layer, so in pre-fader mode its notes feed LWET.omega, which carries only the solo gate — LVOL at 0 left the sounding canon in the room */ try{ const BG=window._bodyGate; if(BG&&ctx){ for(const bk in BG){ if(bk.indexOf('omega|')===0) BG[bk].gain.setTargetAtTime(0,ctx.currentTime,0.25); } } }catch(e){} }   /* (16.10) and the bodies: the canon entry's bowed voices (omega|str) and the wheel's soundboard (omega|pluck) pour into the corpus PAST the fader — LVOL at 0 leaves them ringing */ else if(typeof refreshLVol==='function') refreshLVol(); }catch(e){}   // (16.10) ⏻ off silences what rings: the canon is damped and the omega layer ramps to 0; on re-reads the fader
+      if(!wire){ try{ if(window._duoOmEcho) window._duoOmEcho(state.omEcho); }catch(e){} }   // (20.10) he leads: his ⏻ is the pair's; a set that came off the wire never sends back
+    };
+    eb.onclick=()=>{ window._omEchoSet(!state.omEcho); };
+    paint(); } }
 // One-shot renormalisation: push the whole fader bank up (loudest layer →
 // ~92% of its own max) and pull master down by the same factor, so loudness
 // stays put while brightness — which follows the faders — goes to full.
@@ -13235,6 +13270,19 @@ function apUnpin(key){
   if(typeof liveDrift!=='undefined' && liveDrift.suppress) liveDrift.suppress((state.apPins&&state.apPins.size)?state.apPins:null);
   _apRenderPins();
 }
+// (20.10) THE TIMBRE CLASSES the seams used to flip under the hand: saturation (amount +
+// bypass), tremolo (amp mod + pulse), vibrato (global depth + the per-voice scalers) and
+// the four compositional rules. A door of its own, so the seams that must not take the
+// full strip (the duet score owns p/r there; the ◆ form never stripped) still keep them.
+function _apStripFx(s, cur){
+  if(!s || !cur || !state.apPins || !state.apPins.size) return s;
+  const P=state.apPins;
+  if(P.has('sat')){ if(cur.fxSat!=null) s.fxSat=cur.fxSat; if(cur.fxSatBypass!=null) s.fxSatBypass=!!cur.fxSatBypass; }
+  if(P.has('trem')){ if(cur.tremDepth!=null) s.tremDepth=cur.tremDepth; if(cur.pulseDepth!=null) s.pulseDepth=cur.pulseDepth; }
+  if(P.has('vib')){ if(cur.vib) s.vib={...cur.vib}; if(cur.vibDepth!=null) s.vibDepth=cur.vibDepth; }
+  if(P.has('rules') && cur.rules) s.rules={...cur.rules};
+  return s;
+}
 // Overwrite the pinned fields of a generated scene with the player's live values, so
 // the learned autopilot keeps the manual settings instead of replacing them.
 function apStripPinned(s, cur){
@@ -13255,6 +13303,7 @@ function apStripPinned(s, cur){
   if(P.has('inst')){ if(cur.voiceInst) s.voiceInst={...cur.voiceInst}; else delete s.voiceInst; }
   // ---- full class coverage (author 25.07): every grabbed CLASS survives generation ----
   if(P.has('prime')){ if(cur.p!=null) s.p=cur.p; if(cur.r!=null) s.r=cur.r; }
+  if(P.has('dir') && cur.dir!=null) s.dir=(cur.dir<0)?-1:1;   // (20.10) the hand's walking direction survives every stripping seam (plain form, learner autopilot); the duet mirror puts the pair's law back after its strip
   if(P.has('pitch')){ for(const k of ['harmMode','spiralRatio','pitchFlip','pitchCouple']){ if(cur[k]!=null) s[k]=cur[k]; } }
   if(P.has('structure')){ if(cur.motion) s.motion=cur.motion; if(cur.secMask) s.secMask={...cur.secMask};
     if(cur.glissA!=null) s.glissA=cur.glissA; if(cur.glissB!=null) s.glissB=cur.glissB; }
@@ -13263,7 +13312,7 @@ function apStripPinned(s, cur){
   if(P.has('sends') && cur.send){ s.send={...cur.send}; }
   if(P.has('tilt') && cur.bright){ s.bright={...cur.bright}; }          // per-channel brightness rides the timbre class
   if(P.has('pans') && cur.pan){ s.pan={...cur.pan}; }
-  if(P.has('vib') && cur.vib){ s.vib={...cur.vib}; }
+  _apStripFx(s, cur);   // (20.10) sat · tremolo/pulse · vibrato (depth + per voice) · rules — the per-voice 'vib' branch moved in there
   if(P.has('expression')){ for(const k of ['exprTimbreOn','exprTimbreDepth','exprArticOn','exprArticDepth','exciteOn','exciteDepth','depthSend','modSwap','attackMorph','postOffsetBeats','abOffsetBeats']){ if(cur[k]!=null) s[k]=cur[k]; } }
   if(P.has('solo') && cur.solo){ s.solo=[...cur.solo]; }   // the player's solo choice (even an empty one) survives every generated scene
   return s;
@@ -13274,7 +13323,8 @@ function _apRenderPins(){
   if(!P || !P.size){ host.innerHTML=''; host.style.display='none'; return; }   // show whenever the player holds pins — even while autopilot is stopped, so control is always returnable
   const nice={bpm:'tempo',freq:'freq',master:'master',tilt:'timbre',depthPan:'pan',order:'order/dir',groove:'beat',bg:'background',pulseK:'pulse ratio',
               vols:'volumes',inst:'instruments',prime:'prime',pitch:'pitch map',structure:'sections/motion',chords:'chords',
-              sustainCfg:'sustain',sends:'reverb sends',pans:'pans',vib:'vibrato',morph:'attack·morph',expression:'expression',solo:'solo'};
+              sustainCfg:'sustain',sends:'reverb sends',pans:'pans',vib:'vibrato',morph:'attack·morph',expression:'expression',solo:'solo',dir:'forward·reverse',
+              sat:'saturation',trem:'tremolo·pulse',rules:'rules'};
   host.style.display='';
   // Each grabbed control gets its OWN checkbox — untick it to hand THAT one back to
   // the Markovs (individually). The "↩ all" button releases everything at once.
@@ -13314,7 +13364,9 @@ function _instantApply(){
              'cfg-type':'chords','cfg-trig':'chords','cfg-arp':'chords','cfg-arp-sub':'chords','cfg-tie':'chords','cfg-dur':'chords',
              'pn-nmode':'sustainCfg','pn-nfixed':'sustainCfg','pn-nfixed-num':'sustainCfg',
              'depth-send':'expression','expr-timbre':'expression','expr-artic':'expression','excite-amt':'expression','mod-swap':'expression',
-             't-postoff':'expression','t-postoff-num':'expression','t-aboff':'expression','t-aboff-num':'expression','t-post':'expression','t-pre':'expression'};
+             't-postoff':'expression','t-postoff-num':'expression','t-aboff':'expression','t-aboff-num':'expression','t-post':'expression','t-pre':'expression',
+             'fx-sat':'sat','fx-sat-byp':'sat','fx-trem':'trem','fx-pulse':'trem','fx-vib':'vib',              // (20.10) the QR-DSP rows
+             'rule-prime-ratio':'rules','rule-freq-lock':'rules','rule-sus-hold':'rules','rule-trans-anchor':'rules'};   // (20.10) the four rules: one class
   for(const k of VOL_LAYERS){ map['v-'+k]='vols'; map['rev-'+k]='sends'; map['br-'+k]='tilt'; map['inst-'+k]='inst'; }   // one checkbox per CLASS, not per channel
   if(document.addEventListener) document.addEventListener('input',(e)=>{
     const t=e.target; if(!t||!t.id) return; const key=map[t.id]; if(key) apPin(key);
@@ -13370,7 +13422,9 @@ function stepPrime(dir){
   if(state.running && !state.paused && state._palScore && state._palScore.on){ try{ _fl('prime','under the written form the prime belongs to the slots — pin p before ✚, or play retro / free, or stop the form'); }catch(e){} return; }   // (16.10) arrows under a score are an honest no-op: the slots own p, a step would be taken back at the next seam
   const cur=_liveP();
   const np=(dir>0)?nextPrime(cur):prevPrime(cur);
+  try{ if(state._landArmed){ var _ann=(state.reqP!=null)?(state.reqP|0):((state._landPend&&state._landPend.p)|0); if(_ann!==(np|0)){ state._landArmed=false; state._landTok=false; state._landPend=null; try{ if(window._duoLandCancel) window._duoLandCancel(); }catch(_e2){} } } }catch(_e){}   // (20.10) the conductor's notice beat is announcing ANOTHER prime (every seam re-lands its p with notice): a press re-opens the announcement so both halves still land on one beat — kept, np landed unannounced, or his own pend for the old p took it back
   state.reqP=np; state.reqSkip=true;          // live jump via the existing engine path
+  try{ if(state.reqGoto && state.reqGoto.seam && (state.reqGoto.p|0)!==(np|0)) state.reqGoto.p=np; }catch(_e){}   // (20.10) a form seam within the last beat left its goto armed on the scene's p; landing right after reqP in the same beat it took the press back — the seam keeps its door, the prime is the hand's
   try{ if(typeof apPin==='function') apPin('prime'); }catch(e){}   // (16.10, author: «меняю p стрелками — соскакивает назад») a stepped prime is the hand's, like a typed one: the form's next scene must not take it back
   if(!state.running){ state.p=np; state.vizP=np; }  // when stopped: pick the start prime (and preview it)
   const jp=document.getElementById('p-num'); if(jp) jp.value=np;
@@ -14497,7 +14551,7 @@ const autopilot = (()=>{
     const _simFrom=(sc.r==null && typeof captureSimPos==='function') ? captureSimPos() : null;
     // direction first (so a fresh section starts the right way)
     _apProg=true;
-    if(typeof setDirection==='function') setDirection(!!sc.reverse);
+    if(typeof setDirection==='function' && !apPinned('dir')) setDirection(!!sc.reverse);   // (20.10) the tour gives way to the hand's held ◀▶, as to its tempo, freq and order below
     _setP(sc.p); if(!apPinned('bpm')) _setBpm(sc.bpm); if(!apPinned('freq')) _setFreq(sc.freq[0],sc.freq[1]); _setPitch(sc.pitch);
     if(!apPinned('order')) _setReorder(sc.reorder[0], sc.reorder[1]);
     _setType(sc.type); _setTriggers(sc.trig); _setInset(sc.inset!==false);
@@ -14955,6 +15009,7 @@ const scenes = (()=>{
     for(const k of ['tremDepth','vibDepth','floorsDepth','pulseDepth','fxRevSend','fxRevBypass','fxSat','fxSatBypass','autoHeadroom','headroomTarget']){
       if(s[k]!=null) state[k]=s[k];
     }
+    for(const _id of ['fx-trem','fx-pulse','fx-vib','fx-sat','fx-sat-byp']){ const _e=document.getElementById(_id); if(_e && _e._sync) try{ _e._sync(); }catch(e){} }   // (20.10) the QR-DSP rows show what plays — after ✚, a hand-back, a seam (as mod-depth/depth-pan above)
     if(ctx&&qrBus&&qrBus.applyFX) qrBus.applyFX();
     if(ctx&&qrBus&&qrBus.tuneFloors) try{ qrBus.tuneFloors(); }catch(e){}
     // push restored volumes onto the live nodes, and re-wire the post-fader sends
@@ -18004,7 +18059,8 @@ const learner = (()=>{
       const g=generate(before);
       _formCtl=null;
       const applyIt=()=>{
-        scenes.restore(g,{sim:true});
+        try{ if(typeof apPinned==='function' && apPinned('dir')) g.dir=(state.pDir<0)?-1:1; }catch(e){}   // (20.10) the learner form's seams keep the hand's held ◀▶ too — read live when the quantized switch fires (of the other classes only the timbre ones, next line)
+        scenes.restore((typeof _apStripFx==='function')?_apStripFx(Object.assign({},g),state):g,{sim:true});   // (20.10) the ◆ form's seam keeps the hand's sat · tremolo · vibrato · rules — read at the switch, not at generation
         if(_fadeRunner){ _setMaster(_fadeRunner.cur); }            // a fade in flight owns the master
         if(typeof liveDrift!=='undefined') liveDrift.capture();
       };
@@ -19123,6 +19179,7 @@ startRenderLoop();
     try{ if(typeof composer!=='undefined' && composer.count && composer.count()>0){ if(composer.isPlaying&&composer.isPlaying()) composer.stop(); composer.clear(); } }catch(e){}
     scenes.restore(s,{});
     try{ if(!state.omEcho){ state.omEcho=true; var eb=document.getElementById('om-echo'); if(eb){ eb.style.opacity='1'; eb.classList.add('active'); } } if(typeof refreshLVol==='function') refreshLVol(); }catch(e){}
+    try{ if(window._duoOmEcho) window._duoOmEcho(true); }catch(e){}   // (20.10) ✚ puts omega back on for the PAIR — her frame's ⏻ follows his
     try{ _fl('form','✚ — the parameters are back at the file\'s defaults (p, tempo, genre and the pair kept)'); }catch(e){}
     return true;
   }catch(e){ return false; } };
@@ -19813,6 +19870,7 @@ startRenderLoop();
   // (this window owns the frame, the stage, the composite recorder); _isLead()
   // names who holds the baton, and every musical gate below asks the baton.
   function _isLead(){ return ((state.duo&&state.duo.lead)||'markov')===ROLE; }
+  window._qrIsLead=_isLead;   // (20.10) for _dirHand: an answering half must not pin the pair's direction
   // (05.08 audit) PAIR TOKEN: every desktop tab now auto-opens a duet, and all tabs
   // share one BroadcastChannel — without a token two open tabs cross-wire into a
   // four-endpoint restore storm. The parent mints a token, the frame inherits it
@@ -19963,12 +20021,19 @@ startRenderLoop();
         if(st.duo) delete st.duo;   // a captured step may carry the pair bundle — pal is its own machinery, and a mid-plan bundle would re-distribute across the wire (the 03.08 feedback loop)
         if(st.solo) delete st.solo;   // (05.08) steps captured under the parts mask carry a HALF-ensemble solo — pal is full-ensemble, the mask machinery owns solo
         try{ if(typeof apPinned==='function'){ if(apPinned('master') && st.vol && state.vol) st.vol.master=state.vol.master; if(apPinned('vols') && st.vol && state.vol){ for(var _k in state.vol){ if(_k!=='master' && state.vol[_k]!=null) st.vol[_k]=state.vol[_k]; } } } }catch(e){}   // (16.10) under the score p/r are the slots' law, but the master and the faders stay the hand's — the plain seam already strips, this seam did not (no apStripPinned here: it would overwrite st.p/st.r, which the score owns)
+        try{ if(typeof _apStripFx==='function') _apStripFx(st, state); }catch(e){}   // (20.10) the timbre classes stay the hand's here too (sat · tremolo · vibrato · rules; a rule ticked on either window ticks both) — none is the score's law; st is a copy, the plan is untouched
+        // (20.10) MULTIPLICITY BEFORE THE RESTORE: restore must see HER room. Mapped after it, restore saw his p, and both
+        // same-room tests (its drone kill, the prayer's reqP release below) compared his p with her q — at every seam her
+        // drone was cut and re-bowed, and reqP=his p landed on the next beat before the score put q back.
+        var _mk2=(opts&&opts.parts&&!_isLead())?(state.duo.mult|0):1, _q2=null;
+        try{ _q2=(_mk2>1)?_multPrime(st.p|0,_mk2):null;
+          if(_q2){ st.p=_q2; if(st.r) st.r=Math.max(1,Math.min(_q2-1,Math.ceil((st.r|0)/_mk2))); st.bpm=Math.max(5,Math.min(999,(st.bpm||state.bpm)/_mk2)); } }catch(e){ _q2=null; }
         scenes.restore(st,{});
         try{ state._lyrPhase=st._lyrPhase||null;
           if(st._lyrPhase && window._duoMailBH && !document.body.classList.contains('mk-embedded')) window._duoMailBH({act:'lyric', stage:st._lyrPhase, ts:Date.now()});
           if(st._lyrPhase && window._duoSpaceSet) window._duoSpaceSet({tender:0.75,desire:0.45,passion:0.08,afterglow:0.15}[st._lyrPhase] ?? 0.5);
         }catch(e){}   // (21.08) the stamped phase rides the pal seam too
-        try{ var _mk2=(opts&&opts.parts&&!_isLead())?(state.duo.mult|0):1; var _q2=(_mk2>1)?_multPrime(st.p|0,_mk2):null; if(_q2){ state.p=_q2; state.bpm=Math.max(5,Math.min(999,(st.bpm||state.bpm)/_mk2)); var _eb2=document.getElementById('bpm'), _ebn2=document.getElementById('bpm-num'); if(_eb2)_eb2.value=state.bpm; if(_ebn2)_ebn2.value=state.bpm; }
+        try{ if(_q2){ state.p=_q2; state.bpm=st.bpm; var _eb2=document.getElementById('bpm'), _ebn2=document.getElementById('bpm-num'); if(_eb2)_eb2.value=state.bpm; if(_ebn2)_ebn2.value=state.bpm; }
           if(state._palScore) state._palScore._kApplied=(_q2?_mk2:1); }catch(e){}   // (25.09) the K this step applied — the live reader adjusts only on a CHANGE   // (24.09) multiplicity: her prime q and tempo /k for this step — both windows read the scene being played
         try{ if(typeof learner!=='undefined' && learner.reassertFade) learner.reassertFade(); }catch(e){}   // a fade in flight owns the master (the form's frame; _fadeRunner is learner-closure-local, hence the door)
         if(state._palScore){
@@ -20157,6 +20222,11 @@ startRenderLoop();
   // live flag, read everywhere the old one was: phase A on the singing half
   // (_palRide), phase B on the answering half (_palPhaseB).
   function _palLive(){ return !!(_palActive || window._palRide || window._palPhaseB); }
+  // (20.10) MULTIPLICITY ON THE WIRE — the answering half's own prime for the conductor's p: q=(p−1)/k+1 when the
+  // ×(p−1) knob is on and q is prime, else p itself (the plain mirror, the scene path's own fallback). Every wire test
+  // that compares «his p» with «my p» compares against THIS: the bare test read the multiple as a lost scene and
+  // asked for it again every 2–4 s (her sweep restarted, her long voices cut, the retro answer thrown into main).
+  function _multHere(p){ p=p|0; try{ var k=(state.duo&&state.duo.mult)|0; if(k>1 && !_isLead()){ var q=_multPrime(p,k); if(q) return q; } }catch(e){} return p; }
   function _palNoteRide(T){
     window._palRide=true;
     _palTape.ev.length=0; _palTape.on=true; _palTape.full=false; _palTape.done=false;
@@ -20300,8 +20370,14 @@ startRenderLoop();
         }catch(e){}   // (21.08) the scene's stamped arc phase rides the seam — and the breath mail carries it to her window
         var mk=st.secMask||{};
         var first=mk.pre?'prelude':(mk.main?'main':'postlude');
-        if(state.activity==='meditate' && typeof synthState!=='undefined' && synthState && (st.p|0)===(synthState.p|0)){ state.reqP=null; state.reqSkip=false; state.reqGotoMain=null; }   // (14.10) a prayer in the same room walks on through the seam — no corner, no restart of the run-up
-        else state.reqGoto={p:st.p, sec:first, rPos:'first'};
+        if(st.dir<0) first=mk.post?'postlude':(mk.main?'main':'prelude');   // (20.10) a held ◀ (plans themselves are always forward) enters the scene at ITS start in travel order — the last enabled section, _palRun's 'last'; rPos 'first' stays: index 0 is the travel start, the lists are built in travel order. It decides the door only when the p change waits at the anchor gate or main is off — otherwise restore's reqGotoMain lands last
+        // (20.10) A HAND'S REQUEST OUTRANKS A SCENE'S — at this seam too. restore() kept the pinned prime the
+        // scheduler had not taken yet (its 16.09 guard), but the goto armed here carried the scene's p and, landing
+        // right after reqP in the SAME beat, took it back («p = 61 → 67», then 61 again); the prayer's walk-on
+        // erased the pending request outright. Same condition as that guard: the hand's prime rides the seam.
+        var _handP=(state.reqP!=null && (state.reqP|0)!==(st.p|0) && typeof apPinned==='function' && apPinned('prime'))?(state.reqP|0):0;
+        if(state.activity==='meditate' && typeof synthState!=='undefined' && synthState && (st.p|0)===(synthState.p|0)){ if(!_handP){ state.reqP=null; state.reqSkip=false; } state.reqGotoMain=null; }   // (14.10) a prayer in the same room walks on through the seam — no corner, no restart of the run-up; (20.10) a hand's pending prime still lands, exactly as between seams
+        else state.reqGoto={p:(_handP||st.p), sec:first, rPos:'first', seam:true};   // (20.10) seam:true — the one goto a later press may retarget (stepPrime, typed p); mirror, plan, session, scrub gotos keep their owners
       }catch(e){}
       i++;
       var _next=_base; for(var q=0;q<i;q++) _next+=Math.max(1000,(seq[q].dur||10)*1000);
@@ -20549,6 +20625,7 @@ startRenderLoop();
               try{ fn.apply(null,ga); }catch(e){}
               try{ if(_sPrev!=null && window._gvStep) window._gvStep.set(_sPrev); }catch(e){} }
           } else {
+            if(x.l==='omega' && !state.omEcho) continue;   // (20.10) ⏻ off: the tape's omega lane is not re-struck — the live emitters are gated the same way; LVOL alone left its pre-fader reverb sounding
             var reg={pulse:(typeof schedulePulseSine!=='undefined')&&schedulePulseSine,
                      cont:(typeof scheduleContinuousSine!=='undefined')&&scheduleContinuousSine,
                      sus:(typeof scheduleSustainVoice!=='undefined')&&scheduleSustainVoice,
@@ -20657,6 +20734,7 @@ startRenderLoop();
       return true;
     }catch(e){ return false; }
   };
+  window._duoLandCancel=function(){ try{ if(state.duo.on && state.duo.peer && _isLead()) send({t:'land-x'}); }catch(e){} };   // (20.10) a press in the notice beat withdraws his announcement — her pend for the old prime must go with it
   function _landHere(m){
     // the answering half: land exactly at the announced instant, shifted by the offset
     try{
@@ -20671,7 +20749,7 @@ startRenderLoop();
       // moves her, and only her, in beats.
       var _bd=beatDur();
       var _atCtx=((typeof ctx!=='undefined'&&ctx)?ctx.currentTime:0)+(((m.at||Date.now())-Date.now())/1000)+(+m.ofs||0)*_bd;
-      state._landPend={p:(m.p|0), at:_atCtx, wall:Date.now(),
+      state._landPend={p:_multHere(m.p|0), at:_atCtx, wall:Date.now(),   // (20.10) under ×k his announced prime lands as HER prime — the bare p put her back in his world at every announced change (and overwrote a mapped scene that had already arrived)
         deadline:Date.now()+Math.max(0,(m.at||Date.now())-Date.now())+((+m.ofs||0)*_bd*1000)+120000};   // the pend lives as long as its own journey plus two minutes
       _landSeen=m.n||_landSeen;
     }catch(e){}
@@ -20799,6 +20877,7 @@ startRenderLoop();
   var _mkFrameEl=null;   // Markova's iframe element (leader side) — postMessage target
   var _msgN=0, _seenN={};
   window._duoHr=function(v){ try{ send({t:'hr', v:v|0}); }catch(e){} };   // the heart's own line on the wire
+  window._duoOmEcho=function(on){ try{ if(IS_LEADER && state.duo.on) send({t:'omecho', on:!!on}); }catch(e){} };   // (20.10) his ⏻ → her frame; only his window (IS_LEADER) sends — the author's rule: he leads
   function send(msg){ msg.id=MY_ID; msg.role=ROLE; msg.ts=Date.now(); msg.n=++_msgN; if(PAIR) msg.pair=PAIR;
     // DUAL TRANSPORT (author 29.07: stage dead in Safari): BroadcastChannel for
     // same-origin windows/tabs PLUS direct postMessage parent<->frame. Safari blocks
@@ -20832,7 +20911,7 @@ startRenderLoop();
     // lightweight tempo mirror: bpm changes ride their own tiny message — a full
     // scene-restore per breath was the 2×/s "scene p31 · NNbpm" storm in the log.
     var _b=Math.round(state.bpm)||0;
-    if(_b && _b!==_lastBpmSent){ _lastBpmSent=_b; send({t:'bpm', bpm:_b}); }
+    if(_b && _b!==_lastBpmSent){ _lastBpmSent=_b; send({t:'bpm', bpm:_b, hp:(s.p|0)}); }   // (20.10) his p rides the tempo: under ×k she divides only when that p HAS her q
     // (21.08, author: «по умолчанию частоты диапазоны маркова и марковой совпадают»)
     // — the tempo already travelled this way; the register window travels with it,
     // so even when she is improvising freely the two of them stand in one room.
@@ -20889,7 +20968,7 @@ startRenderLoop();
         var _mr=(snap.p|0)-_hisR; if(_mr<1)_mr=1; if(_mr>snap.p-1)_mr=snap.p-1;
         snap.r=_mr;
       }
-      if((snap.p|0)!==_hereP || _needMirrorJump){ _mirJump=true; _needMirrorJump=false; }
+      if(_multHere(snap.p|0)!==_hereP || _needMirrorJump){ _mirJump=true; _needMirrorJump=false; }   // (20.10) under ×k «the same room» is his p on MY q — the bare test made every knob-only retro scene a jump into main at the mirror row (restore without sim, one pause beat, her long voices and her mirrored hold cut)
     }
     // The player's grabbed classes keep THEIR OWN values on THIS window too — the mirror
     // must not overwrite what the hand is holding (author 26.07: «не все слайдеры
@@ -20901,9 +20980,10 @@ startRenderLoop();
       // strip then erased the LAW from every incoming mirror — the follower stayed
       // orphaned on its own p forever, silently, heal after heal. The hand keeps
       // its faders; the law belongs to the PAIR: p and r always ride the mirror.
-      var _law={p:snap.p, r:snap.r};
+      var _law={p:snap.p, r:snap.r, dir:snap.dir};   // (20.10) the walking direction is the pair's law too: his in parts, his REVERSED in retro (derived above) — a 'dir' pin on the wire must never turn the answer into a parallel walk
+      _law.rules=snap.rules;   // (20.10) so are the four rules: one pitch frame (prime ratio), one sustain and anchor-gate law for both halves — a 'rules' pin on the wire must not freeze hers while his hand moves his (her hand reaches him through the shared bar)
       snap=Object.assign({}, snap); apStripPinned(snap, scenes.capture());
-      if(_law.p!=null) snap.p=_law.p; if(_law.r!=null) snap.r=_law.r; } }catch(e){}
+      if(_law.p!=null) snap.p=_law.p; if(_law.r!=null) snap.r=_law.r; if(_law.dir!=null) snap.dir=_law.dir; if(_law.rules) snap.rules=_law.rules; } }catch(e){}
     // if the player owns solo, keep THEIR set across the mirror (restore would overwrite it)
     var _soloKeep=(typeof apPinned==='function' && apPinned('solo')) ? [...(state.solo||[])] : null;
     // (24.09) MULTIPLICITY on the wire: the law p, r rides the mirror — and under a chosen k
@@ -20933,7 +21013,7 @@ startRenderLoop();
       // retro-only) and the halves lived on different laws for a whole session.
       // The heartbeat carries the sender's p; a follower that disagrees twice in a
       // row asks for the scene — any silent loss repairs itself within ~6 s.
-      try{ if(!_isLead() && state.duo.on && !_palLive() && state.duo.mode!=='free' && m.hp && (m.hp|0)!==(state.p|0)){
+      try{ if(!_isLead() && state.duo.on && !_palLive() && state.duo.mode!=='free' && m.hp && _multHere(m.hp|0)!==(state.p|0)){   // (20.10) under ×k her p is the q of his — only a real divergence heals; the bare test re-mirrored her every ~4 s (sweep restarted, chord queue cleared, held voices cut)
         var _hbN=Date.now();
         if(window._hbMis && window._hbMis.p===(m.hp|0)){
           if(_hbN-window._hbMis.at>3500 && (!window._scnReqAt || performance.now()-window._scnReqAt>4000)){
@@ -20952,6 +21032,7 @@ startRenderLoop();
         send({t:'lead', who:(state.duo.lead||'markov')});
         send({t:'ratio', v:_freeRatio||0, k:_ratioKey(_freeRatio)});
         send({t:'soff', v:(state.duo.offsetBeats||0)});   // (16.08) or a reloaded frame lands on the default while the pill shows the author's number
+        send({t:'omecho', on:!!state.omEcho});   // (20.10) the ⏻ he set before she arrived (or before her frame reloaded)
       }
       if(_isLead() && state.duo.on && m.id!==_lastPeerSynced){
         _lastPeerSynced=m.id;
@@ -20971,7 +21052,7 @@ startRenderLoop();
       }catch(e){}
     }
     else if(m.t==='bpm'){ if(!_isLead() && m.bpm>0 && !_palLive() && !_pulseOwnsTempo()){ _lastLeaderBpm=m.bpm|0;
-      if(state.duo.mode!=='free'){ var _mb=((state.duo.mult|0)>1)?(m.bpm/(state.duo.mult|0)):(m.bpm|0); state.bpm=Math.max(5,Math.min(999,_mb));   // (24.09) multiplicity: her tempo is his /k
+      if(state.duo.mode!=='free'){ var _kb=(m.hp!=null)?((_multHere(m.hp|0)!==(m.hp|0))?(state.duo.mult|0):1):Math.max(1,state.duo.mult|0); var _mb=(_kb>1)?(m.bpm/_kb):(m.bpm|0);   /* (20.10) divide by k only when his p HAS her q, as the scene path does — on a plain-mirror prime (41 at ×3) she keeps his tempo instead of a third of it */ state.bpm=Math.max(5,Math.min(999,_mb));   // (24.09) multiplicity: her tempo is his /k
         var _e1=document.getElementById('bpm'), _e2=document.getElementById('bpm-num');
         if(_e1)_e1.value=state.bpm; if(_e2)_e2.value=state.bpm; }
       else if(_freeRatio) _applyRatioBpm();   // «сама», but tempo-coupled by the chosen ratio
@@ -20987,7 +21068,7 @@ startRenderLoop();
     else if(m.t==='pin'){ if(_isLead()) apPin(m.key); }            // wrapped → rebroadcasts the full set
     else if(m.t==='unpin'){ if(_isLead()) apUnpin(m.key); }
     else if(m.t==='clearpins'){ if(_isLead()) apClearPins(); }
-    else if(m.t==='pins'){ if(!_isLead() && typeof _apPinSet==='function'){ var s2=_apPinSet(); s2.clear(); (m.pins||[]).forEach(function(k){ s2.add(k); }); if(typeof _apRenderPins==='function') _apRenderPins(); } }
+    else if(m.t==='pins'){ if(!_isLead() && typeof _apPinSet==='function'){ var s2=_apPinSet(), _own=[...s2].filter(function(k){ return window._qrPinLocal && window._qrPinLocal[k]; }); s2.clear(); (m.pins||[]).forEach(function(k){ s2.add(k); }); _own.forEach(function(k){ s2.add(k); });   /* (20.10) her own timbre pins are hers */ if(typeof _apRenderPins==='function') _apRenderPins(); } }
     else if(m.t==='scene-req'){ if(_isLead()) broadcastScene(true); }
     else if(m.t==='stage-req'){ try{ if(IS_LEADER && btnStage) btnStage.onclick({stopPropagation:function(){}}); }catch(e){} }
     else if(m.t==='rec-req'){ try{ if(IS_LEADER && btnRec) btnRec.onclick({stopPropagation:function(){}}); }catch(e){} }
@@ -21050,7 +21131,9 @@ startRenderLoop();
         try{ if(typeof _fl==='function') _fl('room','this half now sounds from '+(m.label||'the chosen box')); }catch(e){} }); }
     }catch(e){} }
     else if(m.t==='tacet'){ try{ _setTacet(!!m.on); }catch(e){} }
+    else if(m.t==='omecho'){ if(!IS_LEADER && m.role==='markov'){ try{ if(window._omEchoSet && !!m.on!==!!state.omEcho) window._omEchoSet(!!m.on, true); }catch(e){} } }   // (20.10) his ⏻ → hers with the same damping; wire=true: nothing is sent back
     else if(m.t==='land'){ try{ _landHere(m); }catch(e){} }
+    else if(m.t==='land-x'){ try{ if(!_isLead()) state._landPend=null; }catch(e){} }   // (20.10) the conductor withdrew the announced landing
     else if(m.t==='soff'){ try{
       state.duo.offsetBeats=Math.max(-_offMax(),Math.min(_offMax(),+m.v||0));
       if(offIn){ offIn.value=state.duo.offsetBeats; if(offOut) offOut.textContent=_offLabel(state.duo.offsetBeats); }
@@ -21080,7 +21163,8 @@ startRenderLoop();
     else if(m.t==='pos'){ if(!_isLead() && state.duo.mode==='retro' && !_palActive && state.running && !state.paused && typeof synthState!=='undefined' && synthState){
       try{
         var _sp=synthState;
-        if(m.hp && (m.hp|0)!==(_sp.p|0)){
+        var _hpQ=_multHere(m.hp|0), _hpK=(m.hp && _hpQ!==(m.hp|0))?(state.duo.mult|0):1;   // (20.10) under ×k his p arrives as my q and one of my beats spans k of his (_hpK=1 when there is no multiple)
+        if(m.hp && _hpQ!==(_sp.p|0)){
           if(_sp._mirHold){ _sp._mirHold=null; _sp._pray=null; }   // (16.10) another p — the mirrored hold is void
           // (07.08 author: «стоит ретро, при этом на двух экранах разные p») the
           // mirror lost the scene — a boot race can eat the one broadcast. The
@@ -21089,7 +21173,7 @@ startRenderLoop();
           if(!window._scnReqAt || performance.now()-window._scnReqAt>2000){
             window._scnReqAt=performance.now(); send({t:'scene-req'}); }
         }
-        if(m.ph && m.ph!=='pause-before' && m.ph!=='pause-after' && m.ph!=='next-prime' && m.hp===(_sp.p|0) && (m.hr>0) && !_sp._fi){
+        if(m.ph && m.ph!=='pause-before' && m.ph!=='pause-after' && m.ph!=='next-prime' && _hpQ===(_sp.p|0) && (m.hr>0) && !_sp._fi){
           // (05.08d author: «почему r=2 у Маркова и r=27 у Марковой?») the mirror is a
           // VALUE mirror, p−r, in EVERY r-order. Index mirroring held only for the
           // natural sweep; arches and ×g orders bent it. The beacon carries his
@@ -21098,6 +21182,11 @@ startRenderLoop();
           // from the NEXT beat, so aiming at the sounding note built in a permanent
           // off-by-one (the walk bodies post-increment; his ri already names next).
           var _hv=(m.hn>0)?m.hn:m.hr;
+          // (20.10) under ×k the answer reads HER OWN list at his index ×(q−1)/(p−1) — the score's ⌊i/k⌋ (_palScoreApply).
+          // In the plain order this IS the wire's value mirror q−⌈hn/k⌉ (her list runs reversed in retro); in the arches,
+          // ×g and Fibonacci orders a value map is k-to-one and would sample her walk with repeats and holes, a jump at
+          // every one of his stations. Under his hold the held index (hj) names the station — his rIdx is already past it.
+          var _kAt=function(list){ var L=(list&&list.length)|0, RL=(m.rl|0)||((m.hp|0)-1), src=(m.hold>0 && m.hj>=0)?(m.hj|0):(m.ri|0); return (L>0 && RL>0)?Math.max(0,Math.min(L-1,Math.floor(src*L/RL))):-1; };
           var _tv=((_sp.p|0)-(_hv|0)); if(_tv<1)_tv=1; if(_tv>(_sp.p|0)-1)_tv=(_sp.p|0)-1;
           var _findNear=function(list,val){ var bi=-1,bd=Infinity;
             for(var k3=0;k3<list.length;k3++){ var v3=list[k3]; if(!v3) continue;
@@ -21115,7 +21204,7 @@ startRenderLoop();
               _sp.flowIdx=_fi2;
               _enterFlowPhase(_sp,_sp.p|0);
               if(_sp.phase!=='dual' && _sp.rList && _sp.rList.length){
-                var _ti0=_findNear(_sp.rList,_tv); if(_ti0>=0) _sp.rIdx=_ti0;
+                var _ti0=(_hpK>1)?_kAt(_sp.rList):_findNear(_sp.rList,_tv); if(_ti0>=0) _sp.rIdx=_ti0;
                 _sp.aFresh=true; _sp.aIdx=0;
               }   // dual: the body builds its lists on the first beat — the next beacon (250ms) lands the station exactly
               _sp._posFixAt=Date.now();
@@ -21125,11 +21214,11 @@ startRenderLoop();
             // ZERO. Big drifts — immediately; ±1 — rate-limited to one fix per 1.2 s
             // (an entry offset used to freeze as a PERMANENT off-by-one; lockstep
             // keeps the zero once set, so rare exact fixes cause no flutter).
-            var _ti=_findNear(_sp.rList,_tv);
+            var _ti=(_hpK>1)?_kAt(_sp.rList):_findNear(_sp.rList,_tv);
             // (16.10) RETRO × PRAYER: his beacon carries the hold — her mirror holds the mirrored station as long as he does, and her drone (schedulePnSustainIfAnchor's _pr branch) reads this _pray
-            if(m.hold>0){ if(!_sp._mirHold || _sp._mirHold.i!==_ti){ _sp._mirHold={i:_ti, until:ctx.currentTime+m.hold*beatDur()}; _sp._pray={stage:'hold', j:_ti, until:_sp._mirHold.until, n:0, k:0}; try{ killLongSustains('mirror hold',0.3); }catch(e){} } if(_ti>=0) _sp.rIdx=_ti; } else { if(_sp._mirHold) _sp._pray=null; _sp._mirHold=null; }   // (16.10) when his hold ends, hers does — a stale stage:'hold' would cut her next drone on that station to one beat
+            if(m.hold>0){ if(!_sp._mirHold || _sp._mirHold.i!==_ti){ _sp._mirHold={i:_ti, until:ctx.currentTime+m.hold*beatDur()/_hpK};   /* (20.10) m.hold counts HIS beats — under ×k mine are k of his: her hold and its drone (_pray.until) end with his, not k times later */ _sp._pray={stage:'hold', j:_ti, until:_sp._mirHold.until, n:0, k:0}; try{ killLongSustains('mirror hold',0.3); }catch(e){} } if(_ti>=0) _sp.rIdx=_ti; } else { if(_sp._mirHold) _sp._pray=null; _sp._mirHold=null; }   // (16.10) when his hold ends, hers does — a stale stage:'hold' would cut her next drone on that station to one beat
             var _rd=(_ti>=0)?Math.abs((_sp.rIdx|0)-_ti):0;
-            if(_ti>=0 && _rd>0 && (_rd>1 || (Date.now()-(_sp._posFixAt||0))>1200)){
+            if(_ti>=0 && _rd>0 && (_rd>1 || ((_hpK===1 || m.ph==='main') && (Date.now()-(_sp._posFixAt||0))>1200))){   // (20.10) under ×k: in the sections her own walk already keeps the target's rate and ⌊ri/k⌋ flickers by one inside her k-times-longer beat, so only a real drift (>1) corrects there; in main her rows natively run k times too fast for ⌊ri/k⌋, and this rate-limited ±1 is what holds each of her rows for k of his — the score's own repeat
               _sp.rIdx=_ti; _sp.aFresh=true; _sp.aIdx=0; _sp._posFixAt=Date.now();
             } else if(m.ph==='main' && m.al && _sp.aList && m.al===_sp.aList.length && _sp.aList.length>2){
               var _want=(_sp.aList.length-1)-(m.ai|0);
@@ -21144,8 +21233,8 @@ startRenderLoop();
     } }
     else if(m.t==='rj'){ if(!_isLead() && state.duo.mode==='retro' && !_palActive){
       var _pj=(typeof _liveP==='function')?_liveP():(state.p|0);
-      if(m.p && (m.p|0)!==_pj){ _lastRJ={r:(m.r|0), p:(m.p|0), ts:Date.now()}; }   // his jump targets a prime still in flight here — the scene mirror will use it
-      else { var _mj=_pj-(m.r|0); if(_mj<1)_mj=1; if(_mj>_pj-1)_mj=_pj-1;
+      if(m.p && _multHere(m.p|0)!==_pj){ _lastRJ={r:(m.r|0), p:(m.p|0), ts:Date.now()}; }   // his jump targets a prime still in flight here — the scene mirror will use it
+      else { var _kj=(m.p && _multHere(m.p|0)!==(m.p|0))?(state.duo.mult|0):1; var _mj=_pj-Math.ceil((m.r|0)/_kj);   /* (20.10) under ×k his jump lands on q−⌈r/k⌉ = ⌈(p−r)/k⌉, the scene path's own mirror; ×1: p−r */ if(_mj<1)_mj=1; if(_mj>_pj-1)_mj=_pj-1;
         state.reqGotoMain=_mj; _lastRJ=null; }   // answer from the mirror beat — rule-gated exactly like his jump
     } }
     else if(m.t==='rjs'){ if(!_isLead() && state.duo.mode==='retro' && !_palActive){ state.reqRStep=(m.k>0)?1:-1; } }
@@ -21270,19 +21359,22 @@ startRenderLoop();
       send({t:'pos', ph:_s9.phase, sec:((_s9.flow&&_s9.flow[_s9.flowIdx])||''), ri:_s9.rIdx|0, ai:_s9.aIdx|0, hr:(_s9.currentR!=null?_s9.currentR:0)|0, hp:_s9.p|0,
             hn:((_s9._pray&&_s9._pray.stage==='hold'&&_s9.rList&&_s9.rList[_s9._pray.j]!=null)?(_s9.rList[_s9._pray.j]|0):((_s9.rList&&_s9.rIdx>=0&&_s9.rIdx<_s9.rList.length)?(_s9.rList[_s9.rIdx]|0):0)),   // (16.10) under his prayer's hold the beacon names the HELD station, not the road past it
             hold:((_s9._pray&&_s9._pray.stage==='hold')?Math.max(1,Math.round((_s9._pray.until-ctx.currentTime)/beatDur())):0),   // (16.10) beats of hold left — her mirror holds the centre with him
-            rl:(_s9.rList?_s9.rList.length:0)|0, al:(_s9.aList?_s9.aList.length:0)|0});
+            rl:(_s9.rList?_s9.rList.length:0)|0, al:(_s9.aList?_s9.aList.length:0)|0, hj:((_s9._pray&&_s9._pray.stage==='hold')?(_s9._pray.j|0):-1)});   // (20.10) hj: the held station's index — under ×k her mirror maps indices, and between held beats his rIdx is already past the station
     }
   }catch(e){} },250);   // mask re-asserts after any local restore overwrote solo
 
   // ---- the baton wrappers: every pin change flows through the wire ---------------
   // Leader owns the authoritative set (its improviser is the one that must obey);
   // the follower relays deltas up and mirrors the full set back down.
-  function _sendPins(){ send({t:'pins', pins:[...((state.apPins)||[])]}); }
+  // (20.10) sat · trem · vib are the window's own timbre: a pin on them stays on the window whose hand set it —
+  // on the wire it froze the other half at its live value, so she followed neither the plan nor him
+  var _PIN_LOCAL={sat:1, trem:1, vib:1}; window._qrPinLocal=_PIN_LOCAL;
+  function _sendPins(){ send({t:'pins', pins:[...((state.apPins)||[])].filter(function(k){ return !_PIN_LOCAL[k]; })}); }
   if(typeof apPin==='function'){
     var _P_pin=apPin, _P_unpin=(typeof apUnpin==='function')?apUnpin:null, _P_clear=(typeof apClearPins==='function')?apClearPins:null;
-    window.apPin=function(k){ var had=!!(state.apPins&&state.apPins.has(k)); _P_pin(k);
+    window.apPin=function(k){ var had=!!(state.apPins&&state.apPins.has(k)); _P_pin(k); if(_PIN_LOCAL[k]) return;
       if(state.duo.on && state.apPins && state.apPins.has(k) && !had){ if(_isLead()) _sendPins(); else send({t:'pin', key:k}); } };
-    if(_P_unpin) window.apUnpin=function(k){ _P_unpin(k);
+    if(_P_unpin) window.apUnpin=function(k){ _P_unpin(k); if(_PIN_LOCAL[k]) return;
       if(state.duo.on){ if(_isLead()) _sendPins(); else send({t:'unpin', key:k}); } };
     if(_P_clear) window.apClearPins=function(){ _P_clear();
       if(state.duo.on){ if(_isLead()) _sendPins(); else send({t:'clearpins'}); } };
@@ -21329,7 +21421,7 @@ startRenderLoop();
     bodyEl=document.createElement('div'); bodyEl.style.cssText='margin-top:5px;display:none';
     btnToggle=document.createElement('button'); btnToggle.textContent='link: off'; btnToggle.style.cssText='margin-right:4px';
     btnToggle.onclick=function(ev){ ev.stopPropagation(); state.duo.on=!state.duo.on;
-      if(state.duo.on){ send({t:'hello'}); if(_isLead()){ broadcastScene(true); _sendPins(); } }
+      if(state.duo.on){ send({t:'hello'}); if(IS_LEADER) send({t:'omecho', on:!!state.omEcho}); if(_isLead()){ broadcastScene(true); _sendPins(); } }
       else _dropRoleMask();   // duo off → the full ensemble returns to this window
       _paint(); };
     bodyEl.appendChild(btnToggle);
@@ -22328,7 +22420,8 @@ startRenderLoop();
   });
   function _wireSharedBar(){
     var MIR_CLICK=['td-flush','td-skipchord'];
-    var MIR_CHK=['td-autorec','td-autoskip'];
+    var MIR_CHK=['td-autorec','td-autoskip',
+                 'rule-prime-ratio','rule-freq-lock','rule-sus-hold','rule-trans-anchor'];   // (20.10) a rule ticked on EITHER window ticks both — the rules ride the mirror as the pair's law, so her hand on hers must reach his too
     var MIR_SEL=['td-buffer','tb-vid-fmt'];
     MIR_CLICK.forEach(function(id){ var el=document.getElementById(id); if(!el) return;
       el.addEventListener('click',function(){ if(_uiEcho) return; if(state.duo.on&&state.duo.peer) send({t:'uimir',eid:id}); }); });
