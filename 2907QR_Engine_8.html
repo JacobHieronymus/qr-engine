@@ -4815,10 +4815,30 @@ function _clockMoving(cb){
 // URI mutes output in some Safari builds.
 // volume is 0.001 (NOT muted: muted elements don't activate the session) and
 // its graph tap goes through a 0-gain node, so it is inaudible either way.
-function _ensureKeepAlive(){
+// (26.10) SILENT_WAV is 8 samples, and WebKit lets nothing of 0.95 s or less become the Now
+// Playing item — so on a phone the stem may never have reached this page. Once the engine
+// has started, the keep-alive loops 60 s of the same silence (the lessons have seeded such
+// a one since 29.09); before that an idle tab keeps the old tick, so it never takes the
+// media keys from the Mac's own player.
+let _kaUrl=null;
+function _kaSilence(){
+  if(_kaUrl) return _kaUrl;
+  try{
+    const n=8000*60, b=new Uint8Array(44+n), v=new DataView(b.buffer);
+    const w=(o,x)=>{ for(let i=0;i<x.length;i++) b[o+i]=x.charCodeAt(i); };
+    w(0,'RIFF'); v.setUint32(4,36+n,true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true);
+    v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,8000,true); v.setUint32(28,8000,true);
+    v.setUint16(32,1,true); v.setUint16(34,8,true); w(36,'data'); v.setUint32(40,n,true); b.fill(0x80,44);
+    _kaUrl=URL.createObjectURL(new Blob([b],{type:'audio/wav'}));
+  }catch(e){ _kaUrl=SILENT_WAV; }
+  return _kaUrl;
+}
+function _ensureKeepAlive(long){
   try{
     let a=window.__qrKA;
-    if(!a){ a=new Audio(SILENT_WAV); a.loop=true; a.setAttribute('playsinline',''); a.muted=false; a.volume=0.001; window.__qrKA=a;
+    const _L=!!(long||state.running);
+    if(a && _L && !a._long){ a._long=true; try{ a.src=_kaSilence(); }catch(e){} }   // the first start: from the tick to the long silence
+    if(!a){ a=new Audio(_L?_kaSilence():SILENT_WAV); a._long=_L; a.loop=true; a.setAttribute('playsinline',''); a.muted=false; a.volume=0.001; window.__qrKA=a;
       // (12.09) iOS pauses HTMLMediaElements on a remote 'pause' whatever the
       // page's own handler decides. This element is not music — it is the open
       // audio session AND, since the Media Session block, the only reason the
@@ -4833,7 +4853,7 @@ function _ensureKeepAlive(){
         } }catch(e){}
       });
     }
-    if(a.paused){ const pp=a.play(); if(pp&&pp.then) pp.then(()=>{window.__qrLog&&__qrLog('keepalive playing');},e=>{window.__qrLog&&__qrLog('keepalive FAIL: '+(e&&e.name||e));}); }
+    if(a.paused && !(state.running && state.paused && !long)){ const pp=a.play(); if(pp&&pp.then) pp.then(()=>{window.__qrLog&&__qrLog('keepalive playing');},e=>{ if(e&&e.name==='AbortError') return; window.__qrLog&&__qrLog('keepalive FAIL: '+(e&&e.name||e));}); }   // (26.10) an AbortError is only a play superseded by the src swap or a pause; a tap during a pause leaves it stopped: the stem's next squeeze must arrive as 'play'
   }catch(e){}
 }
 // Back in service (2026-07): the LEVEL-3 escalation (_hardAudioRebuild) calls this
@@ -4875,7 +4895,7 @@ function gestureKick(src){
   // and close() on a frozen context never frees the slot, so the rebuild
   // carousel was poisoning the whole session ("Failed to start the audio
   // device"). One context per page, forever.
-  try{ _ensureKeepAlive(); }catch(e){}
+  try{ _ensureKeepAlive(src!=='tap'); }catch(e){}   // (26.10) a tap on an idle page keeps the tick; Start, the overlay, the stem take the long silence
   try{ initAudio(); }catch(e){}
   if(ctx){
     let p=null; try{ p=ctx.resume(); }catch(e){}
@@ -8593,8 +8613,10 @@ function pauseAudio(){
   if(!state.running) return;
   state.paused=!state.paused;
   if(state.paused){ try{ state._pauseAt=ctx.currentTime; }catch(e){} flushVoices();   // (08.09) the score freezes at this instant instead of vanishing
-    try{ if(typeof learner!=='undefined'&&learner.saveNow) learner.saveNow(); }catch(e){} }   // playback ended — flush all learned memory
-  else { state._pauseAt=0; nextBeatTime=ctx.currentTime+0.08; }       // re-base the clock after the pause
+    try{ if(typeof learner!=='undefined'&&learner.saveNow) learner.saveNow(); }catch(e){}   // playback ended — flush all learned memory
+    try{ const _k=window.__qrKA; if(_k && !_k.paused) _k.pause(); }catch(e){} }   // (26.10) nothing plays while paused: iOS then sends the next stem squeeze as 'play', and an AirPod taken out changes nothing
+  else { state._pauseAt=0; nextBeatTime=ctx.currentTime+0.08;       // re-base the clock after the pause
+    try{ _ensureKeepAlive(true); }catch(e){} }                        // (26.10) and the keep-alive back (inside a tap or a media key; refused otherwise, until the next touch)
   setStatus(state.paused?'paused':'running',!state.paused);
 }
 
@@ -13433,6 +13455,11 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
 //
 // NO ARTWORK is set: the single-file rule forbids a fetch, and a base64 cover
 // would cost more bytes than every line of this block together.
+//
+// (26.10, author: «тройное — ♥ везде») THREE squeezes are the heart in every page
+// that plays the Markovs; the lessons spend two on «the next part». Here two stay a
+// heart as well. A pause/play pair can never be one: iOS sends an AirPod taken out
+// as 'pause' and one put back as 'play', the same commands as a single squeeze.
 let _msWasHeart=0;
 function _msHeart(){
   // A stem squeeze is a physical guess: two squeezes are often read as three,
@@ -13487,6 +13514,7 @@ function _msSync(){
         try{ if(typeof ctx!=='undefined' && ctx && ctx.resume) ctx.resume().catch(()=>{}); }catch(e2){}
         pauseAudio();
       }
+      else { try{ gestureKick('media'); }catch(e2){} }   // (26.10) a 'play' while it runs: iOS stopped the keep-alive behind our back (a call, Siri) — re-arm it and the context; an AirPod put back while all plays changes nothing
     }catch(e){} _msSync(); });
     on('pause',()=>{ try{ if(state.running && !state.paused) pauseAudio(); }catch(e){} _msSync(); });
     on('stop', ()=>{ try{ if(state.running && !state.paused) pauseAudio(); }catch(e){} _msSync(); });
@@ -18821,7 +18849,7 @@ startRenderLoop();
     const sp=document.createElement('span'); sp.id='td-spacer'; bar.appendChild(sp);   // push records to the right
     const wrap=document.createElement('span'); wrap.id='tb-perf';
 
-    const like=document.createElement('button'); like.className='tb-btn'; like.id='tb-like'; like.textContent='❤ like'; like.title='ONE heart, both memories (05.08): saves the current setup as a scene AND teaches the Markovs that THIS, exactly as it sounds, is what you want more of (the loud yes, φ²-weighted). In a live duet the scene keeps BOTH sides.\n\nFour doors, one heart: this button · the H key · the ♥ on the phone bar · the NEXT-TRACK gesture — two squeezes on an AirPod stem, the skip button on a lock screen, a steering wheel or a pedal. That last one is the only door that works with the screen dark and both hands on an instrument. Beware the neighbour: ONE squeeze, or a play/pause key, is the transport — it starts and stops the sound, it does not love it. The weight is how long this sound had been sounding, so a heart after living with it says more than a heart on the way past.';
+    const like=document.createElement('button'); like.className='tb-btn'; like.id='tb-like'; like.textContent='❤ like'; like.title='ONE heart, both memories (05.08): saves the current setup as a scene AND teaches the Markovs that THIS, exactly as it sounds, is what you want more of (the loud yes, φ²-weighted). In a live duet the scene keeps BOTH sides.\n\nFour doors, one heart: this button · the H key · the ♥ on the phone bar · the AirPod stem — THREE squeezes, the same in every page that plays the Markovs (two work here too) — the skip button on a lock screen, a steering wheel or a pedal. That last one is the only door that works with the screen dark and both hands on an instrument. Beware the neighbour: ONE squeeze, or a play/pause key, is the transport — it starts and stops the sound, it does not love it. The weight is how long this sound had been sounding, so a heart after living with it says more than a heart on the way past.';
     like.addEventListener('click',()=>{ try{ scenes.save(''); }catch(e){}
       try{
         var _bk=[]; try{ _bk=JSON.parse(localStorage.getItem('qr_likes')||'[]')||[]; }catch(e){}
@@ -22202,7 +22230,7 @@ startRenderLoop();
     }catch(e){} };
     mrow.appendChild(murl);
     var pbLike=document.createElement('button'); pbLike.textContent='♥';
-    pbLike.title='the loud yes — saves the scene and teaches both memories. Same heart as ♥ like in the dock, the H key, and the next-track gesture (two squeezes on an AirPod stem).';
+    pbLike.title='the loud yes — saves the scene and teaches both memories. Same heart as ♥ like in the dock, the H key, and three squeezes on an AirPod stem (two work here too).';
     pbLike.onclick=function(){ try{ var _o=document.getElementById('tb-like'); if(_o) _o.click(); }catch(e){}
       pbLike.style.color='var(--warn,#ffb86b)'; setTimeout(function(){ pbLike.style.color=''; },700); };
     mrow.appendChild(pbLike);
