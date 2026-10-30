@@ -1,0 +1,8 @@
+<script>(function(){var B=(window.BaseAudioContext||window.AudioContext).prototype,d=Object.getOwnPropertyDescriptor(B,'destination');
+Object.defineProperty(B,'destination',{configurable:true,get:function(){if(!this.__m){var g=this.createGain();g.gain.value=0;g.connect(d.get.call(this));this.__m=g;}return this.__m;}});
+try{speechSynthesis.speak=function(u){setTimeout(function(){try{u.onstart&&u.onstart();u.onend&&u.onend();}catch(e){}},5);};}catch(e){}
+try{HTMLMediaElement.prototype.play=function(){this.muted=true;return Promise.resolve();};}catch(e){}window.__muted=1;
+if(/[?&]mockdb=1/.test(location.search)){var ms=function(){try{return JSON.parse(localStorage.getItem('__mockdb')||'{}');}catch(e){return {};}};
+var dl=+((location.search.match(/[?&]dbdelay=(\d+)/)||[])[1]||1500);
+var db={doc:function(path){return {set:function(body){var b=JSON.parse(JSON.stringify(body));return new Promise(function(res){setTimeout(function(){var m=ms();m[path]=b;(m.__calls=m.__calls||[]).push([path,b.why,b.done]);localStorage.setItem('__mockdb',JSON.stringify(m));res();},dl);});}};}};
+window.claude={use:function(n){return Promise.resolve(n==='db'?db:null);}};}})();</script>

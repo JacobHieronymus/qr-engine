@@ -1,0 +1,13 @@
+[
+ {"name":"retro x1 13@300",            "mode":"retro", "k":1, "p":13, "bpm":300, "secs":100},
+ {"name":"parts x1 13@300",            "mode":"parts", "k":1, "p":13, "bpm":300, "secs":80},
+ {"name":"retro x3 13@240",            "mode":"retro", "k":3, "p":13, "bpm":240, "secs":160},
+ {"name":"parts x3 13@240",            "mode":"parts", "k":3, "p":13, "bpm":240, "secs":160},
+ {"name":"retro x3 13@240 keys",       "mode":"retro", "k":3, "p":13, "bpm":240, "secs":90, "keys":[[20,"ArrowUp"],[55,"ArrowDown"]]},
+ {"name":"parts x3 13@240 keys",       "mode":"parts", "k":3, "p":13, "bpm":240, "secs":90, "keys":[[20,"ArrowUp"],[55,"ArrowDown"]]},
+ {"name":"retro x3 13@240 bpm pinned", "mode":"retro", "k":3, "p":13, "bpm":240, "secs":100, "pinBpm":true},
+ {"name":"retro x2 13@300",            "mode":"retro", "k":2, "p":13, "bpm":300, "secs":100},
+ {"name":"retro x1 37@60",             "mode":"retro", "k":1, "p":37, "bpm":60,  "secs":60},
+ {"name":"retro x1 11@300 fib",        "mode":"retro", "k":1, "p":11, "bpm":300, "secs":80, "setup":"state.reorderR=7"},
+ {"name":"solo 13@300",                "mode":"solo",  "k":1, "p":13, "bpm":300, "secs":45, "reload":true}
+]

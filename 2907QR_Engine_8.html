@@ -5989,6 +5989,8 @@ function _orientByClass(seq,p,dQR,dNQR){
 // plain ascending (0), QR-block/NQR-block (1) and the residue arch (4). ×g (8)
 // is a primitive-root walk, not a QR/NQR split, so directions don't apply there;
 // Fibonacci (6/7) is legacy (no UI button) and kept for old sessions.
+// (28.10) not for 6: it is the main r-level's «F» button (#reorderR-btns, data-val 6); 7 has none, but the learner's
+// _ordPick may pick it (0–9 pass) and a session restores it. Comment only — the orders are unchanged.
 function _rValuesByOrder(order,p,rDir,chan){
   order=order|0;
   const pp=(chan==='PP');
@@ -6181,12 +6183,34 @@ function consumeRequests(){
   // RULE transAtAnchors: p/r-change requests are HELD (stay pending) until the stream
   // stands on an allowed slot — anchor / mirror anchor / turnaround. See _transPointOK.
   let _tOK=(typeof _transPointOK==='function')?_transPointOK(s):true;
+  // (30.10) ×k: THE CONDUCTOR'S k BEATS OF NOTICE HOLD HIS REQUEST IN reqP ITSELF until the announced beat (_landAt, set
+  // at the announce below). t03 had moved it into a pend of his own with reqP null, and the rest of the code reads reqP:
+  // a restore inside the notice (every improviser or form seam, a ◆/plan/session step, a recall, _restartCurrentPrime)
+  // landed its p at once, unannounced (_landArmed skipped the announce), and the stale pend then re-landed the OLDER p on
+  // both halves; the 16.09 guard and the seam's _handP lost a pinned hand's prime, the p label hid it, and her mode/bye
+  // and the peer timeout dropped it for good. Held here, every reader sees it as at ×1 (the token's one beat kept reqP
+  // too). A request that differs from the announced prime is re-announced for the SAME instant: she may already have
+  // landed (her landing beat comes up to k−1 of his beats before `at`, silent to his section's first), and a fresh
+  // notice left her sounding the withdrawn prime against his old one for up to k−1 of his beats — the new 'land'
+  // replaces her pend or, already landed, moves her at her next beat (t03's align cuts it to his section's first). The
+  // same prime lands once. Withdrawn (_landArmed cleared: her mode, bye, the timeout) the hold ends and the request
+  // re-announces or lands as at ×1; emptied (a prayer's same-room seam nulls reqP) the announcement is withdrawn
+  // ('land-x'), or _landArmed would hold every goto until the next request. ×1 and the negative offset's wait (its own
+  // pend, 17.08) never set it
+  let _landHold=false;
+  if(state._landAt){ const _LA=state._landAt; let _rq=(state.reqP!==null)?(state.reqP|0):0; if(_rq){ if(_rq<3)_rq=3; if(!isPrime(_rq))_rq=nextPrime(_rq); }
+    if(!state._landArmed) state._landAt=null;
+    else if(!_rq){ state._landAt=null; state._landArmed=false; try{ if(window._duoLandCancel) window._duoLandCancel(); }catch(e){} }
+    else { const _gk=((state.reqGotoSim && state.reqGotoMain==null)?[state.reqGotoSim.sec, state.reqGotoSim.rV|0, state.reqGotoSim.aV|0, state.reqGotoSim.fromP|0].join(','):'');
+      if(_rq!==(_LA.p|0) || _gk!==(_LA.gk||'')){ _LA.p=_rq; _LA.gk=_gk; try{ if(window._duoAnnounceLand) window._duoAnnounceLand(_rq, _LA.w); }catch(e){} }   // (30.10) also when the g the 'land' would carry has changed: a restore inside the notice that keeps the prime (a pinned hand's press: the 16.09 guard keeps reqP while the seam arms reqGotoSim) lands its goto WITH my prime, while her pend named g only at the announce — she landed bare while I sounded that position. Keyed on the g as sent, not on the raw gotos
+      if(nextBeatTime >= _LA.t - 0.5*beatDur()){ state._landAt=null; _tOK=true; } else _landHold=true; }   // the beat nearest the announced instant, as the pend landed it; the gate is open there, as for the token
+  }
   // a held BETWEEN-screen request approaches the gate BY THE LADDER (author 01.08:
   // «оно зависло» must be impossible): every 2 beats hop to the highest rung at or
   // below HALF the current distance to the nearest anchor — a quadratically
   // condensing runway; even a p≈90000 meditation room reaches its anchor in
   // ~2·log₂P beats instead of hours.
-  if(!_tOK && state.running && s.rList && s.rList.length &&
+  if(!_tOK && !_landHold && state.running && s.rList && s.rList.length &&   // (30.10) not under the ×k hold: the announced beat opens the gate itself
      (state.reqP!==null || state.reqGotoSim || (state.reqGoto && state.reqGoto.p && (state.reqGoto.p|0)!==(s.p|0)))){
     s._appN=(s._appN|0)+1;
     if(s._appN>=2){ s._appN=0;
@@ -6220,13 +6244,18 @@ function consumeRequests(){
   if(state._landPend){
     // land on the beat nearest the announced instant — the pair's grids are locked to
     // within milliseconds, so «the same beat» is a thing both halves can name
-    if(nextBeatTime >= state._landPend.at - 0.5*beatDur()){
+    const _hbL=(state._landPend.hb>0)?+state._landPend.hb:0;   // (28.10) his beat in seconds, carried on the 'land' message under ×k (_landHere); 0 at ×1 and for the conductor's own pend — every line below then reads as before
+    if(state._landPend.g && _hbL>0 && state._landPend.at-nextBeatTime>0.25*_hbL) state._landAlign={at:state._landPend.at, hb:_hbL, c:1};   // (30.10) ×k, a landing that carries his goto (g): he SOUNDS his target from `at` (his goto lands with his prime) and she lands on that same target (below), so her landing must come at `at` — t03's threshold below, the last of her beats before at + his beat, is for a bare landing's SILENT beat. Leaving a q her beat is k of his, so that beat began up to k−1 of his beats before `at`, and his target landed there put her that many stations ahead of him for the whole prime (parts has no index map). While her scheduling lies more than a quarter of his beat before `at` she does not land: the beat that straddles `at` is cut to end there (_landAlign.c, read by _scheduleOneBeatBody) and the scheduling at `at` lands. ×1 (no hb), her beat already his (her scheduling is at `at`), never deferred. (30.10) Retro and a q landing wait too: there she lands through her own position (below), and on t03's early beat that position SOUNDED the new room against his old one for up to k−1 of his beats (t03's silent beat covers a bare landing only)
+    else if(nextBeatTime >= state._landPend.at - 0.5*beatDur() - ((_hbL>0)?0.5*Math.max(0,beatDur()-_hbL):0)){   // (28.10) ×k: the LAST of her beats before his section's first (at + his beat) — leaving a q her beat is k of his, and «the beat nearest at» rejected the one scheduling of hers inside his k beats of notice and landed her a beat of hers AFTER at; with her beat his (a plain mirror, ×1) the added term is exactly 0
       const _L=state._landPend; state._landPend=null;
-      state.reqP=_L.p; _tOK=true; state._landFromPend=true;
+      state.reqP=_L.p; _tOK=true; state._landFromPend=true; state._landAlign=(_hbL>0 && _L.al>0)?{at:_L.al, hb:_hbL}:null;   // (28.10) ×k: where her silent landing beat must end — his section's first beat (read by the pause-before beat of this same call, _scheduleOneBeatBody)
+      if(_L.g && !state.reqGoto && !state.reqGotoSim && state.reqGotoMain==null){ try{ const _sf=(state.duo && state.duo.mode==='parts' && (_L.p|0)===(_L.hp|0))?_L.g:captureSimPos(); if(_sf && _sf.sec){ state.reqGotoSim={sec:_sf.sec, rV:_sf.rV|0, aV:_sf.aV|0, fromP:_sf.fromP|0}; state._landAlign=null; } }catch(e){} }   // (30.10) pre-existing at ×1 (16.08), the answering half: his landing carried a goto (g) and he sounded his similar position from `at`, while hers was always bare — a silent pause-before, then flow[0] station 0 — so at every seam of his improviser, ◆ form or tour (restore arms reqP for any p, so a same-p seam announces too) she restarted her half: in parts her prelude (his voice, she is silent) under his main, and with a new p the scene after it met her in that pause (captureSimPos null) and seated her in MAIN at his r whatever his section; in retro the door re-seated her a beat later. She now lands through a similar position in this same call, as he does (the reqGotoSim block below runs after reqP; _tOK is open, _landArmed false). In parts onto a plain room (her prime is his): HIS target — captured at his restore and held through the notice, it names the station he sounds now, while her own capture would read one past it (her scene seated her a beat early) and drop the author's offset. Retro, or onto her q: her own similar position (the beacon's door and ±1 keep retro; under ×k the halves land at their own proportional places), read before the reqP block moves s.p — null in a pause, and the landing stays bare. A goto a late scene already armed is kept. With a goto she is not in pause-before, so t03's _landAlign (the bare landing's time half) is dropped
       state._landArmed=false;   // (17.08) a conductor waiting out a negative offset held its siblings — the wait is over
+      state._landAt=null; _landHold=false;   // (30.10) a ×k notice held from conducting (♛ or a ⚭ bundle handed the baton over inside it) must not hold the new conductor's landing: the hold skipped this reqP, its goto then re-seated the OLD room and the prime landed later, bare
+      try{ if(_L.hp && window._duoLandTempo && window._duoLandTempo(_L.hp, _L.kq)) state._landDur=true; }catch(e){}   // (27.10) ×k: the landed room's tempo lands with its prime (window._duoLandTempo; the conductor's own pend carries no hp) — the flag makes schedulerTick re-read its per-tick dur, so this beat's advance is the new room's beat, not the old one's · (28.10) kq: the kind of the room her tempo stood in at the notice (_landHere) — _duoLandTempo's pin gate: a pinned tempo holds onto the same kind, re-derives at a change of kind
     }
   }
-  if(_tOK && state.reqP!==null){
+  if(_tOK && !_landHold && state.reqP!==null){   // (30.10) ×k: not while the conductor's notice holds it (_landHold, above)
     let p=state.reqP|0; if(p<3)p=3; if(!isPrime(p))p=nextPrime(p);
     // (16.08) THE BEAT OF NOTICE. consumeRequests runs inside the scheduler, one beat
     // ahead of sound; a message sent at the landing itself arrives after the partner
@@ -6239,11 +6268,12 @@ function consumeRequests(){
       try{ if(window._duoAnnounceLand && typeof ctx!=='undefined' && ctx){
         const _ofs=+((state.duo&&state.duo.offsetBeats)||0);
         const _bd=beatDur();
-        const _atWall=Date.now()+Math.max(0,(nextBeatTime-ctx.currentTime))*1000+_bd*1000;
+        const _mK=(state.duo&&state.duo.mult)|0, _kN=(_mK>1 && _multPrime(state.p|0,_mK))?_mK:1;   // (28.10) ×k: while his CURRENT p has her q, her beat is k of his and her schedulings lie k of his beats apart, so one beat of notice may hold no scheduling of hers — she landed 0…k−1 of his beats late and then spent a silent beat k of his long: her section began k−1…2k−2 of his beats after his, for the whole prime in parts (nothing there measures section phase), with station 0 lost in retro. k beats of notice, so one scheduling of hers always falls inside it (her landing beat is then cut or stretched to his section's first beat — _landHere, _scheduleOneBeatBody); on a plain-mirror p (her beat is his), and at ×1: one, as before
+        const _atWall=Date.now()+Math.max(0,(nextBeatTime-ctx.currentTime))*1000+_bd*1000*_kN;
         if(_ofs<0){
           // (17.08 author: «±(p−1)/2 — в две стороны») negative = the answer FIRST:
           // she gets the nearest beat, the conductor waits out |offset| on his own pend
-          _announcing=!!window._duoAnnounceLand(p, _atWall, 0);
+          _announcing=!!window._duoAnnounceLand(p, _atWall, 0, -_ofs);   // (30.10) his wait travels with the notice (w): under ×k her stand-down then covers it (_landHere), or his beacons name the room he is leaving for |offset| of his beats and the pos heal pulls her back onto it
           if(_announcing){
             state._landArmed=true;
             state._landPend={p:p, at:ctx.currentTime+(_atWall-Date.now())/1000+(-_ofs)*_bd, wall:Date.now(),
@@ -6252,7 +6282,9 @@ function consumeRequests(){
           }
         } else {
           _announcing=!!window._duoAnnounceLand(p, _atWall);
-          if(_announcing){ state._landArmed=true; state._landTok=true; }   // the token makes the NEXT beat land whatever the walk is doing
+          if(_announcing){ state._landArmed=true;
+            if(_kN>1) state._landAt={p:p, t:ctx.currentTime+(_atWall-Date.now())/1000, w:_atWall, gk:((state.reqGotoSim && state.reqGotoMain==null)?[state.reqGotoSim.sec, state.reqGotoSim.rV|0, state.reqGotoSim.aV|0, state.reqGotoSim.fromP|0].join(','):'')};   /* (30.10) gk: the g this announce carried (_duoAnnounceLand's own test), so the hold can re-announce when a restore inside the notice changes it */   // (28.10) ×k, k beats of notice: the conductor lands on the announced beat (his walk goes on meanwhile, as it does while he waits out a negative offset above) — the token would land him on the NEXT beat, k−1 before his own announcement · (30.10) held in reqP itself until that beat (_landAt, read at the top of this function; w: the announced wall instant, for a re-announce), no longer through a pend of his own with reqP null that no other reader could see
+            else state._landTok=true; }   // the token makes the NEXT beat land whatever the walk is doing
         }
       } }catch(e){}
     }
@@ -6296,6 +6328,7 @@ function consumeRequests(){
     } else if(s.flow && s.flow.length){
       // cross the boundary into the adjacent section of the flow
       let fi=s.flowIdx + dir;
+      if(window._duoGuard && window._duoGuard.retroAns && !window._duoGuard.pal) fi=(s.flowIdx|0) - dir;   // (30.10) the retro ANSWER crosses in HIS order, as _advanceSection walks it (28.10): her flow is his reversed and his 'rjs' carries his own sign, so his adjacent section is her flow[flowIdx−dir]. +dir took her into HER adjacent one — the prelude under his postlude after ▶ at main's last row, the postlude under his prelude after ◀ at main's first, and alone into a section where he has none (one switched off) — until his next beacon's door renamed it. At his flow's ends fi leaves the range and she stays, as he does; the entry index below (0 forward, last backward) is already the mirror of his. A pre-existing ×1 defect of the answering half; !pal keeps the crab's half as it was
       if(fi>=0 && fi<s.flow.length){
         s.flowIdx=fi;
         const nsec=s.flow[fi];
@@ -6326,6 +6359,7 @@ function consumeRequests(){
   // If the requested section is disabled, fall back to main at the same end.
   if(state.reqGoto && state.running && !state._landArmed && ((!state.reqGoto.p || (state.reqGoto.p|0)===(s.p|0)) ? true : _tOK)){   // same-screen goto is free; a p-change waits at the gate (and the whole scene waits out the notice beat together)
     const req=state.reqGoto; state.reqGoto=null;
+    if(!((state._palScore&&state._palScore.on) || (window._duoGuard&&window._duoGuard.pal))) s._fi=null;   // (30.10) a goto re-seats section and row directly and may land on main's zero row ('first'/'last', the idx-0 fallback: a plan seam or a section button into main, the seek) with no other phase in between — after a landing in this same pass too — where the main body resumed a window left open with its old count, or the OLD prime's. A goto restarts its row, and the window with it (the stale-window line in _scheduleOneBeatBody covers every other way out of main). The crab's half keeps the old line
     const tp=req.p|0;
     if(tp>=3 && isPrime(tp)){
       // change prime if needed
@@ -6374,6 +6408,7 @@ function consumeRequests(){
       s.rIdx = idx;
     }
     s.aDir=(s.rDir<0)?-1:1; s.aIdx=0; s.aFresh=true;
+    if(req.aim) s._openAim=true;   // (30.10) a goto standing in for a natural section entry (the parts answer's ×k door in _restoreInner, opts.ans) opens the section as _enterFlowPhase does: _openAtCentre runs right after this call in the same body and moves rIdx onto the approach (j−up), where his own entry stands for p>7. At index 0 she walked up·hb behind his stations for the whole prime (parts has no station door). Its own gates (p≤7, strict, retro, the crab) still stand it down
     s.contFarIdx=null; s.contFreq=null;
     if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); cfgTieReset(); }
     state.visQueue.length=0;
@@ -6730,7 +6765,7 @@ function _prayerScoreBeat(s,SC,sl,p,time,dur){
       var key=p+':'+(_hs[3]|0)+':'+flag;
       if(SC._prayHarp===key) return; SC._prayHarp=key;   // once per slot, however many beats sit on it
       if(s._omPrayP!==p){ s._omPrayC=_omLongest(p); s._omPrayP=p; }
-      if(s._omPrayC){ window._omRing={next:0,end:0}; _omegaSing(p,s._omPrayC,time,dur,0.5,s.rIdx|0,s); _omegaEcho(p,time,dur,s.rIdx|0,s._omPrayC,s); }
+      if(s._omPrayC){ window._omRing={next:0,end:0}; _omegaSing(p,s._omPrayC,time,dur/_Kh,0.5,s.rIdx|0,s); _omegaEcho(p,time,dur/_Kh,s.rIdx|0,s._omPrayC,s); }   // (27.10) the harp paced in HIS beats: the run-up is written in his slots, as long as the harp's pass — paced in mine (k of his) the passage ran k times past the arrival, through the hold and the air (433×4: 136 s over a 34 s run-up; with ♛ Markova in the bed of Markov's window). ×1: _Kh=1
     }
   }catch(e){}
 }
@@ -6742,7 +6777,8 @@ function _prayerScoreBeat(s,SC,sl,p,time,dur){
 // раз быстрее, чтобы большее p прозвучало за то же время, что меньшее») MULTIPLICITY.
 // For a prime p and k | p−1, her prime is q = (p−1)/k + 1 when that is prime; her tempo
 // is his /k. Then her prelude of q−1 beats lasts exactly his prelude of p−1 beats, and
-// in main one of her r-sweeps (q−1 beats) lasts one of his (p−1). Under the score she
+// in main one of her r-sweeps (q−1 beats) lasts one of his (p−1), and she reads each of hers
+// k times — the score's ⌊i/k⌋, the retro beacon's _tn, live parts' count (_multRowAgain, 28.10; 30.10: his main rows over hers — k unless mainAnchorsOnly thins the two lists unequally). Under the score she
 // reads every k-th of his slots: index i → ⌊i/k⌋, and her beat lands on his k-th beat.
 function _multPrime(p,k){ p=p|0; k=k|0; if(k<2||p<3) return null; var L=p-1; if(L%k) return null; var q=L/k+1; return (q>=3 && isPrime(q))?q:null; }
 // (26.09, author: «форму нужно сочинять из пар — простые выбирать по кратностям, которые
@@ -6785,7 +6821,8 @@ function _palScoreApply(s,SC,time,dur){
     if(_mkL>1){ var _pk=SC.slots[SC.rev ? (seg.off+seg.n-1-j) : (seg.off+j)]; if(_pk && _multPrime(_pk[1]|0,_mkL)){ K=_mkL; j=Math.floor(j/K)*K; } }
     if(SC._kApplied!==K){   // the knob moved mid-scene: the tempo follows in the same ratio (the step timer only sets it at a seam)
       try{ if(SC._kApplied){ state.bpm=Math.max(5,Math.min(999,state.bpm*SC._kApplied/K));
-        var _eb=document.getElementById('bpm'), _ebn=document.getElementById('bpm-num'); if(_eb)_eb.value=state.bpm; if(_ebn)_ebn.value=state.bpm; } }catch(e){}
+        var _eb=document.getElementById('bpm'), _ebn=document.getElementById('bpm-num'); if(_eb)_eb.value=state.bpm; if(_ebn)_ebn.value=state.bpm;
+        dur=beatDur(); } }catch(e){}   // (27.10) dur was captured at the call site BEFORE this rescale; the prayer harp below paces _omegaSing/_omegaEcho by dur/_kApplied with the NEW k, so on this one beat its whole pass ran k times too fast (knob on) or too slow (knob off). The parameter is local to this call; the beat body re-reads its own beat after. The drone is unaffected (its beat is bound after this call). ×1 never enters this branch
       SC._kApplied=K; }
     SC._gi=SC.rev ? (seg.off+seg.n-1-j) : (seg.off+j);   // (20.10) the slot's place in the score — under ×k _prayerScoreBeat reads the slots this beat covers
     var sl=SC.slots[SC._gi];
@@ -7703,8 +7740,16 @@ function _prayerForm(s,p,time){
   try{
     if(!(p>3)) return;
     const dur=(typeof beatDur==='function')?beatDur():0.5;
+    // (27.10) ×k: on the answering half one of my beats spans _kb of his — k on the q of his p (bpm/k); window._qrBeatK reads
+    // it from his tempo on the wire over mine. Counted in MY beats, the run-up, the 29 of hold, the 5 of air, the golden
+    // point and the harp's pace all ran _kb times longer than his: the form drifted off his by that factor (his centre held
+    // and released while mine was still on its run-up), and with ♛ Markova the bed's drone in Markov's window rang 29·k of
+    // the conductor's beats. The form counts HIS beats, as the written prayer (_prayerScoreBeat) and the retro mirror
+    // (_mirHold) already do. ×1, the conductor, free: _kb=1 and _hb is dur itself.
+    let _kb=1; try{ if(typeof window._qrBeatK==='function'){ const _r=+window._qrBeatK(); if(_r>0 && isFinite(_r)) _kb=_r; } }catch(e){}   // no |0: a tempo floored at 5 bpm, or held by her hand or her pulse, gives a ratio that is not the knob's k
+    const _hb=dur/_kb;                                    // one beat of the form, in seconds: his
     const LIST=(s.phase==='dual')?s.fwdList:s.rList;
-    if(!LIST || LIST.length<8) return;
+    if(!LIST || LIST.length*_kb<8) return;   // (27.10) ×k: the floor counts HIS beats, as the form below does — her q−1 stations span his p−1 (6 of hers at 37×6 are his 36), yet the floor counted hers and returned on every beat at q≤7 (37×6 → 7, 37×9 → 5, 13×2 → 7): she walked the plain prelude at bpm/k while he held the centre, where the written prayer at the same q already plays (its slots carry his list). ×1: _kb=1, the floor as it was; q=3 stays out by `p>3` above — world 3 has no thirds
     if(!s._pray || s._prayP!==p){ s._pray={n:0, stage:'seek', until:0, j:0}; s._prayP=p; }
     const PR=s._pray;
     // (21.08, author: «форма стартует в центре — (p−1)/2, или на третьей части —
@@ -7730,8 +7775,8 @@ function _prayerForm(s,p,time){
       if(s._omPrayP!==p){ s._omPrayC=_omLongest(p); s._omPrayP=p; }
       if(s._omPrayC){
         window._omRing={next:0,end:0};
-        _omegaSing(p,s._omPrayC,time,dur,0.5,i,s);
-        _omegaEcho(p,time,dur,i,s._omPrayC,s);
+        _omegaSing(p,s._omPrayC,time,_hb,0.5,i,s);   // (27.10) the harp paced in his beats, like the form around it
+        _omegaEcho(p,time,_hb,i,s._omPrayC,s);
       }
     }
     if(PR.stage==='seek'){
@@ -7760,10 +7805,35 @@ function _prayerForm(s,p,time){
       // direction lives in the ORDER of the list (getPPRValues reverses the sequence
       // for rDir<0), never in the step. A direction-signed run-up laid the beats on
       // the far side and the walk marched away from its own anchor.
-      const _pass=_isCentre?_omPassBeats(p,s._omPrayC):0;
+      // (27.10) ×k: THE RUN-UP IS HIS. The approach is as long as the harp's pass, and the pass was read on MY circle —
+      // q's, _omLongest(q) — while his was read on p's: at 433×12 with the hand at 1/1 his _omPassBeats gives 34, mine
+      // 17, so I reached the centre 10 of his beats before him (2029×13 under the default hand: his 39, mine 17). The
+      // written prayer has no such split: _prayerScoreFill runs on HIS p and I read every k-th of its slots, my harp
+      // (q's circle, _prayerScoreBeat) over his run-up. The same here: his p from the duet closure (window._qrLeadP,
+      // which answers only while my p is its q), his circle cached once per his p, and _pass from it; the harp below
+      // stays on my own circle, as the written form's does. ×1, the conductor, a landing in flight (my p moved, his
+      // scene not yet here): _pp is p and nothing changes.
+      let _pp=p; try{ if(_kb>1 && typeof window._qrLeadP==='function'){ const _hp=window._qrLeadP(p)|0; if(_hp>3) _pp=_hp; } }catch(e){}
+      if(_pp!==p && s._omLeadP!==_pp){ s._omLeadC=_omLongest(_pp); s._omLeadP=_pp; }   // his circle, once per his p
+      const _pass=_isCentre?_omPassBeats(_pp,(_pp===p)?s._omPrayC:s._omLeadC):0;
       const _up=Math.max(17,Math.ceil(_pass));
-      s.rIdx=Math.max(0,Math.min(LIST.length-1,j-_up));
-      PR.j=j; PR.prev=s.rIdx|0; PR.k=0; PR.up=_up; PR.stage='approach';
+      const _upI=Math.ceil(_up/_kb);                      // (27.10) _up counts HIS beats and one step of my walk spans _kb of them; ceil, so the harp (his beats) still ends before the arrival
+      s.rIdx=Math.max(0,Math.min(LIST.length-1,j-_upI));
+      PR.j=j; PR.prev=s.rIdx|0; PR.k=0; PR.up=_upI; PR.stage='approach';
+      // (27.10) ×k: THE STATION CLOCK. Every door of the form is read on MY beats — the crossing, «time>=PR.until» for
+      // the hold and the air, and the seek runs on the beat after the air's door — so each stage ended on my first beat
+      // at or after its end: the hold of 29 of his beats rang 32 at ×4, the five of air 8, the transition beat 4, and the
+      // run-up, ceil(_up/_kb) steps of my walk, 36 for his 34. Counted in his beats each station was still long by up to
+      // three of mine (433×4 @60: 208 of his beats a cycle against his 173; 37×3: 171 against 156), and since s._pray
+      // lives as long as p the lag accumulated — the two centres parted by a fifth of a cycle every cycle, against the
+      // law above («the form counts HIS beats»). The written prayer has no such drift: its stations are slots on one
+      // grid. So the live form keeps an ideal clock, as the written one does: PR.t0 is this station's ideal start (his
+      // seek beat), carried from the last by the station's written length — _up + 29 + 5 + the transition beat — and
+      // the hold's end and the air's end are read from it, not from the beat that happened to arrive late: the hold,
+      // then the air, gives way by the lag, the cycle lands on his, and the lag never exceeds one of my beats. Carried
+      // only while this seek is within two of my beats of its expected start — a seek further behind (the knob back
+      // from ×1, where the clock did not run) re-anchors here. ×1: never set, every door as before.
+      if(_kb>1){ PR.t0=(PR.t0!=null && PR.len>0 && time<PR.t0+PR.len+2*dur)?PR.t0+PR.len:time; PR.len=_hb*(_up+35); PR.up0=_up; }
       // (23.08, author: «еще одна арфа в точке золотого сечения формы») THE GOLDEN
       // POINT. The form's cycle is its three stations — the centre, the third, the
       // mirror third — and only the first of them carries the harp. The cycle's own
@@ -7773,7 +7843,7 @@ function _prayerForm(s,p,time){
       //   centre  up + 29 + 5      thirds  17 + 29 + 5 each
       if(_isCentre){
         const _L=_up+34+2*(17+34);                        // the whole cycle, in beats
-        PR.gold=time+dur*Math.round(0.6180339887*_L);
+        PR.gold=((_kb>1 && PR.t0!=null)?PR.t0:time)+_hb*Math.round(0.6180339887*_L);   // (27.10) _L counts his beats · (28.10) ×k: counted from the station clock (PR.t0, his seek beat), as the hold's and the air's ends are — not from MY seek beat, which stands up to one of my beats past it, so the second harp entered up to two of my beats after his where every other door has the one-beat grain; the door at the top of the form (time>=PR.gold) now fires on my first beat at or after his golden beat. The written prayer counts goldIn from the seek slot on the grid, the same origin. ×1: PR.t0 is never set, `time` as before
         PR.goldDone=false;
       }
       // (23.08, author: «давай начинать сразу на подходе к центру», and before it
@@ -7785,8 +7855,8 @@ function _prayerForm(s,p,time){
       // seconds of harp per three fragments rather than per one.
       if(_isCentre && s._omPrayC){
         window._omRing={next:0,end:0};
-        _omegaSing(p,s._omPrayC,time,dur,0.5,s.rIdx|0,s);
-        _omegaEcho(p,time,dur,s.rIdx|0,s._omPrayC,s);
+        _omegaSing(p,s._omPrayC,time,_hb,0.5,s.rIdx|0,s);   // (27.10) paced in his beats: the passage _up was laid for
+        _omegaEcho(p,time,_hb,s.rIdx|0,s._omPrayC,s);
       }
     } else if(PR.stage==='approach'){
       // ARRIVAL IS A CROSSING, not a comparison. The walk runs either way — measured
@@ -7806,7 +7876,7 @@ function _prayerForm(s,p,time){
         PR.prev=s.rIdx|0; PR.k=0;
       } else {
         const crossed=(i===PR.j) || ((PR.prev<PR.j)!==(i<PR.j));
-        if(crossed || PR.k>40){ s.rIdx=PR.j; PR.stage='hold'; PR.until=time+dur*29; }
+        if(crossed || PR.k*_kb>40){ s.rIdx=PR.j; PR.stage='hold'; PR.until=(_kb>1 && PR.t0!=null)?PR.t0+Math.min(_hb*(PR.up0+29),PR.len-dur):time+_hb*29; }   // (27.10) the door and the hold count his beats · ×k: the hold ends where HIS ends, on the station clock — not 29 of his after MY arrival, which is late by the ceil of the run-up and the grain of my beat (the lag that made 208 of 173); the hold gives way. A beat coarser than the five of air (k>6) reaches the seek's door (PR.t0+PR.len−dur, see the air) inside the hold and hands over there. PR.t0 unset (the knob turned ×1→×k on the way up): as at ×1 — a NaN door would never open
         else PR.prev=i;
       }
     } else if(PR.stage==='hold' || PR.stage==='air'){
@@ -7817,7 +7887,8 @@ function _prayerForm(s,p,time){
       // one rung for good. «опять нет ни центра ни сустейна» — the form had one
       // anchor and then stopped being a form.
       if(PR.stage==='hold' && time>=PR.until){
-        PR.stage='air'; PR.until=time+dur*5;              // five beats of air, and the walk is let go
+        PR.stage='air'; PR.until=(_kb>1 && PR.t0!=null)?PR.t0+PR.len-dur:time+_hb*5;              // five beats of air, and the walk is let go · (27.10) five of HIS beats · ×k: the air ends one of MY beats before the next station's ideal start (PR.t0+PR.len) — the seek runs on the beat after this door, so it falls on my first beat at or after his; at ×1 that is the same 34th beat after the arrival
+        if(_kb>1 && PR.t0!=null && time>=PR.until) PR.stage='seek';   // (27.10) ×k: this beat already stands past the seek's door (the hold handed over there, k>6, or my beat is coarse enough to straddle the air) — the air gives way whole; the seek runs on the next beat, as the else-if chain always had it
       } else if(PR.stage==='air' && time>=PR.until){
         PR.stage='seek';
       }
@@ -7910,6 +7981,7 @@ function _scheduleOneBeatBody(time){
   const _SCR=(state._palScore && state._palScore.on) ? state._palScore : null;
   if(_SCR) _palScoreApply(synthState,_SCR,time,beatDur());
   const s=synthState, p=s.p, dur=beatDur();
+  if(s._fi && s.phase!=='main' && !_SCR && !(window._duoGuard&&window._duoGuard.pal)) s._fi=null;   // (30.10) a freedom window lives on main's zero row only — it opens there and closed only at its own end or at main's next sounding row — so one still set on any other phase is stale: a landing, a goto or sim into another section, an advance, a section switched off, next-prime or the retro answer's pause-after park left it behind, and it rode into the next room. The new main's zero row then resumed it with the OLD prime's count (61 → 31 under ◀ «F»: 50 beats for p−1 = 30, up to 1597 in meditate — the p² identity off by the difference), the breath stood frozen at its u, the 'grid' sender withheld bi/bl, his beacon carried a stale fi, and the retro answer's 'pos' gate (!_sp._fi) dropped every beacon — no door, no ±1, no mirrored hold — through the new prime's sections, and in her park the door never came. One line here, after consumeRequests, before any phase body, covers every way out of main; a goto straight into main's zero row is cleared in the reqGoto handler. The crab's half (live pal, the written score) keeps its own clock, byte-identical
 
   // ---------- Goncharova chord dwell ----------
   // If melodic notes have queued quadruples, play them one per "slot" before the
@@ -7970,6 +8042,11 @@ function _scheduleOneBeatBody(time){
   }
   cfg._tieRun=false;                    // a non-chord beat ends the current run
   s._slotSec = null;
+  if(state._landAlign){   // (28.10) ×k ANNOUNCED LANDING, THE TIME HALF (the tempo half is _duoLandTempo). His silent landing beat is one of his, so his section starts at `at` + his beat; hers was one of HER beats — k of his on a q (r03's re-read dur) — and leaving a q her schedulings are k of his apart, so the one that lands lies 0…k−1 of his beats from `at`: her section began k−1…2k−2 of his beats after his, for the whole prime in parts (no index map there), and in retro ⌊i/k⌋ read station 1 at her first beat (station 0 never sounded) while the k-block lock then slid her a beat. With k beats of notice (consumeRequests) she lands on the last of her beats before his section's first, and here her silent beat is cut or stretched to end exactly there, whatever its own length (dur is already her new room's beat); already past it (a late residue under one beat of notice) it is cut to 50 ms so she starts at once and the grid lock takes the rest. Within a quarter of his beat of its own length the beat is left as it is: at ×1 _landAlign is never set, and on a plain-mirror p (her beat is his) the two clocks' jitter must not re-base her grid. Consumed on the first beat after the landing whatever its phase, so a goto that overrode the pause-before in the same consumeRequests pass cannot leave it armed for a later landing; schedulerTick advances by _slotSec
+    const _la=state._landAlign.at-time, _lh=+state._landAlign.hb||0, _lc=!!state._landAlign.c; state._landAlign=null;
+    if(_lc){ if(_lh>0 && _la>0.25*_lh && _la<dur-0.25*_lh) s._slotSec=_la; }   // (30.10) c: the beat of hers that straddles `at` of a ×k landing with his goto (consumeRequests) is CUT to end there, whatever its phase, so the landing comes at `at` and his target sounds from where he sounds it; cut only, never stretched, within a quarter of his beat left as it is (a recursion of this body for the same beat re-arms it through consumeRequests). Without c: t03's bare-landing align, unchanged
+    else if(s.phase==='pause-before' && _lh>0 && Math.abs(_la-dur)>0.25*_lh) s._slotSec=Math.max(0.05,_la);
+  }
 
   const _m = state.secMask || {
     pre:(state.playmode===0||state.playmode===1||state.playmode===2),
@@ -7986,6 +8063,7 @@ function _scheduleOneBeatBody(time){
     s.flow=sectionFlow(state.playmode, s.rDir<0);
     s.flowIdx=0;
     if(s.flow.length===0){ return true; }   // NO sections enabled (secMask all off) → a silent pause beat. Do NOT recurse into next-prime: with a global mask, the flow stays empty for every prime, so that path recurses forever → stack overflow.
+    if(window._duoGuard && window._duoGuard.retroAns && !window._duoGuard.pal) s.flowIdx=s.flow.length-1;   // (30.10) the retro ANSWER enters at HIS first section: her flow is his reversed (sectionFlow with her flipped rDir) and _advanceSection walks it in his order (flowIdx−1, 28.10), so his flow[0] is her flow[len−1] — her flow[0] is his LAST section, where her walk now ends. Every bare landing (▶, an arrow, a typed p, ✚, a landing taken in a pause) and the mirror jump with main off seated her there: in linear motion her first beat sounded the other section's voice until the door; under converge both halves stand in 'dual', so neither the door (phases only) nor the scene (sec 'dual': no _hisSec, its sim restore keeps her own stage) moved her — she answered his whole first section on the other stage (dualStreamsFor: streams, tracks, pitch maps; the stage-0 Goncharova chords lost), and the −1 walk then parked her silent on his next section's first beat. Her index 0 there is the value mirror of his station 0 (t01's reading). A pre-existing ×1 defect of the answering half; !pal keeps the crab's reversed half (_palRev) as it was
     s.aDir=(s.rDir<0)?-1:1; s.aFresh=true; s.aIdx=0; s.rIdx=0;
     _enterFlowPhase(s,p);          // sets phase = first flow section (dual-pair if converge)
     _applyPendingR(s,p);
@@ -8143,7 +8221,7 @@ function _scheduleOneBeatBody(time){
       }
       emitVisual(time,'main',p,0,(FI.n=(FI.n|0)+1)-1,FI.a,FI.b, _fv?{fr:_fv,frQ:_fq}:null);   // (08.09) it sounded on the qr/nqr fader at a pitch the picture never marked
       if(--FI.left<=0){
-        s._fi=null; s.rIdx++; s.aFresh=true;
+        s._fi=null; if(!_multRowAgain(s,p)) s.rIdx++; s.aFresh=true;   // (28.10) the zero row too: k windows for his k rows in live parts under ×k — rIdx kept, the window re-opens on the next beat (rList[rIdx] is still 0), see _multRowAgain
         try{ if(typeof _fl==='function') _fl('freedom','the window closes — the lattice resumes'); }catch(e){}
       }
       return true;
@@ -8169,13 +8247,14 @@ function _scheduleOneBeatBody(time){
         for(let i=0;i<s.aList.length;i++){ const v=s.aList[i]; if(!v) continue; const d=Math.abs(v-tv); if(d<bd){bd=d;bi=i;} }
         s.aIdx=bi;
       }
-      s.aFresh=false;
+      s.aFresh=false; _multRowAgain(s,p,true);   // (30.10) opens the ×k row count at the reading's first beat, in the direction it is read (see _multRowAgain)
       s.contFarIdx=null; s.contFreq=null;   // start a fresh held-note run for this r
       s.r2FarIdx=null; s.r2Freq=null;        // r² held-note run resets per r too
       if(typeof cfg!=='undefined') cfg.played.clear();   // dedup resets each new screen (new r)
     }
     if(s.aIdx<0 || s.aIdx>=s.aList.length){
       // a-sweep for this r finished; advance r in the current direction.
+      if(_multRowAgain(s,p)){ s.aFresh=true; return scheduleOneBeat(time); }   // (28.10) …after k readings in live parts under ×k: the same row again from its edge, see _multRowAgain
       s.rIdx++; s.aFresh=true;
       return scheduleOneBeat(time);
     }
@@ -8200,10 +8279,18 @@ function _scheduleOneBeatBody(time){
         // heard in the room — never its own muted phantom
         let aHeard=a;
         if(state.duo && state.duo.on && document.body.classList.contains('mk-embedded')
-           && window._duoAheard && (Date.now()-window._duoAheard.at)<1500
-           && window._duoAheard.v>0 && window._duoAheard.v<p) aHeard=window._duoAheard.v;
+           && window._duoAheard && window._duoAheard.v>0){ let _hv=window._duoAheard.v|0, _hf=1500; const _hk=(state.duo.mult|0), _hh=(window._duoAheard.hp|0);
+            // (27.10) under ×k the mail is his note counted in HIS prime (hp), and one step of q is a block of k steps of p
+            // (the scene path's r→⌈r/k⌉, mirror-safe: ⌈(p−v)/k⌉ = q−⌈v/k⌉): a window on q hears ⌈v/k⌉; a window on p hearing
+            // a q-note takes the member of that block nearest its own a, and keeps it fresh k× longer — his q-beat lasts k of
+            // hers, so the 1500 ms window, sized for one shared tempo, called a note he was still sounding stale. Read raw, a
+            // q-window dropped his notes ≥q and took the rest as its own v, k× too far along its lattice (a p-window squeezed
+            // his q-line into its lowest 1/k) — a note nobody played, and the ledger's echo, mirror and parallel were built on
+            // it. ×1 or one prime: v and the 1500 ms untouched.
+            if(_hk>1 && _hh && _hh!==p){ if(_multPrime(_hh,_hk)===p) _hv=Math.ceil(_hv/_hk); else if(_multPrime(p,_hk)===_hh){ _hv=Math.min(_hk*_hv, Math.max(_hk*(_hv-1)+1, a)); _hf=1500*_hk; } }
+            if((Date.now()-window._duoAheard.at)<_hf && _hv>0 && _hv<p) aHeard=_hv; }
         if(state.duo && state.duo.on && !document.body.classList.contains('mk-embedded')
-           && window._duoMailA) window._duoMailA(a);
+           && window._duoMailA) window._duoMailA(a,p);   // (27.10) the a-note carries the prime it is counted in, as the tempo does: under ×k the two windows count on different primes
         if(state.duo && state.duo.on && document.body.classList.contains('mk-embedded')
            && window._duoMailBH){ try{ if(window._duoMailB) window._duoMailB(b); }catch(e){} }
         const L=_listenStep(s,p,r,aHeard,bRaw,time,dur); b=L.b||bRaw; _gA=L.gA; _gB=L.gB;
@@ -8381,11 +8468,14 @@ function _scheduleOneBeatBody(time){
       s.phase='pause-before'; s.rIdx=0;   // (07.08) parked at THIS number's own door — resume restates p, never slides to the next prime
       return true;
     }
+    if(window._duoGuard && window._duoGuard.retroAns && !window._duoGuard.pal) return true;   // (28.10) the retro ANSWER never steps the prime from her own spent flow: her flow is his reversed, so his FIRST section's end was her flow's end (28.10 again: _advanceSection now walks her flow in HIS order and parks her here past his LAST section), and her pDir is his flipped (the scene's one dir), so her own next-prime always landed on the wrong neighbour. With the ×1 pull-back gone (_kOut) his next section's beacon had one beat to win the 250 ms race — lost above ~240 bpm, or whenever her lookahead outruns his — and she took prevPrime alone until a throttled scene-req jumped her back. She parks here, one silent beat per tick: the door lands her (the gate is on HIS phase, her 'pause-after' ≠ his), his new prime arrives as a scene. !pal keeps the crab's reversed half (_palRev) on its own clock; peer loss, ♛ or a mode change clear retroAns in _paint and the body falls through
+    if(state.duo && state.duo.mode==='parts' && !(state._palScore&&state._palScore.on) && typeof window._qrBeatK==='function'){ const _kp=+window._qrBeatK(); if(_kp>1 && isFinite(_kp)){ const _hbP=dur/_kp; if(!(s._kPark>time+1e-6 && s._kPark-time<=dur+1e-6)) s._kPark=time+dur; const _lft=s._kPark-time; if(_lft>1.5*_hbP){ s._slotSec=_hbP; return true; } s._slotSec=Math.max(0.05,_lft); s._kPark=0; } }   // (30.10) PARTS ×k, the time half of _restoreInner's ans door. Her pause-after was ONE of her beats — k of his — so his unannounced next-prime scene, which comes one of his beats into it, waited for her next scheduling k of his beats in: through that door alone she entered his first section k−2 of his beats late for the whole prime (×6: 4). She now spends the same beat in slots of HIS length (dur/_kp = 60/_leadBpm, window._qrBeatK's ratio) and stays in pause-after, so his scene lands her on the first of his beats after it — his station 0 (one beat late when the poll takes longer than his beat). Bounded by her own beat (s._kPark: where it would have ended; a stale one lies in the past): the slots sum to it and the step below then comes exactly when it came before, so a scene that never comes, or a flow of hers that ended before his (her beat m·his with m≠k at the 5 bpm floor, under her hand or her pulse — t02's named cases, p still his, no heal), changes nothing. Retro returns above (s01; its door is the beacon); the crab and the written score never get here (_qrBeatK is 1 under _palLive, the score is excluded by name); ×1 and a plain mirror: ratio 1, untouched
     s.phase='next-prime';
     return true;   // consumes exactly one beat slot
   }
 
   if(s.phase==='next-prime'){
+    if(window._duoGuard && window._duoGuard.retroAns && !window._duoGuard.pal){ s.phase='pause-after'; return scheduleOneBeat(time); }   // (28.10) the retro ANSWER never steps her own prime, whoever wrote this phase: a section switched off in HER window (_applyStructure → _advanceSectionSoft, which has no park) stepped her to the wrong neighbour — her pDir is his flipped — for a beat or two until a throttled scene-req pulled her back. One choke point for every writer: she parks in pause-after, re-entered in this same tick so the beat carries the 'pause' visual (one level: that body's park returns true); the door (his beacon, by section name) or his next scene moves her. A pre-existing ×1 defect of the answering half
     if(s.pDir>0) s.p=nextPrime(s.p); else s.p=prevPrime(s.p);
     state.p=s.p; s.phase='pause-before'; s.rIdx=0;
     return scheduleOneBeat(time);
@@ -8393,6 +8483,49 @@ function _scheduleOneBeatBody(time){
   return false;
 }
 
+// (28.10) THE ROW READ k TIMES — live PARTS under ×k. Her main has q−1 rows against his p−1 = k(q−1), and one of her
+// rows (q−1 of her beats) lasts one of his (p−1 of his), so she left main k times early, stepped her own prime
+// (pause-after → next-prime: the s01 park is the retro answer's) and the heartbeat heal pulled her back ~4–6 s later
+// with her held voices cut — every prime, and again at every spent remainder, her rows running k× faster than his to
+// his main's end. The k-fold row replay lived only in the written score (_palScoreApply: index i → ⌊i/k⌋, every k-th
+// slot) and in the retro beacon (the pos receiver's _tn); live parts has no index map, so his main rows over hers are the count (30.10; k when neither list is filtered),
+// as the score reads every K-th slot — counted here, no wire data: the 'grid' lock keeps her beats on his, her tempo
+// is his ÷k from the scene, both mains open together (her prelude of q−1 beats lasts his of p−1) and a seam lands the
+// two halves at their own proportional places. Gated as the live prayer's run-up is (window._qrLeadP: his p as it last
+// set my tempo has a q and my p is it — a landing in flight gets 0 and the row advances as before); not under the
+// written score (it writes rIdx itself) nor the live crab (_duoGuard.pal). The key is the row under its prime by its
+// place in forward order (30.10): a landing or a new section starts a fresh count, a reverse keeps the row and mirrors
+// its count. True: the row sounds again (the caller keeps rIdx and sets aFresh — the next beat rebuilds the same a-list
+// from its edge, the retro answer's own replay); the last reading closes the count and lets the row advance. ×1, the
+// conductor, retro (its beacon), free: false, nothing changes. Named, not fixed: her beat at the 5 bpm floor, under her
+// hand or her pulse is m·his with m≠k — the count still reads his rows over hers and the heal stays the net there, as
+// the grid lock keeps its plain grid for the same cases.
+function _multRowAgain(s,p,open){
+  try{
+    if(!(state.duo && state.duo.on && state.duo.peer && state.duo.mode==='parts') || (state.duo.mult|0)<2) return false;
+    if((state._palScore&&state._palScore.on) || (window._duoGuard&&window._duoGuard.pal)) return false;
+    if(typeof window._qrLeadP!=='function' || !(window._qrLeadP(p)>3)) return false;
+    // (30.10) the row by its place in FORWARD order (f): a reverse — his ◀ through the scene (the 05.08i block flips rDir,
+    // reqGotoSim lands the same value at the mirrored index of the rebuilt list) or an in-place reqReverse — moves rIdx,
+    // not the row. Keyed by rIdx, his ◀ restarted the count: she read the row k−1 more times against the c rows he had
+    // left in the block, up to k−1 of his rows out of step to his main's end (nothing in parts realigns her before his
+    // next prime). Opened at the reading's first beat (open: the a-sweep build), so a reverse inside the FIRST reading is
+    // seen too
+    const d=(s.rDir<0)?-1:1, Rq=s.rList.length|0, f=(d<0)?(Rq-1-(s.rIdx|0)):(s.rIdx|0), key=p+':'+f;
+    if(s._kRow!==key){ s._kRow=key; s._kRep=0; s._kDir=d; }
+    if(open) return false;
+    // (30.10) the count is his main rows over hers, not the knob: under mainAnchorsOnly the anchor lists are not in ratio
+    // k (37|13 ×3: his 12 rows against her 6 — k readings gave her 18 of his rows, her main outlasted his by six over his
+    // postlude and the scene pulled her into his next prime, her own postlude never sounding). A reading lasts one of his
+    // rows whatever the filter (a full a-sweep, q−1 beats at his ÷k), so row f reads ⌊(f+1)Rp/Rq⌋−⌊f·Rp/Rq⌋ times: k each
+    // when both lists are full (Rp = k·Rq), and her rows' counts sum to his row count otherwise
+    const Rp=getMainRValues(window._qrLeadP(p)|0).length;
+    const k=(Rq>0 && f>=0 && f<Rq) ? Math.floor((f+1)*Rp/Rq)-Math.floor(f*Rp/Rq) : (state.duo.mult|0);
+    if(s._kDir!==d){ s._kDir=d; s._kRep=Math.max(0,k-1-s._kRep); }   // (30.10) a reverse inside the row: his rows left in the block are the c he has already played (c = readings done), not a fresh count
+    if(++s._kRep<k) return true;
+    s._kRow=null; s._kRep=0; return false;   // (30.10) closed: a row entered again later (a reverse at the section's edge) counts afresh, not from a stale direction
+  }catch(e){ return false; }
+}
 function _applyPendingR(s,p){
   if(s.pendingR!==null && s.pendingR!==undefined && s.rList.length){
     const t=Math.max(1,Math.min(p-1,s.pendingR));
@@ -8425,6 +8558,13 @@ function _enterFlowPhase(s,p){
   }
 }
 function _advanceSection(s,p,time){
+  if(window._duoGuard && window._duoGuard.retroAns && !window._duoGuard.pal && s.flow && s.flow.length){   // (28.10) the retro ANSWER walks the flow in HIS order: her flow is his reversed (sectionFlow with her flipped rDir) while the pos door seats her by his section's NAME, so his next section is her flow[flowIdx−1]. The +1 below sent her into HER next section one lookahead before his beacon could move her — the prelude voice under the prelude pitch law (ppPitchIndex: r² itself, not the NQR of its rank) on his postlude's first beat at every main→postlude, and main notes of the OLD prime over his two silent pause beats at every prime change (his pause-phase beacons are dropped at the receiver). Walking his order she enters his next section herself at her index 0 — the value mirror of his station 0 in the natural order, the ±1 and _kAt land the bent orders at the next pos — and past his LAST section (flowIdx<0) she parks in pause-after, where the park holds her until his new prime arrives as a scene. Not a park at every seam: the door lands her on the mirror of his NEXT station, so every section would lose its first. A pre-existing ×1 defect of the answering half (the same walk since base); !pal keeps the crab's reversed half (_palRev) on its own clock; without a flow the old path below
+    s.flowIdx=(s.flowIdx|0)-1;
+    if(s.flowIdx<0 || s.flowIdx>=s.flow.length){ s.phase='pause-after'; return scheduleOneBeat(time); }
+    _enterFlowPhase(s,p);
+    _applyPendingR(s,p);
+    return scheduleOneBeat(time);
+  }
   s.flowIdx=(s.flowIdx|0)+1;
   if(!s.flow || s.flowIdx>=s.flow.length){
     // Full cycle done. If all three sections played (prelude+main+postlude), the
@@ -8444,7 +8584,7 @@ function schedulerTick(){
   try{ if(document.hidden && SCHEDULE_AHEAD<1.25) SCHEDULE_AHEAD=1.25; }catch(e){}   // (03.09) hidden from birth (an iframe in a pocketed page) never saw the visibilitychange that raises the margin
   if(!state.running||state.paused) return;
   if(ctx.state!=='running'){ try{ ctx.resume(); }catch(e){} }   // wake a context the OS/tab suspended, don't pile beats onto a frozen clock
-  const dur=beatDur();
+  let dur=beatDur();   // (27.10) let: an announced ×k landing inside this tick may set the new room's tempo (state._landDur) — re-read in the loop
   // OVERFLOW GUARD. If the scheduler fell far behind real time — main-thread jank,
   // a throttled/backgrounded tab, GC, or simply a very high bpm — do NOT try to
   // "catch up" by scheduling every missed beat at once: that spawns a wall of
@@ -8464,6 +8604,7 @@ function schedulerTick(){
     if(state.holdSchedAt!=null && nextBeatTime>=state.holdSchedAt-1e-6) break;   // frozen until the quantized switch
     if(++_guard>64){ nextBeatTime=ctx.currentTime+SCHEDULE_AHEAD; break; }        // hard per-tick cap — never burst-schedule the audio graph into overload
     const ok=scheduleOneBeat(nextBeatTime);
+    if(state._landDur){ state._landDur=false; dur=beatDur(); }   // (27.10) ×k: an announced landing across q-ness set the new room's tempo inside this beat — its advance, and the beats still to schedule in this tick, take the new beat (at ×1 the flag is never set)
     if(!ok) break;
     const s=synthState;
     if(s && s._palGridNext!=null && state._palScore && state._palScore.on){
@@ -8474,7 +8615,7 @@ function schedulerTick(){
   }
   // BEAT-LOCK: publish the scheduler base (the next beat boundary) as a wall-clock
   // timestamp — the duet layer broadcasts it so both engines share one beat grid.
-  try{ window._gridInfo={ wall: Date.now()+(nextBeatTime-ctx.currentTime)*1000, bpm: state.bpm }; }catch(e){}
+  try{ window._gridInfo={ wall: Date.now()+(nextBeatTime-ctx.currentTime)*1000, bpm: state.bpm, at: Date.now() }; }catch(e){}   // (28.10) at: the tick that wrote it — her 'grid' lock reads the grid's freshness from this stamp, not from |wall−now|, which on a live grid lies in [SA, SA+her beat) and grows with her beat (k of his under ×k)
   // the groove floor keeps pumping through holds and quantized scene switches
   if(typeof groove!=='undefined'){ window._gvFromGroove=true; try{ groove.tick(ctx.currentTime+SCHEDULE_AHEAD); }catch(e){} window._gvFromGroove=false; }   // (08.09) the flag the score's audibility gate reads — _emitLayer keeps the LAST scene voice's name and cannot tell the groove apart
   // tempo-dosed wet sends (see _wetDoseK): re-aim the per-note send gains when the
@@ -12559,10 +12700,15 @@ function _applyStructure(){
     s.flow=sectionFlow(state.playmode, s.rDir<0);
     const curSec = (s.phase==='dual') ? (s.dualStage===0?'prelude':'postlude') : s.phase;
     const stillOn = (curSec==='prelude'&&_secActive.pre)||(curSec==='main'&&_secActive.main)||(curSec==='postlude'&&_secActive.post);
+    const _plS=!!((window._duoGuard && window._duoGuard.pal) || (state._palScore && state._palScore.on));   // (30.10) the crab's half (live pal, the written score) keeps the old lines below, byte-identical
+    if(stillOn && curSec==='main' && !_plS) s.flowIdx=s.flow.indexOf('main');   // (30.10) the rebuild re-numbers the flow and only a prelude/postlude was re-seated (_recastCurrentSection below): main kept the OLD index — «pre» on in main of [main,post] left it naming the prelude and _advanceSection's +1 replayed the whole main; «pre» off in main of [pre,main,post] left it naming the postlude, skipped at main's end (the 'pos' beacon and the form bar read the same wrong name; the retro answer's −1 walk replayed main after her own «post» toggle). A pre-existing ×1 defect, one page and both halves
     if(!stillOn && (curSec==='prelude'||curSec==='main'||curSec==='postlude')){
       // current section turned off → advance to the next enabled section now
-      s.flowIdx = Math.max(0, s.flow.indexOf(curSec));
-      _advanceSectionSoft(s, s.p);
+      if(_plS){ s.flowIdx = Math.max(0, s.flow.indexOf(curSec)); _advanceSectionSoft(s, s.p); }
+      else if(window._duoGuard && window._duoGuard.retroAns) s.phase='next-prime';   // (30.10) the retro ANSWER does not walk to another section on her own: the next-prime choke parks her in pause-after and the door seats her by HIS section's name (or his scene moves her). The old +1 stepped HER flow — his reversed — mid-section into his previous section or early into his next
+      else { const _ord=(s.rDir<0)?['postlude','main','prelude']:['prelude','main','postlude'];
+        s.flowIdx=s.flow.filter(x=>_ord.indexOf(x)<_ord.indexOf(curSec)).length-1;   // (30.10) the last kept section BEFORE the switched-off one in the flow's own order, so the soft advance's +1 enters the next one (none kept before → flow[0]; none after → next-prime). It is never in the rebuilt flow: indexOf gave −1 → 0 and the advance always entered flow[1] — main skipped from the prelude, main replayed from the postlude, the postlude lost from main of [main,post]
+        _advanceSectionSoft(s, s.p); }
     } else if(curSec==='prelude' || curSec==='postlude'){
       // We're INSIDE a prelude/postlude: a motion change takes effect IMMEDIATELY,
       // recasting this section to the new mode at the SAME beat position (rIdx).
@@ -12962,7 +13108,7 @@ document.getElementById('p-num').addEventListener('change',e=>{
   if(state.running && !state.paused && state._palScore && state._palScore.on){ try{ _fl('prime','under the written form the prime belongs to the slots — pin p before ✚, or play retro / free, or stop the form'); }catch(e){} try{ e.target.value=_liveP(); }catch(e2){} return; }   // (16.10) a typed p under a score is an honest no-op too (the box shows the live p again)
   let p=parseInt(e.target.value)||11; if(p<3)p=3; if(!isPrime(p))p=nextPrime(p);
   e.target.value=p;
-  try{ if(state._landArmed){ var _ann=(state.reqP!=null)?(state.reqP|0):((state._landPend&&state._landPend.p)|0); if(_ann!==(p|0)){ state._landArmed=false; state._landTok=false; state._landPend=null; try{ if(window._duoLandCancel) window._duoLandCancel(); }catch(_e2){} } } }catch(_e){}   // (20.10) like an arrow: a typed prime re-opens the conductor's announcement
+  try{ if(state._landArmed){ var _ann=(state.reqP!=null)?(state.reqP|0):((state._landPend&&state._landPend.p)|0); if(_ann!==(p|0) && !state._landAt){ state._landArmed=false; state._landTok=false; state._landPend=null; try{ if(window._duoLandCancel) window._duoLandCancel(); }catch(_e2){} } } }catch(_e){}   // (20.10) like an arrow: a typed prime re-opens the conductor's announcement · (30.10) under ×k, while his notice is held (_landAt), re-announced for the same instant there instead (consumeRequests), as an arrow
   state.reqP=p; state.reqSkip=true;
   try{ if(state.reqGoto && state.reqGoto.seam && (state.reqGoto.p|0)!==(p|0)) state.reqGoto.p=p; }catch(_e){}   // (20.10) a typed p outranks a form seam's armed goto, like an arrow
   if(!state.running){ state.p=p; state.vizP=p; }
@@ -13422,7 +13568,7 @@ function stepPrime(dir){
   if(state.running && !state.paused && state._palScore && state._palScore.on){ try{ _fl('prime','under the written form the prime belongs to the slots — pin p before ✚, or play retro / free, or stop the form'); }catch(e){} return; }   // (16.10) arrows under a score are an honest no-op: the slots own p, a step would be taken back at the next seam
   const cur=_liveP();
   const np=(dir>0)?nextPrime(cur):prevPrime(cur);
-  try{ if(state._landArmed){ var _ann=(state.reqP!=null)?(state.reqP|0):((state._landPend&&state._landPend.p)|0); if(_ann!==(np|0)){ state._landArmed=false; state._landTok=false; state._landPend=null; try{ if(window._duoLandCancel) window._duoLandCancel(); }catch(_e2){} } } }catch(_e){}   // (20.10) the conductor's notice beat is announcing ANOTHER prime (every seam re-lands its p with notice): a press re-opens the announcement so both halves still land on one beat — kept, np landed unannounced, or his own pend for the old p took it back
+  try{ if(state._landArmed){ var _ann=(state.reqP!=null)?(state.reqP|0):((state._landPend&&state._landPend.p)|0); if(_ann!==(np|0) && !state._landAt){ state._landArmed=false; state._landTok=false; state._landPend=null; try{ if(window._duoLandCancel) window._duoLandCancel(); }catch(_e2){} } } }catch(_e){}   // (20.10) the conductor's notice beat is announcing ANOTHER prime (every seam re-lands its p with notice): a press re-opens the announcement so both halves still land on one beat — kept, np landed unannounced, or his own pend for the old p took it back · (30.10) under ×k, while his notice is held (_landAt) the press is not withdrawn here: consumeRequests re-announces it for the SAME instant — she may already have landed, and a fresh k-beat notice left her on the withdrawn prime against his old one
   state.reqP=np; state.reqSkip=true;          // live jump via the existing engine path
   try{ if(state.reqGoto && state.reqGoto.seam && (state.reqGoto.p|0)!==(np|0)) state.reqGoto.p=np; }catch(_e){}   // (20.10) a form seam within the last beat left its goto armed on the scene's p; landing right after reqP in the same beat it took the press back — the seam keeps its door, the prime is the hand's
   try{ if(typeof apPin==='function') apPin('prime'); }catch(e){}   // (16.10, author: «меняю p стрелками — соскакивает назад») a stepped prime is the hand's, like a typed one: the form's next scene must not take it back
@@ -15056,9 +15202,11 @@ const scenes = (()=>{
       const _hisSec=(s.sec==='prelude'||s.sec==='main'||s.sec==='postlude')?s.sec:null;
       if(_simFrom && _hisSec && _hisSec!==_simFrom.sec){
         if(_hisSec==='main' && s.r) state.reqGotoMain=s.r;
-        else state.reqGoto={p:s.p, sec:_hisSec, rPos:(s.dir<0)?'last':'first'};
+        else state.reqGoto={p:s.p, sec:_hisSec, rPos:((s.dir<0) && (window._palPhaseB || window._palRide || (window._duoGuard && window._duoGuard.pal)))?'last':'first'};   // (30.10) 'first' whichever way the walk runs: _rValuesByOrder builds every section list in travel order (reversed for rDir<0, which this restore has just set from s.dir) and every walk body runs rIdx up from 0 (_enterFlowPhase; the dual slot lists too), so index 0 is the door he took — the 20.10 plan seam's and t01-4's reading. 'last' under dir<0 was the section's LAST station: in retro (her dir is his flipped) the value of his first station, a unison where the mirror is p−1, after announced landings, and her walk then left his section a beat later (t01: into main); in parts under ◀, and for a ◀ session step or the ♥ restore on the single page, one station of that section and then the next section a whole section early. A pre-existing ×1 defect (24.09). The crab family (a live pal: the tape's phase B restores with sim, phase A's ride) keeps the old reading byte-identical
       }
       else if(_simFrom){ state.reqGotoSim={sec:_simFrom.sec, rV:_simFrom.rV, aV:_simFrom.aV, fromP:_simFrom.fromP}; }
+      else if(opts&&opts.mir&&_hisSec&&_hisSec!=='main'){ state.reqGoto={p:s.p, sec:_hisSec, rPos:'first'}; }   // (28.10) the retro ANSWER's mirror jump only (applyRemoteScene, no sim): his new prime reaches her from his pause-before with sec='prelude' (postlude when he walks down) and an r that is the mirror of _liveR — his last SOUNDED station, stale across his pause (currentR is never cleared) — so reqGotoMain put her into the new prime's MAIN for one beat against his first station, and the door then landed her one station late. She takes his door instead, in the same consumeRequests call as reqP. 'first' is index 0 of HER list in her travel order: _rValuesByOrder builds it reversed for her flipped rDir, so it is the value mirror of his first station in the natural order whichever way he walks — not (s.dir<0)?'last':'first' as the sim path wrote until 30.10, which here is value 1, a unison; the beacon's _findNear/_kAt lands the bent orders at the next pos. A pre-existing ×1 defect of the answering half; every other restore (scene clicks, sessions, the plan — no opts.mir) keeps the s.r door below
+      else if(opts&&opts.ans&&_hisSec&&_hisSec!=='main'){ if(opts.ansK) state.reqGoto={p:s.p, sec:_hisSec, rPos:'first', aim:true}; }   // (30.10) the PARTS answer between primes (applyRemoteScene's ans: a new room). captureSimPos is null in her pause-after / next-prime, and his own next-prime step is unannounced (no reqP: no 'land', no pend, no _landAlign), so his first scene of the new prime reaches her there with sec='prelude' ('postlude' walking down) and _liveR's stale r — currentR is never cleared across his pause. reqGotoMain below then seated her in the new room's MAIN under his prelude for the whole prime: parts has no door, and the heal compares p only. Under ×k, since t02 made the two flows end together, that was every step out of a room with her q (her silent beat is k of his and holds his scene); at ×1 the race in which his scene beats her own next-prime scheduling — a pre-existing ×1 defect of the answering half. Her flow is his (her rDir is the scene's). ansK — one of her beats is longer than his, leaving or entering a q: her pending scheduling lies past his silent pause-before, so she takes his section at once, at 'first' (index 0 in travel order, _enterFlowPhase's own entry; reqP lands first in the same consumeRequests call, so the goto's p is already hers). Otherwise — her beat is his (×1, plain → plain) — reqP alone: its pause-before is her silent beat beside his and flow[0] is his first section on his beat; a goto here put station 0 a beat early. His 'main' keeps the s.r door (r is live there); a converge snapshot ('dual': no section name on the wire) still falls through to it
       else if(s.r){ state.reqGotoMain=s.r; }
     }
     else { state.p=s.p; state.vizP=s.p; state.vizR=s.r||1; }
@@ -19897,11 +20045,19 @@ startRenderLoop();
   var _palFull=true;
   var offIn=null, offOut=null;   // (16.08) the scene-offset knob lives on the pill in BOTH windows — the wire is symmetric
   var multSel=null, _multP=0;    // (24.09) the multiplicity knob — _paintMult below, arithmetic in _multPrime
+  var _multHisP=0;               // (27.10) the conductor's p as his last scene named it, in every mode — the answering pill lists k for HIS p (see _paintMult). Not _leadP: that is his p as it last SET her tempo (unset in free, under a live crab, behind the _applying gate), window._qrBeatK's gate
   function _paintMult(){   // (24.09) the knob lists the k that give a prime at THIS p; the chosen k is sticky across scenes
     try{
       if(!multSel) return;
       var p=_liveP()|0, k=state.duo.mult|0;
-      if(p!==_multP || multSel.options.length===0){ _multP=p;
+      // (27.10) k is the law of HIS p: under ×k the answering half stands on q, and a list built from q named the wrong pairs
+      // (37 ×3: «×3 → 5» while she plays 13; 61 ×5: «×5 · no prime at 13») — and, now that her knob drives the pair, offered k
+      // whose arrow lied (61 ×2: she on 31, offered «×3 → 11», which at his 61 has no prime). Her pill lists the k of his p,
+      // as his does. ×1: her own p, as before (in the plain mirror it IS his).
+      if(k>1 && !_isLead() && _multHisP) p=_multHisP;
+      // (27.10) a k that arrives from the other pill may be missing from this list (his p offers no q for it, or the lists were
+      // built from different p) — without a rebuild the select showed nothing; rebuild, so the «no prime at p» entry names it.
+      if(p!==_multP || multSel.options.length===0 || (k>1 && !multSel.querySelector('option[value="'+k+'"]'))){ _multP=p;
         var opts=_multOptions(p), html='<option value="1">\u00d71 \u00b7 off</option>', seen=false;
         for(var i=0;i<opts.length;i++){ html+='<option value="'+opts[i].k+'">\u00d7'+opts[i].k+' \u2192 '+opts[i].q+'</option>'; if(opts[i].k===k) seen=true; }
         if(k>1 && !seen) html+='<option value="'+k+'">\u00d7'+k+' \u00b7 no prime at '+p+'</option>';
@@ -20227,6 +20383,26 @@ startRenderLoop();
   // that compares «his p» with «my p» compares against THIS: the bare test read the multiple as a lost scene and
   // asked for it again every 2–4 s (her sweep restarted, her long voices cut, the retro answer thrown into main).
   function _multHere(p){ p=p|0; try{ var k=(state.duo&&state.duo.mult)|0; if(k>1 && !_isLead()){ var q=_multPrime(p,k); if(q) return q; } }catch(e){} return p; }
+  // (27.10) THE BEAT OF THE FORM under ×k, for the live prayer (_prayerForm lives outside this closure): how many of HIS
+  // beats one of MY beats spans — his tempo as the wire last named it (_leadBpm: his scene, his tempo message, his 1 s grid)
+  // over mine. On the q of his p that is k (bpm/k), but it is read from the two tempi, not assumed: below 5k bpm my tempo
+  // is floored at 5 (433×24 at 60: 12, not 24), and my hand or my pulse can hold a tempo of its own — the reason the
+  // mirrored hold takes his beat from the wire too. The gate asks only whether my tempo is the ×k map of his at all:
+  // _leadP is his p as it last SET my tempo (his scene, his tempo message) — not the p I stand on (an offset landing or a
+  // heal in flight puts me on a q his scenes do not name yet while my beat is still k of his), and not the heartbeat's
+  // (it never sets my tempo: after a lost scene it names a p my tempo has not followed). A ratio within 1e-9 of a whole
+  // number is that number, so the steady state counts exactly k; no tempo named yet: the knob's k. ×1 (knob off), the
+  // conductor, free, a live palindrome (its plan sets my p and tempo, and the crab has no ×k), his p with no q (the plain
+  // mirror, as at ×1): 1.
+  var _leadP=0, _leadBpm=0;
+  try{ window._qrBeatK=function(){ try{ var k=(state.duo&&state.duo.mult)|0; if(k>1 && state.duo.on && state.duo.peer && state.duo.mode!=='free' && !_isLead() && !_palLive() && _leadP && _multHere(_leadP)!==_leadP){ if(!(_leadBpm>0 && state.bpm>0)) return k; var r=_leadBpm/state.bpm, n=Math.round(r); if(n>0 && Math.abs(r-n)<=1e-9*n) r=n; return (r>0 && isFinite(r))?r:k; } }catch(e){} return 1; }; }catch(e){}
+  // (27.10) HIS p for the live prayer's run-up (_prayerForm): under ×k the approach to the centre must be as long as HIS
+  // harp's pass, read on his circle — the written prayer already lays it so (_prayerScoreFill runs on his p; she reads
+  // every k-th of its slots) — but the live form read it on hers (q's) and the two arrived apart (433×12, hand 1/1:
+  // his 34, hers 17; 2029×13 under the default hand: 39 against 17). Answers his p only while the caller's p is its ×k
+  // map, as window._qrBeatK's gate asks: a landing in flight (my p moved, his scene not yet here) gets 0 and the form
+  // keeps its own circle. The conductor, ×1, free: never asked.
+  try{ window._qrLeadP=function(q){ try{ q=q|0; var m=_multHere(_leadP); return (_leadP && m!==_leadP && m===q)?(_leadP|0):0; }catch(e){ return 0; } }; }catch(e){}
   function _palNoteRide(T){
     window._palRide=true;
     _palTape.ev.length=0; _palTape.on=true; _palTape.full=false; _palTape.done=false;
@@ -20723,18 +20899,63 @@ startRenderLoop();
   // scene arrived on two different beats. Now the leader ANNOUNCES: «this prime lands
   // at this instant», and both halves put their foot down together. The offset is the
   // only thing allowed to separate them — and it is a number the author sets.
-  var _landSeen=0, _landN=0;
-  window._duoAnnounceLand=function(p, atWall, ofsSend){
+  var _landSeen=0, _landN=0, _landUntilWall=0;   // (28.10) _landUntilWall: wall ms until which an announced ×k landing is in flight on the answering side (set in _landHere) — the heals and the k-block lock wait it out
+  window._duoAnnounceLand=function(p, atWall, ofsSend, waitB){   // (30.10) waitB: the conductor's own wait past atWall, in his beats (a negative offset) — sent as w
     try{
       if(!(state.duo.on && state.duo.peer)) return false;
       if(!_isLead()) return false;                 // only the conductor announces
       if(_palLive()) return false;                 // the palindrome owns its own clock
       if(state.duo.mode==='free') return false;    // «сама»: she is not following anything
-      send({t:'land', p:p|0, at:atWall, ofs:(ofsSend!=null?ofsSend:(state.duo.offsetBeats||0)), n:(++_landN)});
+      send({t:'land', p:p|0, at:atWall, ofs:(ofsSend!=null?ofsSend:(state.duo.offsetBeats||0)), n:(++_landN), hb:beatDur()*1000, g:((state.reqGotoSim && state.reqGotoMain==null)?{sec:state.reqGotoSim.sec, rV:state.reqGotoSim.rV|0, aV:state.reqGotoSim.aV|0, fromP:state.reqGotoSim.fromP|0}:0), w:((waitB>0)?+waitB:0)});   // (28.10) hb: his beat at the announce, ms (the pos beacon's idiom) — under ×k her landing beat ends where his section starts (at + hb), not after one of HER beats, which is k of his on a q (_landHere) · (30.10) g: the similar-position goto armed with this prime (reqGotoSim: the improviser's, the ◆ form's and the tour's seams, a mirrored scene). _landArmed holds it and it lands in the SAME call as my prime, so my landing beat sounds that position from `at`, not a pause-before → flow[0]; her pend now lands through a position too (consumeRequests). A reqGotoMain lands after it and wins, so then none: reqGoto/reqGotoMain landings stay bare on her side · (30.10) w: under a negative offset he lands only after waiting out |offset| of his beats on his own pend (consumeRequests) — her ×k stand-down must last until HIS section's first beat (_landHere), not hers
       return true;
     }catch(e){ return false; }
   };
   window._duoLandCancel=function(){ try{ if(state.duo.on && state.duo.peer && _isLead()) send({t:'land-x'}); }catch(e){} };   // (20.10) a press in the notice beat withdraws his announcement — her pend for the old prime must go with it
+  // (27.10) ×k: THE TEMPO'S HALF OF THE ANNOUNCED LANDING. The pend carried his prime mapped to mine (20.10) but not that
+  // room's tempo — on a q of his p my tempo is his ÷k, on a plain-mirror p it is his (the scene map in applyRemoteScene,
+  // the 'bpm' message), and a landing can cross that line (41×3 → 37: 41 has no q, 37 has 13; and back). Nothing on the
+  // wire re-derived it: his rounded tempo did not move, so no {t:'bpm'} went, and the scene came with the 250 ms poll
+  // over the 200 ms snapshot cache — for up to a beat she played 13 at his tempo (k× too fast) or 41 at his ÷k (k× too
+  // slow), and the landing beat itself was advanced by the old room's beat (see schedulerTick). Set at the landing, as
+  // that scene will: absolute, from his tempo as the wire last named it (_leadBpm — not a ratio on my own tempo, which
+  // the 5 bpm floor or my hand may hold), so a scene that raced ahead of the pend agrees and nothing is divided twice;
+  // _leadP follows, as the p whose q set my tempo — window._qrBeatK's gate. Returns true when my tempo moved (the
+  // caller then lets the scheduler re-read its beat). No tempo named yet, ×1, the conductor, free, a live crab, my
+  // pulse: untouched. (28.10) Gated on a pinned 'bpm' only BETWEEN crossings (kq, below), no longer at every landing: the
+  // pin keeps the improviser's generated scene off the hand's tempo (apStripPinned; the r09 skip of the ×k map in
+  // applyRemoteScene) — the law's ÷k of HIS hand's tempo at a q-ness crossing is the 'bpm' channel's own rule, and that
+  // channel crosses the pin (its handler has no pin test, at ×1 as at ×k; the ⚭ bundle's map neither). With the bare
+  // apPinned return that stood at the head of this function (s02), the pin that any touch of the slider sets on both
+  // windows (it travels: 'pin' / 'pins'; nothing releases it) left her k× off for the whole prime after every announced
+  // crossing — 13 at his 60 instead of 20, back on 41 at 20 instead of 60 — since no {t:'bpm'} goes while his rounded
+  // tempo stands, and the strip then carried that wrong value into every scene. The scene after the landing agrees:
+  // the strip carries the landed value and the r09 skip leaves it undivided. But the pin may be HER hand's: her slider
+  // pins 'bpm' on her window and the pin travels up, while her value never reaches him (broadcastScene is the
+  // conductor's and sends {t:'bpm'} only when his ROUNDED tempo moves), so _leadBpm stays his — and with no gate at all
+  // every announced landing of his improviser's seam (restore arms reqP for any s.p, consumeRequests announces any
+  // reqP) re-derived her 30 under ×3 @ 60 to 20 on a room of the SAME kind, his tempo never having moved, where at ×1
+  // the same seam leaves her hand alone (this function returns at _k>1; the strip holds it). That is the author's pin
+  // contract (apPin, 25.07: «ANY control the player genuinely touches becomes theirs AT ONCE»; r09: «A pinned class is
+  // never rewritten by the mirror, as at ×1»), not a guess. So the pend carries the kind of the room my tempo stood in
+  // as the NOTICE arrived (kq, _landHere), and a pinned tempo is re-derived here only when the landed room's kind
+  // differs from it — the crossing, where the law crosses the pin as the 'bpm' channel does; on the same kind her hand
+  // holds. Read at the notice, not here: with a positive offset his scene for the new room reaches her before her pend
+  // lands and applyRemoteScene has already moved _leadP to the new room (its own crossing call has derived by then) —
+  // a test on _leadP here would read a real crossing as none and bring the k×-off defect back in exactly that race.
+  window._duoLandTempo=function(hp, kq){
+    try{
+      var _k=(state.duo&&state.duo.mult)|0; hp=hp|0;
+      if(!(_k>1 && hp && state.duo.on && !_isLead() && state.duo.mode!=='free' && !_palLive() && !_pulseOwnsTempo() && _leadBpm>0)) return false;
+      _leadP=hp;   // (28.10) the apPinned('bpm') return that stood here is gone (see above): it kept the landing from re-deriving her tempo AND _leadP, so window._qrBeatK read the old room too — the pin gate now stands below this line and the two answers, so _leadP always names the landed room
+      var _kb=(_multHere(hp)!==hp)?_k:1, _b=(_kb>1)?Math.max(5,Math.min(999,_leadBpm/_kb)):_leadBpm;   // the scene map's own two answers
+      if(kq!=null && typeof apPinned==='function' && apPinned('bpm') && kq===(_kb>1)) return false;   // (28.10) between crossings a pinned tempo is the hand's, as at ×1 — the author's pin contract (apPin, 25.07: «ANY control the player genuinely touches becomes theirs AT ONCE»; r09: «A pinned class is never rewritten by the mirror, as at ×1»), not a guess: the strip holds it across his seams (apStripPinned + the r09 skip), and his improviser's seam onto a room of the SAME kind must not take it back; only a change of kind re-derives it (the round-2 defect, s02). kq from the pend — the kind at the notice — not _leadP, which a scene racing ahead of the pend has already set to the new room (applyRemoteScene); no kind (null: the first landing after pairing, or applyRemoteScene's unannounced-crossing call, a crossing by its own test) derives
+      if(_b===state.bpm) return false;
+      state.bpm=_b;
+      var _e1=document.getElementById('bpm'), _e2=document.getElementById('bpm-num');
+      if(_e1)_e1.value=state.bpm; if(_e2)_e2.value=state.bpm;
+      return true;
+    }catch(e){ return false; }
+  };
   function _landHere(m){
     // the answering half: land exactly at the announced instant, shifted by the offset
     try{
@@ -20748,9 +20969,11 @@ startRenderLoop();
       // sounding beat he does. Tempo-independent by construction. The offset then
       // moves her, and only her, in beats.
       var _bd=beatDur();
+      var _hbS=((((state.duo&&state.duo.mult)|0)>1) && (+m.hb>0))?(+m.hb)/1000:0;   // (28.10) ×k: his beat as the announce named it (ms on the wire, the pos beacon's hb idiom), in seconds; the pend then carries al = at + one of HIS beats — his section's first, the instant my silent landing beat must end at (consumeRequests, _scheduleOneBeatBody) — and hb for her landing threshold. 0 at ×1: al:0/hb:0 and the landing reads as before
       var _atCtx=((typeof ctx!=='undefined'&&ctx)?ctx.currentTime:0)+(((m.at||Date.now())-Date.now())/1000)+(+m.ofs||0)*_bd;
-      state._landPend={p:_multHere(m.p|0), at:_atCtx, wall:Date.now(),   // (20.10) under ×k his announced prime lands as HER prime — the bare p put her back in his world at every announced change (and overwrote a mapped scene that had already arrived)
+      state._landPend={p:_multHere(m.p|0), hp:(m.p|0), g:((m.g&&m.g.sec)?m.g:null), kq:(_leadP?(_multHere(_leadP)!==_leadP):null), at:_atCtx, al:((_hbS>0)?(_atCtx+_hbS):0), hb:_hbS, wall:Date.now(),   // (20.10) under ×k his announced prime lands as HER prime — the bare p put her back in his world at every announced change (and overwrote a mapped scene that had already arrived) · (27.10) hp: his prime as announced — the landing's tempo is derived from it (window._duoLandTempo), the way the 'bpm' message carries his p beside his tempo · (28.10) kq: whether the room my tempo stands in AS THE NOTICE ARRIVES is a q-room (null: no p has set my tempo yet) — _duoLandTempo holds a pinned tempo across a landing onto a room of the same kind (the author's pin contract) and re-derives it only at a change of kind. Read HERE, not at the landing: he lands after announcing (a beat; k of his under ×k), so his scene for the new room cannot have come yet, while by my landing (a positive offset) it may have, and applyRemoteScene has then already moved _leadP to the new room — a test on _leadP at the landing would read a real crossing as none · (30.10) g: his similar-position goto for this landing, when he had one (_duoAnnounceLand) — my landing lands through a position too (consumeRequests); null: bare, as before
         deadline:Date.now()+Math.max(0,(m.at||Date.now())-Date.now())+((+m.ofs||0)*_bd*1000)+120000};   // the pend lives as long as its own journey plus two minutes
+      if(_hbS>0) _landUntilWall=(m.at||Date.now())+((+m.ofs||0)*_bd+((+m.w>0)?+m.w:0)*_hbS+_hbS)*1000;   // (28.10) ×k: under k beats of notice I land before him (my beat is k of his), and until his section's first beat his 'pos' beacons, heartbeats and grid fields name the room he is leaving while I stand on the next — the heals must not ask for that scene and pull me back onto it, and the k-block lock must not measure me against his old section (never set at ×1; a withdrawn announce leaves it to expire — the re-announce that follows renews it) · (30.10) + w of his beats: under a negative offset he lands only after waiting out |offset| on his own pend, so his section's first beat is at + (w+1)·hb; the window ended at at + hb and his beacons, still naming the room he is leaving, pulled me back onto it (the pos heal's scene-req, the heartbeat heal)
       _landSeen=m.n||_landSeen;
     }catch(e){}
   }
@@ -20759,11 +20982,17 @@ startRenderLoop();
   (function(){
     var _orig=scenes.restore;
     scenes.restore=function(s,opts){
-      var r=_orig(s,opts);
+      // (27.10) ♛ Markova: his own half of a ⚭ bundle restored in HIS window is the answering half — under ×k it takes the
+      // setscene handler's map and gates (the bundle's lead and mode, no live crab, only a half saved on her p in the same
+      // bundle). Restored verbatim it sat on her p at her tempo until her mirror or the heal moved it, and the same bundle
+      // restored in her window put him on q (03.08: either window, one result). The bundle itself is untouched.
+      var _s5=s;
+      try{ var _mk5=(state.duo.mult|0); if(_mk5>1 && ROLE==='markov' && s && s.duo && s.duo.markova && s.p && state.duo.on && state.duo.peer && ((s.duo.lead||state.duo.lead||'markov')!==ROLE) && ((s.duo.mode||state.duo.mode)!=='free') && !(_palLive() && _palFull) && (s.p|0)===(s.duo.markova.p|0)){ var _q5=_multPrime(s.p|0,_mk5); if(_q5){ _s5=Object.assign({},s); _s5.p=_q5; if(_s5.r) _s5.r=Math.max(1,Math.min(_q5-1,Math.ceil(_s5.r/_mk5))); if(_s5.bpm) _s5.bpm=Math.max(5,Math.min(999,_s5.bpm/_mk5)); } } }catch(e){}
+      var r=_orig(_s5,opts);
       try{
         if(s && s.duo){
-          if(s.duo.mode){ state.duo.mode=s.duo.mode; send({t:'mode',mode:s.duo.mode}); }
-          if(s.duo.lead){ state.duo.lead=s.duo.lead; send({t:'lead', who:s.duo.lead}); }
+          if(s.duo.mode){ state.duo.mode=s.duo.mode; send({t:'mode',mode:s.duo.mode, bundle:1}); }   // (27.10) bundle: the conductor must not answer this with a forced re-mirror — his half of this bundle follows in setscene below, and the echo sent the scene he was about to leave
+          if(s.duo.lead){ state.duo.lead=s.duo.lead; send({t:'lead', who:s.duo.lead, bundle:1}); }   // (27.10) bundle: same — the lead handler's forced re-mirror stands down for a bundle's lead
           if(s.duo.off!=null){ state.duo.offsetBeats=Math.max(-_offMax(),Math.min(_offMax(),+s.duo.off||0));
             if(offIn){ offIn.value=state.duo.offsetBeats; if(offOut) offOut.textContent=_offLabel(state.duo.offsetBeats); }
             send({t:'soff', v:state.duo.offsetBeats}); }
@@ -20771,16 +21000,22 @@ startRenderLoop();
           if(selRatio) selRatio.value=_ratioKey(_freeRatio);
           send({t:'ratio', v:s.duo.ratio||0, k:_ratioKey(_freeRatio)});
           if(ROLE==='markov'){
-            if(s.duo.markova && state.duo.on && state.duo.peer) send({t:'setscene', snap:s.duo.markova});
+            if(s.duo.markova && state.duo.on && state.duo.peer) send({t:'setscene', snap:s.duo.markova, hp:(s.p|0)});   // (27.10) hp = HIS half's p in the same bundle: her window maps ×k only a half saved on that same p (a half saved under ×k is already in her prime)
           } else {
             // the bundle restored IN MARKOVA'S window (03.08 equality): the outer state
             // is Markov's part — it crosses the wire; her own half applies right here.
-            if(state.duo.on && state.duo.peer){ var _out=Object.assign({},s); delete _out.duo; send({t:'setscene', snap:_out}); }
-            if(s.duo.markova){ _applying=true; try{ scenes.restore(s.duo.markova,{sim:true}); }catch(e){} _applying=false; _applyRoleMask(); }
+            if(state.duo.on && state.duo.peer){ var _out=Object.assign({},s); delete _out.duo; send({t:'setscene', snap:_out, hp:((s.duo.markova&&s.duo.markova.p)|0)}); }   // (27.10) hp = HER half's p in the same bundle: his window, when it answers, maps ×k only a half saved on that same p
+            if(s.duo.markova){ var _mh=s.duo.markova;
+              // (27.10) her own half restored HERE takes ×k under the setscene handler's gates (answering, outside free and the
+              // live crab, only a half saved on his p in this bundle) — verbatim, a ×1-saved half sat on his p at his tempo
+              // until his mirror or the heartbeat heal moved her, while the same bundle restored in his window maps it.
+              try{ var _mk4=(state.duo.mult|0); if(_mk4>1 && state.duo.on && state.duo.peer && !_isLead() && state.duo.mode!=='free' && !(_palLive() && _palFull) && _mh.p && (_mh.p|0)===(s.p|0)){ var _q4=_multPrime(_mh.p|0,_mk4); if(_q4){ _mh=Object.assign({},_mh); _mh.p=_q4; if(_mh.r) _mh.r=Math.max(1,Math.min(_q4-1,Math.ceil(_mh.r/_mk4))); if(_mh.bpm) _mh.bpm=Math.max(5,Math.min(999,_mh.bpm/_mk4)); } } }catch(e){}
+              _applying=true; try{ scenes.restore(_mh,{sim:true}); }catch(e){} _applying=false; _applyRoleMask(); }
           }
           _paint();
         }
       }catch(e){}
+      _snapAt=0;   // (28.10) a restore changed the structure the 200 ms snapshot cache holds — invalidate it here, synchronously: the event-driven mirror below ran snapshot() inside the poll's window (200 of every 250 ms) and got the PRE-restore capture, whose key already matched _lastKey, so nothing was sent and the scene waited for the next poll («NOW» was false ~4 times in 5); the «once» pass's forced broadcastScene(true) right after its restore read the same stale capture and sent it. Not inside the deferred call: a poll landing in between captures fresh and sends first, the deferred call then keys equal — no duplicate, no second capture
       try{ if(state.duo.on && state.duo.peer && _isLead() && !_applying) setTimeout(function(){ try{ broadcastScene(false); }catch(e){} },0); }catch(e){}   // (05.08b) event-driven mirror: a structural change crosses the wire NOW, not at the next 250 ms poll
       return r;
     };
@@ -20807,8 +21042,24 @@ startRenderLoop();
   var _freeRatio=null, _lastLeaderBpm=0, selRatio=null;
   setInterval(function(){
     try{
-      if(_isLead() && state.duo.on && state.duo.peer && state.running && window._gridInfo)
-        send({t:'grid', wall:window._gridInfo.wall, bpm:window._gridInfo.bpm});
+      if(_isLead() && state.duo.on && state.duo.peer && state.running && window._gridInfo){
+        var _gq={t:'grid', wall:window._gridInfo.wall, bpm:window._gridInfo.bpm, hp:state.p|0};   // (27.10) hp: under ×k her lock must know that one of her beats is k of his (see the receiver) — his p, as on the 'bpm' message
+        // (27.10) bi · bl, only under ×k: the index of the beat `wall` names, counted in HIS section's list (in main: in his row's a-list — ai names his
+        // next, a spent sweep is the next row's 0 — ≡ 0 mod k once bl is), and that list's length. Her lock pins her beat to his k-GRID with them
+        // (his index ≡ 0 mod k, the written score's own alignment: _palScoreApply floors her slot to a multiple of K), not to whichever of his beats
+        // was nearest. Absent while his index does not count his beats — the freedom window, the prayer's hold (rIdx pinned to j every beat), the
+        // pauses, a Goncharova dwell (wall names his next SLOT then, not the beat rIdx names — the pos beacon's dw), dual before its lists: her lock
+        // then keeps his plain grid, as before. ×1 adds nothing to the wire. (28.10) Read by her lock in RETRO only (the mode with the index map);
+        // in parts they are sent and ignored — her lock keeps his plain grid there, see the receiver
+        if((state.duo.mult|0)>1) try{ var _gs=(typeof synthState!=='undefined')?synthState:null;
+          if(_gs && !_gs._fi && !(_gs._pray&&_gs._pray.stage==='hold') && _gs.phase && _gs.phase!=='pause-before' && _gs.phase!=='pause-after' && _gs.phase!=='next-prime'
+             && !(typeof cfg!=='undefined' && cfg.chordQueue && cfg.chordQueue.length && !(state._palScore&&state._palScore.on))){
+            var _gbi=-1,_gbl=0;
+            if(_gs.phase==='main'){ _gbl=(_gs.aList?_gs.aList.length:0)|0; _gbi=_gs.aFresh?0:((_gs.aDir<0)?(_gbl-1-(_gs.aIdx|0)):(_gs.aIdx|0)); }
+            else { _gbl=(_gs.rList?_gs.rList.length:0)|0; _gbi=_gs.rIdx|0; }   // the walks step rIdx once a beat, after the beat: rIdx names the beat `wall` names, as the pos beacon's ri/hw
+            if(_gbi>=0 && _gbl>0){ _gq.bi=_gbi; _gq.bl=_gbl; } } }catch(e){}
+        send(_gq);
+      }
     }catch(e){}
   },1000);
   function _applyRatioBpm(){
@@ -20841,7 +21092,7 @@ startRenderLoop();
   // SILENT phantom. The act lived in muted voices. Now the sounding halves mail
   // each other: his window posts every sounding a-note, her ledger answers the
   // note actually heard in the room.
-  try{ window._duoMailA=function(v){ try{ send({t:'anote', v:v|0}); }catch(e){} }; }catch(e){}
+  try{ window._duoMailA=function(v,hp){ try{ send({t:'anote', v:v|0, hp:hp|0}); }catch(e){} }; }catch(e){}   // (27.10) hp = the sender's prime (as on {t:'bpm'}) — under ×k her ledger must read his note in HER world
   try{ window._duoMailB=function(v){ try{ send({t:'bnote', v:v|0}); }catch(e){} }; }catch(e){}   // her sounding answer travels back — the resonance is mutual
   try{ window._duoMailBH=function(o){ try{ send({t:'bh', o:o}); }catch(e){} }; }catch(e){}   // the arc's breath travels too — her ledger must know which phase the night is in
   var _soloSaved=null, _maskOn=false;
@@ -20911,7 +21162,7 @@ startRenderLoop();
     // lightweight tempo mirror: bpm changes ride their own tiny message — a full
     // scene-restore per breath was the 2×/s "scene p31 · NNbpm" storm in the log.
     var _b=Math.round(state.bpm)||0;
-    if(_b && _b!==_lastBpmSent){ _lastBpmSent=_b; send({t:'bpm', bpm:_b, hp:(s.p|0)}); }   // (20.10) his p rides the tempo: under ×k she divides only when that p HAS her q
+    if(_b && _b!==_lastBpmSent){ _lastBpmSent=_b; send({t:'bpm', bpm:_b, hp:((typeof _liveP==='function')?_liveP():(s.p|0))|0}); }   // (20.10) his p rides the tempo: under ×k she divides only when that p HAS her q · (27.10) read live, as the tempo beside it is: s may be the 200 ms snapshot cache (the poll's, a forced call's, her 2 s mycap's), and a landing inside that window sent his NEW tempo with his OLD p — under ×k she divided (or did not) for the room he had just left
     // (21.08, author: «по умолчанию частоты диапазоны маркова и марковой совпадают»)
     // — the tempo already travelled this way; the register window travels with it,
     // so even when she is improvising freely the two of them stand in one room.
@@ -20945,6 +21196,24 @@ startRenderLoop();
     if(_applying){ if(applyRemoteScene._at && Date.now()-applyRemoteScene._at>3000){ _applying=false; } else return; }
     _applying=true; applyRemoteScene._at=Date.now();
     try{
+    var _pPrev=_leadP;   // (28.10) his p as it last set my tempo (the scene, the 'bpm' message, the landing: _leadP's only writers) — the crossing test just below
+    var _kWas=1; try{ if(window._qrBeatK) _kWas=+window._qrBeatK()||1; }catch(e){}   // (30.10) how many of his beats one of mine spans in the room this scene LEAVES (her pause-after was that long) — read before _leadP/_leadBpm move; the parts answer's door at the restore below
+    if(snap.p){ _leadP=snap.p|0; if(snap.bpm>0) _leadBpm=+snap.bpm; }   // (27.10) his p and tempo as this scene names them — read before the retro copy, the pin strip (a pinned 'bpm' puts MY tempo in snap.bpm) and the ×k map below, which divides my tempo by k exactly when this p has my q. For window._qrBeatK
+    // (28.10) A q-ness crossing nobody announced. The scheduler's own next-prime step (the 'next-prime' body of
+    // _scheduleOneBeatBody) sets his p with no reqP — no 'land', no pend, so window._duoLandTempo never ran — and no
+    // {t:'bpm'} goes while his rounded tempo stands (broadcastScene). With a pinned 'bpm' (any touch of the slider on
+    // either window; it travels, nothing releases it) the strip below then carried MY old room's tempo into every scene
+    // of the new room and the r09 skip kept it, k× off for the whole prime: ×3 @ 60, 41 at 20 after 37 (q=13), 23 at
+    // his 60 after 61. Re-derive from HIS tempo here, as the announced landing does (_duoLandTempo: the same two
+    // answers, absolute from _leadBpm), exactly when the law's ÷k changes between the p that last set my tempo and
+    // this one — the pin is crossed only at the crossing, as on the 'bpm' channel; between crossings (same-p scenes,
+    // same-kind steps) her hand's pinned value stands, r09's semantics. The scene after an announced landing sees
+    // _pPrev===snap.p (the landing moved _leadP) and makes no second call; the first scene after pairing (_leadP=0)
+    // derives, as the first {t:'bpm'} would. Unpinned nothing changes: the ×k map below sets the same value from
+    // snap.bpm. The strip then carries the law's value and the r09 skip is right by construction. No _landDur flag:
+    // this runs outside schedulerTick, which re-reads its dur at the top of the next tick. ×1 untouched (the mult
+    // gate here; _duoLandTempo's own _k>1 returns first)
+    try{ if((state.duo.mult|0)>1 && snap.p && window._duoLandTempo && (!_pPrev || ((_multHere(_pPrev)!==_pPrev)!==(_multHere(_leadP)!==_leadP)))){ window._duoLandTempo(_leadP); if(state._landPend && state._landPend.hp) state._landPend.kq=(_multHere(_leadP)!==_leadP); } }catch(e){}   // (30.10) a crossing INSIDE an announced landing's notice (under ×k his walk goes on for k beats: pause-after → next-prime onto a room of the other kind) has just moved my tempo to this room's kind, so the in-flight pend's kq (t06: the kind my tempo stood in at the notice) must name it — left at the notice's kind, the landing back onto that kind read «same kind» under a pinned 'bpm' and held this room's tempo, k× off for the whole prime (the scene after it is no crossing: _pPrev===snap.p). A scene of the announced room racing ahead of the pend derives here, and the landing then reads the same kind and leaves it, as before
     // RETRO mode: Markova plays the SAME scene as Markov with the DIRECTION reversed —
     // a retrograde canon across two frames. Everything else mirrors untouched.
     // Point symmetry (author 29.07): Markov may start from ANY beat r — Markova answers
@@ -20989,9 +21258,10 @@ startRenderLoop();
     // (24.09) MULTIPLICITY on the wire: the law p, r rides the mirror — and under a chosen k
     // it arrives in her prime: q=(p−1)/k+1, r→⌈r/k⌉, bpm→bpm/k. A p with no such prime
     // falls back to the plain mirror for that scene.
-    try{ var _mk3=(state.duo.mult|0); if(_mk3>1 && snap && snap.p){ var _q3=_multPrime(snap.p|0,_mk3); if(_q3){ snap=Object.assign({},snap); snap.p=_q3; if(snap.r) snap.r=Math.max(1,Math.min(_q3-1,Math.ceil(snap.r/_mk3))); if(snap.bpm) snap.bpm=Math.max(5,Math.min(999,snap.bpm/_mk3)); } } }catch(e){}
+    try{ var _mk3=(state.duo.mult|0); if(_mk3>1 && snap && snap.p){ var _q3=_multPrime(snap.p|0,_mk3); if(_q3){ snap=Object.assign({},snap); snap.p=_q3; if(snap.r) snap.r=Math.max(1,Math.min(_q3-1,Math.ceil(snap.r/_mk3))); if(snap.bpm && !(state.apPins && state.apPins.has('bpm'))) snap.bpm=Math.max(5,Math.min(999,snap.bpm/_mk3)); } } }catch(e){}   // (27.10) a pinned 'bpm': the strip above has already put MY tempo into snap.bpm (his ÷k from the 'bpm' message, or the hand's) — dividing it by k AGAIN cut her tempo by k at every applied scene until the 5 bpm floor (×3: 20 → 6.67 → 5). A pinned class is never rewritten by the mirror, as at ×1; unpinned, snap.bpm is still his and the ÷k stands. ×1 (_mk3=1) untouched · (28.10) _duoLandTempo no longer defers to the pin (a landing is his hand's tempo under the 'bpm' channel's rule, which crosses the pin) — the strip then carries that landed value, so this skip stays right · (28.10) and at an UNANNOUNCED q-ness crossing (the scheduler's own next-prime step) the law's value that _duoLandTempo set just above (the _pPrev test), so the strip carries this p's law there too
     state._mirrorUntil=Date.now()+2500;   // the baton's gates already ruled — the answer switches IN STEP (03.08: «сцены переключаются синхронно»)
-    try{ scenes.restore(snap, _mirJump?{}:{sim:true}); }   // no sim on a mirror jump: the s.r path enters main at the mirror beat
+    var _ansO=null; try{ if(state.duo.mode==='parts' && snap.p && (snap.p|0)!==(((typeof _liveP==='function')?_liveP():state.p)|0)){ var _kNow=1; try{ if(window._qrBeatK) _kNow=+window._qrBeatK()||1; }catch(e){} _ansO={sim:true, ans:true, ansK:(_kWas>1 || _kNow>1)}; } }catch(e){}   // (30.10) the PARTS answer and a NEW room (snap.p is already my prime for his: the ×k map above). ansK: one of my beats is longer than his in the room I leave (_kWas) or the room I enter (_duoLandTempo above has already set a crossing's tempo) — read by _restoreInner only when captureSimPos is null (I stand between primes); see there. Same-p scenes keep {sim:true}
+    try{ scenes.restore(snap, _mirJump?{mir:true}:(_ansO||{sim:true})); }   // no sim on a mirror jump: the s.r path enters main at the mirror beat · (28.10) mir: or HIS section when the snapshot names his prelude/postlude (see _restoreInner) — no other restore carries it · (30.10) ans: the parts answer's new room (_ansO above)
     catch(e){ if(typeof _reportErr==='function') _reportErr('duo-apply',e); }
     }finally{ _applying=false; }   // (07.08) one boot-race exception used to jam this flag — and the mirror died for the whole session
     if(_soloKeep){ state.solo.clear(); _soloKeep.forEach(function(k){ state.solo.add(k); });
@@ -21013,7 +21283,7 @@ startRenderLoop();
       // retro-only) and the halves lived on different laws for a whole session.
       // The heartbeat carries the sender's p; a follower that disagrees twice in a
       // row asks for the scene — any silent loss repairs itself within ~6 s.
-      try{ if(!_isLead() && state.duo.on && !_palLive() && state.duo.mode!=='free' && m.hp && _multHere(m.hp|0)!==(state.p|0)){   // (20.10) under ×k her p is the q of his — only a real divergence heals; the bare test re-mirrored her every ~4 s (sweep restarted, chord queue cleared, held voices cut)
+      try{ if(!_isLead() && state.duo.on && !_palLive() && state.duo.mode!=='free' && m.hp && _multHere(m.hp|0)!==(state.p|0) && Date.now()>=_landUntilWall){   // (20.10) under ×k her p is the q of his — only a real divergence heals; the bare test re-mirrored her every ~4 s (sweep restarted, chord queue cleared, held voices cut) · (28.10) not while an announced ×k landing is in flight — his heartbeat names the room he is leaving (_landUntilWall, see _landHere)
         var _hbN=Date.now();
         if(window._hbMis && window._hbMis.p===(m.hp|0)){
           if(_hbN-window._hbMis.at>3500 && (!window._scnReqAt || performance.now()-window._scnReqAt>4000)){
@@ -21029,6 +21299,7 @@ startRenderLoop();
       // else the pair shows green lights while nothing mirrors.
       if(IS_LEADER && state.duo.on && m.id!==_lastPeerSeeded){
         _lastPeerSeeded=m.id;
+        if((state.duo.mult|0)>1) send({t:'mult', k:state.duo.mult|0});   // (27.10) the ×k he set before she arrived (or before her frame reloaded): a booted frame holds ×1, and the pair answered on the plain mirror while his pill said ×k. Sent BEFORE 'lead' — the booting frame does not conduct yet, so it only stores k and no extra forced scene flies; ×1 sends nothing
         send({t:'lead', who:(state.duo.lead||'markov')});
         send({t:'ratio', v:_freeRatio||0, k:_ratioKey(_freeRatio)});
         send({t:'soff', v:(state.duo.offsetBeats||0)});   // (16.08) or a reloaded frame lands on the default while the pill shows the author's number
@@ -21041,8 +21312,8 @@ startRenderLoop();
     else if(m.t==='mode'){ if(m.mode){ if(m.mode==='pal' && state.duo.mode!=='pal') _prePalMode=state.duo.mode; state.duo.mode=m.mode;   // (05.08 audit) both windows must hold the SAME pre-pal mode, or the crab's natural end crosses them
       if(m.mode!=='pal' && _palActive && _palFull) _palStopLocal();   // one family: a mode change ends the palindrome everywhere · (24.09) a parts form under the score is not a palindrome — it ends with its form
       if(m.mode==='free'||m.mode==='pal'){ state._landPend=null; state._landTok=false; state._landArmed=false; }   // (16.08) the announced landing belongs to parts/retro only
-      if(!_isLead()){ _needMirrorJump=(m.mode==='retro'); if(!_palLive()) _mkFreeSync(); }
-      if(_isLead() && m.mode!=='free' && m.mode!=='pal') broadcastScene(true);   // adopt the follower's choice and re-mirror with it at once
+      if(!_isLead()){ _needMirrorJump=(m.mode==='retro'); if(!_palLive()){ _mkFreeSync(); if(m.mode==='free' && _freeRatio) _applyRatioBpm(); } }   // (30.10) entering free applies the kept ratio now — the 'ratio' handler no longer applies it outside free, and the 'grid' handler's apply waits up to 1 s and runs only while she plays
+      if(_isLead() && !m.bundle && m.mode!=='free' && m.mode!=='pal') broadcastScene(true);   // adopt the follower's choice and re-mirror with it at once · (27.10) not for a ⚭ bundle's mode: its half for this window is still in flight (setscene follows), and this forced echo mirrored the scene this window was about to leave over the half she had just restored — his new half crosses by the key-gated poll, as when the bundle is restored here
     } }
     else if(m.t==='hr'){ // the beloved's heart arrives; this window answers with ITS OWN gears
       try{
@@ -21051,8 +21322,8 @@ startRenderLoop();
         }
       }catch(e){}
     }
-    else if(m.t==='bpm'){ if(!_isLead() && m.bpm>0 && !_palLive() && !_pulseOwnsTempo()){ _lastLeaderBpm=m.bpm|0;
-      if(state.duo.mode!=='free'){ var _kb=(m.hp!=null)?((_multHere(m.hp|0)!==(m.hp|0))?(state.duo.mult|0):1):Math.max(1,state.duo.mult|0); var _mb=(_kb>1)?(m.bpm/_kb):(m.bpm|0);   /* (20.10) divide by k only when his p HAS her q, as the scene path does — on a plain-mirror prime (41 at ×3) she keeps his tempo instead of a third of it */ state.bpm=Math.max(5,Math.min(999,_mb));   // (24.09) multiplicity: her tempo is his /k
+    else if(m.t==='bpm'){ if(!_isLead() && m.bpm>0 && !_palLive() && !_pulseOwnsTempo()){ _lastLeaderBpm=m.bpm|0; _leadBpm=+m.bpm;   // (27.10) his tempo, set together with mine below, so window._qrBeatK never reads one without the other (_lastLeaderBpm is truncated and drives free's ratio — not reused)
+      if(state.duo.mode!=='free'){ if(m.hp) _leadP=m.hp|0;   /* (27.10) the p of his whose q decides just below whether my tempo is his ÷k — window._qrBeatK's gate */ var _kb=(m.hp!=null)?((_multHere(m.hp|0)!==(m.hp|0))?(state.duo.mult|0):1):Math.max(1,state.duo.mult|0); var _mb=(_kb>1)?(m.bpm/_kb):(m.bpm|0);   /* (20.10) divide by k only when his p HAS her q, as the scene path does — on a plain-mirror prime (41 at ×3) she keeps his tempo instead of a third of it */ state.bpm=Math.max(5,Math.min(999,_mb)); if(state._landPend && state._landPend.hp) state._landPend.kq=(_kb>1);   /* (30.10) as at the scene's crossing call (applyRemoteScene): a tempo message inside an announced landing's notice re-derived my tempo by its room's kind, so the pend's kq names that kind */   // (24.09) multiplicity: her tempo is his /k
         var _e1=document.getElementById('bpm'), _e2=document.getElementById('bpm-num');
         if(_e1)_e1.value=state.bpm; if(_e2)_e2.value=state.bpm; }
       else if(_freeRatio) _applyRatioBpm();   // «сама», but tempo-coupled by the chosen ratio
@@ -21062,7 +21333,8 @@ startRenderLoop();
       try{ var _fs=document.getElementById('fs-toggle'); if(_fs) _fs.classList.toggle('active', !!m.on); }catch(e){}
       if(typeof resizeCanvas==='function') setTimeout(resizeCanvas,80);
       try{ if(typeof _resetView==='function') _resetView(); }catch(e){} } }
-    else if(m.t==='scene'){ if(m.mode && !_isLead() && m.mode!==state.duo.mode){ state.duo.mode=m.mode; _needMirrorJump=(m.mode==='retro'); _mkFreeSync(); } applyRemoteScene(m.snap); }
+    else if(m.t==='scene'){ if(!_isLead() && m.snap && m.snap.p) _multHisP=m.snap.p|0;   // (27.10) his p, before her mirror maps it to q — the answering knob's list is built from it
+      if(m.mode && !_isLead() && m.mode!==state.duo.mode){ state.duo.mode=m.mode; _needMirrorJump=(m.mode==='retro'); _mkFreeSync(); } applyRemoteScene(m.snap); }
     // ---- the baton: pins travel the wire, so a control grabbed on EITHER screen is
     // yours on both, and unticking hands it back to the Markovs everywhere.
     else if(m.t==='pin'){ if(_isLead()) apPin(m.key); }            // wrapped → rebroadcasts the full set
@@ -21091,7 +21363,7 @@ startRenderLoop();
       _palRun(_rev, m.t0, true, m.score||null);
       }
     } }
-    else if(m.t==='anote'){ try{ window._duoAheard={v:m.v|0, at:Date.now()}; if(window._duoBloom) window._duoBloom(); }catch(e){} }   // the beloved's sounding line — the ledger answers it, and it BLOOMS in this side of the room
+    else if(m.t==='anote'){ try{ window._duoAheard={v:m.v|0, hp:m.hp|0, at:Date.now()};   /* (27.10) keep the sender's prime: the ledger maps his note into this window's world under ×k */ if(window._duoBloom) window._duoBloom(); }catch(e){} }   // the beloved's sounding line — the ledger answers it, and it BLOOMS in this side of the room
     else if(m.t==='bnote'){ try{ if(window._duoBloom) window._duoBloom(); }catch(e){} }      // her answer resounds in HIS side — perception's resonance, both ways
     else if(m.t==='freq'){
       try{
@@ -21111,7 +21383,11 @@ startRenderLoop();
       if(window._duoSpaceSet && m.o.stage) window._duoSpaceSet({tender:0.75,desire:0.45,passion:0.08,afterglow:0.15}[m.o.stage] ?? 0.5);
     } }catch(e){} }       // the arc phase arrives with the breath — and walks HER through the room too
     else if(m.t==='pal-stop'){ _palStopLocal(); if(state.duo.mode==='pal'){ state.duo.mode=_prePalMode||'parts'; } }
-    else if(m.t==='beat'){ if(!_isLead() && !_palLive() && state.running && !state.paused && typeof ctx!=='undefined' && ctx && typeof nextBeatTime!=='undefined' && nextBeatTime>0){   // (20.08 review C1) the beacon must not shove the score grid — pal owns its own clock
+    else if(m.t==='beat'){ if(!_isLead() && !_palLive() && state.running && !state.paused && typeof ctx!=='undefined' && ctx && ctx.state==='running' && typeof nextBeatTime!=='undefined' && nextBeatTime>0){   // (20.08 review C1) the beacon must not shove the score grid — pal owns its own clock
+      // (30.10) …and only on her running clock, as the 'grid' lock: on a frozen ctx _mineW runs on with Date.now(), and the full
+      // slide to his nearest beat moved nextBeatTime by −(2 s mod his beat), wrapped, at every message — ahead without bound where
+      // that wraps positive (50 bpm: +0.4 s a message, ~12 s a minute; 80 bpm: +0.25 s, ~8 s), which nothing catches on a frozen
+      // clock; she woke that far ahead and silent. Older than the 'grid' stamp: the old |wall−now| bound never covered this beacon
       try{
         var _Tb=60/Math.max(24,Math.min(240,state.bpm||60));
         if(Math.abs((m.bpm||60)-(state.bpm||60))<0.5){
@@ -21138,7 +21414,8 @@ startRenderLoop();
       state.duo.offsetBeats=Math.max(-_offMax(),Math.min(_offMax(),+m.v||0));
       if(offIn){ offIn.value=state.duo.offsetBeats; if(offOut) offOut.textContent=_offLabel(state.duo.offsetBeats); }
     }catch(e){} }
-    else if(m.t==='mult'){ try{ state.duo.mult=Math.max(1,m.k|0); _paintMult(); }catch(e){} }   // (24.09) the multiplicity knob travels the wire
+    else if(m.t==='mult'){ try{ state.duo.mult=Math.max(1,m.k|0); _paintMult();   // (24.09) the multiplicity knob travels the wire
+      if(_isLead()){ _lastBpmSent=0; broadcastScene(true); } }catch(e){} }   // (27.10) turned on the answering pill: the conductor adopts her k and re-mirrors at once, tempo included — what his own knob does (the mode's «adopt and re-broadcast»); unconditional, since with the halves apart (his ×3, hers ×1) her ×3 changes nothing of his and still needs the mirror; never re-sent, so nothing loops
     else if(m.t==='tape-ack'){ try{ if(window._palAckT){ clearTimeout(window._palAckT); window._palAckT=null; } }catch(e){} }
     else if(m.t==='tape'){ try{ _palReplay(m); }catch(e){} }
     else if(m.t==='tape-done'){ try{
@@ -21164,7 +21441,7 @@ startRenderLoop();
       try{
         var _sp=synthState;
         var _hpQ=_multHere(m.hp|0), _hpK=(m.hp && _hpQ!==(m.hp|0))?(state.duo.mult|0):1;   // (20.10) under ×k his p arrives as my q and one of my beats spans k of his (_hpK=1 when there is no multiple)
-        if(m.hp && _hpQ!==(_sp.p|0)){
+        if(m.hp && _hpQ!==(_sp.p|0) && Date.now()>=_landUntilWall){   // (28.10) ×k: not while an announced landing is in flight — his beacon still names the room he is leaving, and the scene it would ask for is that room's (_landUntilWall, see _landHere)
           if(_sp._mirHold){ _sp._mirHold=null; _sp._pray=null; }   // (16.10) another p — the mirrored hold is void
           // (07.08 author: «стоит ретро, при этом на двух экранах разные p») the
           // mirror lost the scene — a boot race can eat the one broadcast. The
@@ -21173,7 +21450,7 @@ startRenderLoop();
           if(!window._scnReqAt || performance.now()-window._scnReqAt>2000){
             window._scnReqAt=performance.now(); send({t:'scene-req'}); }
         }
-        if(m.ph && m.ph!=='pause-before' && m.ph!=='pause-after' && m.ph!=='next-prime' && _hpQ===(_sp.p|0) && (m.hr>0) && !_sp._fi){
+        if(m.ph && m.ph!=='pause-before' && m.ph!=='pause-after' && m.ph!=='next-prime' && _hpQ===(_sp.p|0) && ((m.hr>0) || (m.fi>0 && (_hpK>1 || (_sp.phase!==m.ph && !(m.ri|0))))) && !_sp._fi){   // (27.10) his freedom-window beacon (hr=0, fi>0), read only under ×k — at ×1 she is in her own window at the same index and drops it as before · (28.10) and at ×1 as the DOOR at his row 0 only: his main opens on a window while she stands outside it (another section, the s01 park) — the door lands her in main by name, _findNear idles on hn −1 (s06), her rIdx stays at her row 0: the row ×k's _kAt gives her for ri 0 and her own walk enters at, and a sounding row (his zero rows and hers never share an index, see the sender). «Same index» above does not hold in retro under orders 6/7. Not in main: the same-phase branch would hand his spent ai (the row before the window: L or −1) to the a-mirror below and pin her sweep to its edge every 1.2 s. Not past his row 0: at his LAST-row window (order 6 forward) a door from her next section — or from the park when main is his last — put her back on main's row 0, which under order 6 is her own window (hers[0] = his[p−2] = F(p−1) ≡ 0), and her _fi then shut this gate on him for p−1 beats
           // (05.08d author: «почему r=2 у Маркова и r=27 у Марковой?») the mirror is a
           // VALUE mirror, p−r, in EVERY r-order. Index mirroring held only for the
           // natural sweep; arches and ×g orders bent it. The beacon carries his
@@ -21186,13 +21463,32 @@ startRenderLoop();
           // In the plain order this IS the wire's value mirror q−⌈hn/k⌉ (her list runs reversed in retro); in the arches,
           // ×g and Fibonacci orders a value map is k-to-one and would sample her walk with repeats and holes, a jump at
           // every one of his stations. Under his hold the held index (hj) names the station — his rIdx is already past it.
-          var _kAt=function(list){ var L=(list&&list.length)|0, RL=(m.rl|0)||((m.hp|0)-1), src=(m.hold>0 && m.hj>=0)?(m.hj|0):(m.ri|0); return (L>0 && RL>0)?Math.max(0,Math.min(L-1,Math.floor(src*L/RL))):-1; };
+          // (27.10) …READ AT HER NEXT BEAT. rIdx is applied from her NEXT beat (05.08e), and under ×k that beat lies up to k of his past
+          // the one his ri names: ⌊ri/k⌋ fell one of her stations short whenever his index crossed a multiple of k first — k−1 of
+          // every k beacons when her beats sit on his k-grid, the score's own alignment — so a door set her one late, and with ±1
+          // off in the sections she stayed late to the section's end (its last station never sounded). In the walks that step once
+          // a beat (every phase but main, whose ri is a row) hw and hb give HIS INDEX AT HER NEXT BEAT: ri + his beats begun between
+          // hw and it — floor, not round: a beat of hers in the second half of one of his still hears that one (round named the next
+          // of his before it began); the quarter beat only absorbs the two windows' clock jitter. It holds still through her beat,
+          // so the ±1 below holds the sections again. Read there, an index outside his section (_kOut) means he is not in it at her
+          // next beat — still in the last, or already in the next: no station of it is the answer (clamped to L−1, the restored ±1
+          // pulled her back from her own section advance at every section end — her last station sounded twice and the next
+          // section's first was lost) and the door below waits. His hold (hj) stands as before. Without hw/hb on the wire (an
+          // older sender), or in main: the old reading, untouched.
+          var _kDw=(m.dw>0)?m.dw:0;   // (27.10) his Goncharova chord dwell still queued past hw, in ms: his walk stands at ri until hw+dw (without dw the reading ran his index on through the dwell — one station lost and the next doubled per chord block, where base's ⌊ri/k⌋ stalled with him)
+          var _kMyDw=(_hpK>1 && typeof cfg!=='undefined' && cfg.chordQueue && cfg.chordQueue.length && !(state._palScore&&state._palScore.on))?cfg.chordQueue.length*Math.max(0.25,cfgDurBeats())*beatDur()*1000:0;   // (27.10) and my own: rIdx is consumed at my next WALK beat, past my own queued slots — not at my next slot, which is what _gridInfo.wall names during a block of mine
+          var _kAhd=(_hpK>1 && m.ph!=='main' && m.hw>0 && m.hb>0 && window._gridInfo && window._gridInfo.wall>0)?Math.floor((window._gridInfo.wall+_kMyDw-m.hw-_kDw)/m.hb+0.25):null;   // his beats begun from the beat ri names (hw+dw) to my next walk beat; null — the old reading
+          if(_kAhd!==null && _kDw>0 && _kAhd<0) _kAhd=0;   // (27.10) my next walk beat falls inside his dwell: no walk beat of his begins there and his index is ri — never ri−1, ri−2… (indices he never stands at, which _kOut would read as «outside the section»); the −1 «still hears that one» of a plain beat (dw=0) stays as it was
+          var _kHd=(m.hold>0 && m.hj>=0), _kRL=(m.rl|0)||((m.hp|0)-1), _kSrc=_kHd?(m.hj|0):((m.ri|0)+(_kAhd|0));
+          var _kSpent=(_hpK===1 && m.ph==='main' && !(m.fi>0) && !_kHd && (m.al|0)>0 && ((m.ai|0)<0 || (m.ai|0)>=(m.al|0)));   // (30.10) ×1 main BETWEEN ROWS: his sweep is spent (ai past either end of his row) and ri/hn still name the row he is leaving until his next tick — the lazy rIdx++ (or _advanceSection at main's end) runs only on the tick of his next slot, which is why main never beacons ri ≥ rl. A beacon sent in the few ms after HER tick for that slot read the left row as his: mid-main the ±1 restarted her previous row, and at main's end the door pulled her out of the postlude t01 had just walked her into (or out of the s01 park with postlude off) back into main's last row — a stray row over his postlude station, or through his silent pause beats. No station of hers answers a spent sweep: _kOut shuts the door and _findNear (so the ±1) for this beacon, the a-mirror below skips it, and the next beacon names his next row or section. Not his freedom-window beacon (fi>0: the 28.10 door at his row 0), not under his hold (hj); ×k unchanged (_kAhd is null in main, _tn/_kGo own its row seams)
+          var _kOut=(((_kAhd!==null || _hpK===1) && !_kHd && _kRL>0 && (_kSrc<0 || _kSrc>=_kRL)) || _kSpent);   // at her next beat he is outside the section he names · (27.10) and at ×1 (there _kSrc is just ri): ri ≥ rl with no hold is his spent section end — between his last station and his next tick hn is 0 and the hr fallback named his LAST station, the one she has just sounded, so the rate-limited ±1 below pulled her back from her own advance at every prelude/postlude/dual end: her last station sounded twice and the door then landed her past the next section's first. No station of this list is the answer: the ±1 idles (_findNear reads _kOut as _kAt does) and the door waits for the beacon that names his next section. Main never beacons ri ≥ rl (its lazy advance recurses into the next section in the same tick); his hold (hj) stands as before
+          var _kAt=function(list){ var L=(list&&list.length)|0, RL=_kRL, src=_kSrc; if(_kOut) return -1; return (L>0 && RL>0)?Math.max(0,Math.min(L-1,Math.floor(src*L/RL))):-1; };
           var _tv=((_sp.p|0)-(_hv|0)); if(_tv<1)_tv=1; if(_tv>(_sp.p|0)-1)_tv=(_sp.p|0)-1;
-          var _findNear=function(list,val){ var bi=-1,bd=Infinity;
+          var _findNear=function(list,val){ if(_kOut || (m.hn<0 && !_kHd)) return -1; var bi=-1,bd=Infinity;   // (27.10) ×1 reads _findNear, not _kAt: no station while he is past the section (_kOut) — see above · (28.10) and while his next beat is a Fibonacci rest (hn −1; prelude/postlude/dual under orders 6/7): no station of her list answers a rest — the ±1 idles and the door enters without landing. A pre-existing ×1 defect of the answering half, changed by the author's rule: the sender's 0 fell to the hr fallback, his SOUNDING station — the slot she had just sounded — and the rate-limited ±1 pulled her back onto it at every rest ahead of him: that station twice while he rested, the one past the rest lost. Only here, not in _kOut: under ×k _kAt maps his rest slot by index to her ⌊i/k⌋ station, which must land, and _kOut would hold the door through his silent rest beat (no beacon there). Under his hold (_kHd) hr IS the held station — the fallback stands
             for(var k3=0;k3<list.length;k3++){ var v3=list[k3]; if(!v3) continue;
               var d3=Math.abs(v3-val); if(d3<bd){ bd=d3; bi=k3; } }
             return bi; };
-          if(_sp.phase!==m.ph){
+          if(_sp.phase!==m.ph || (m.ph==='dual' && (m.sec==='prelude'||m.sec==='postlude') && m.sec!==((_sp.dualStage===1)?'postlude':'prelude'))){   // (30.10) converge: both halves stand in 'dual' and the section is the STAGE, which the phase test never saw. A seat on the other stage held for his whole section — a landing taken in a pause (bare: now his FIRST section) while he lands at a similar position in his postlude, or any other writer: the scene's sec is 'dual' (no _hisSec) and its sim restore re-seats her own stage. She played the other stage's streams, tracks and pitch maps (dualStreamsFor), and her −1 walk then left for main over his pause beats, or parked her silent on his next section's first beat. The door compares the stage by NAME there (as captureSimPos names it) and enters his through _enterFlowPhase; !_kOut below still holds it at his spent seam, and the next beacon lands the slot (the dual body builds its lists). A pre-existing ×1 defect of the answering half
             if(_sp._mirHold){ _sp._mirHold=null; _sp._pray=null; }   // (16.10) another section — the mirrored hold is void
             // (05.08f author's screenshot: he in DUAL, she in main) a raw phase write
             // skipped the section's OWN entry (dualStreams etc.) and the phase died.
@@ -21200,7 +21496,7 @@ startRenderLoop();
             // the section honestly (dual included); the station lands right after.
             var _secT=m.sec||'';
             var _fi2=(_secT && _sp.flow && _sp.flow.length)?_sp.flow.indexOf(_secT):-1;
-            if(_fi2>=0 && typeof _enterFlowPhase==='function'){
+            if(_fi2>=0 && typeof _enterFlowPhase==='function' && !_kOut){   // (27.10) under ×k the door waits while his index at her next beat lies outside the section he names: <0 — he enters it only after her next beat (his larger lookahead sent it a beat early: her last old station was lost and the new first sounded twice); ≥RL — he has left it by then (she advanced first, and the door dragged her back onto his old section's last station). A later beacon (250 ms) that puts her next beat inside it takes the door
               _sp.flowIdx=_fi2;
               _enterFlowPhase(_sp,_sp.p|0);
               if(_sp.phase!=='dual' && _sp.rList && _sp.rList.length){
@@ -21209,18 +21505,35 @@ startRenderLoop();
               }   // dual: the body builds its lists on the first beat — the next beacon (250ms) lands the station exactly
               _sp._posFixAt=Date.now();
             }
-          } else if(_sp.rList && _sp.rList.length>2){
+          } else if(_sp.rList && _sp.rList.length*_hpK>2){   // (27.10) ×k: her list counted in his beats — (q−1)·k is his p−1, so the floor written for _findNear's ±1 at ×1 (05.08e; p=3 has no form to mirror) is read on HIS world. At q=3 (37×18, 13×6: two stations) it kept every same-phase beacon out — no _kAt station, no mirrored hold (his 29-beat centre rang one beat on her), no ±1, no stray-note guard; only the door ran. _kAt clamps to L−1 and is defined for any L>0. ×1: _hpK=1, >2 as before
             // (05.08e author: «важна абсолютная точность») ANY mismatch corrects to
             // ZERO. Big drifts — immediately; ±1 — rate-limited to one fix per 1.2 s
             // (an entry offset used to freeze as a PERMANENT off-by-one; lockstep
             // keeps the zero once set, so rare exact fixes cause no flutter).
             var _ti=(_hpK>1)?_kAt(_sp.rList):_findNear(_sp.rList,_tv);
             // (16.10) RETRO × PRAYER: his beacon carries the hold — her mirror holds the mirrored station as long as he does, and her drone (schedulePnSustainIfAnchor's _pr branch) reads this _pray
-            if(m.hold>0){ if(!_sp._mirHold || _sp._mirHold.i!==_ti){ _sp._mirHold={i:_ti, until:ctx.currentTime+m.hold*beatDur()/_hpK};   /* (20.10) m.hold counts HIS beats — under ×k mine are k of his: her hold and its drone (_pray.until) end with his, not k times later */ _sp._pray={stage:'hold', j:_ti, until:_sp._mirHold.until, n:0, k:0}; try{ killLongSustains('mirror hold',0.3); }catch(e){} } if(_ti>=0) _sp.rIdx=_ti; } else { if(_sp._mirHold) _sp._pray=null; _sp._mirHold=null; }   // (16.10) when his hold ends, hers does — a stale stage:'hold' would cut her next drone on that station to one beat
+            if(m.hold>0){ if(!_sp._mirHold || _sp._mirHold.i!==_ti){ _sp._mirHold={i:_ti, until:ctx.currentTime+m.hold*((_hpK>1 && m.hb>0)?m.hb/1000:beatDur()/_hpK)};   /* (20.10) m.hold counts HIS beats — under ×k mine are k of his: her hold and its drone (_pray.until) end with his, not k times later · (27.10) his beat from the wire (hb) when it is there: mine ÷k is not his while my bpm sits clamped at 5 or his tempo change has not reached me */ _sp._pray={stage:'hold', j:_ti, until:_sp._mirHold.until, n:0, k:0}; try{ killLongSustains('mirror hold',0.3); }catch(e){} } if(_ti>=0) _sp.rIdx=_ti; } else { if(_sp._mirHold) _sp._pray=null; _sp._mirHold=null; }   // (16.10) when his hold ends, hers does — a stale stage:'hold' would cut her next drone on that station to one beat
+            // (27.10) STRAY NOTE under ×k in MAIN: her row lasts as long as his (q−1 of her beats = p−1 of his), while ⌊ri/k⌋ moves on
+            // only every k of his rows. The walk's lazy advance (rIdx++ on the beat after her sweep is spent) sounded the first note
+            // of her NEXT row before the ±1 below could pull her back — a stray note at every repeat, each one pushing the repeats a
+            // beat later, until his k-th row cut her last repeat k−1 notes short. While her sweep is spent, the row his next start
+            // pairs with hers decides (_tn: ri, or ri+1 once his own row has ≤k of his beats left — in retro his a-walk runs against
+            // hers): the same row → aFresh replays it (the score's k-fold repeat); the next row → aFresh stays false and her walk
+            // advances by itself (rIdx++, or _advanceSection past her last row). rIdx is NOT written here: a pre-advanced rIdx over
+            // the old row's spent sweep is a state the scheduler's handlers misread before her next beat (an in-place ◀▶ walked the
+            // old row's a-list under the next row's r; at the main's end rIdx went to −1 and threw her out of main backwards).
+            // _tn/_kGo also keep the ±1 from pulling her off that row while his k-th row is still finishing. ×1 and the sections:
+            // _tn stays −1, _kGo false, and nothing below changes.
+            var _tn=-1, _kGo=false;
+            if(_hpK>1 && m.ph==='main' && !(m.hold>0) && _ti>=0 && m.al>0 && _sp.aList && _sp.aList.length){
+              var _hRem=(m.fi>0)?(m.fi|0):((_sp.aDir<0)?((m.al|0)-(m.ai|0)):((m.ai|0)+1));   // his beats left in his row (ai names his next) — (27.10) in his freedom window the window's own (fi): his ai there is the spent sweep of the row before it, 0 left in either direction
+              _tn=Math.max(0,Math.floor(((m.ri|0)+((_hRem<=_hpK)?1:0))*_sp.rList.length/_kRL));
+              if((_sp.aIdx<0 || _sp.aIdx>=_sp.aList.length) && (_tn===(_sp.rIdx|0) || _tn===(_sp.rIdx|0)+1)){ _kGo=(_tn!==(_sp.rIdx|0)); _sp.aFresh=!_kGo; }
+            }
             var _rd=(_ti>=0)?Math.abs((_sp.rIdx|0)-_ti):0;
-            if(_ti>=0 && _rd>0 && (_rd>1 || ((_hpK===1 || m.ph==='main') && (Date.now()-(_sp._posFixAt||0))>1200))){   // (20.10) under ×k: in the sections her own walk already keeps the target's rate and ⌊ri/k⌋ flickers by one inside her k-times-longer beat, so only a real drift (>1) corrects there; in main her rows natively run k times too fast for ⌊ri/k⌋, and this rate-limited ±1 is what holds each of her rows for k of his — the score's own repeat
+            if(_ti>=0 && _rd>0 && !(_tn>=0 && ((_sp.rIdx|0)===_tn || _kGo)) && (_rd>1 || ((_hpK===1 || m.ph==='main' || _kAhd!==null) && (Date.now()-(_sp._posFixAt||0))>1200))){   // (20.10) under ×k: in the sections her own walk already keeps the target's rate and ⌊ri/k⌋ flickers by one inside her k-times-longer beat, so only a real drift (>1) corrects there — (27.10) unless the target is read at HER next beat (_kAhd): then it holds still through her beat, gives no station outside his section, and ±1 corrects the sections as at ×1 (without it a door that set her one late kept her late to the section's end); in main her rows natively run k times too fast for ⌊ri/k⌋, and this rate-limited ±1 is what holds each of her rows for k of his — the score's own repeat
               _sp.rIdx=_ti; _sp.aFresh=true; _sp.aIdx=0; _sp._posFixAt=Date.now();
-            } else if(m.ph==='main' && m.al && _sp.aList && m.al===_sp.aList.length && _sp.aList.length>2){
+            } else if(!_kSpent && m.ph==='main' && m.al && _sp.aList && m.al===_sp.aList.length && _sp.aList.length>2){   // (30.10) not from a spent sweep of his (_kSpent): _want=(L−1)−ai lies outside her list there (−1 or L), so once her next row had begun (aIdx one step in) _ad=L−1 jumped her new sweep to its far edge unthrottled — two notes of the row; with both sweeps spent it only clamped aIdx back to where she stood
               var _want=(_sp.aList.length-1)-(m.ai|0);
               var _ad=Math.abs((_sp.aIdx|0)-_want);
               if(_ad>0 && (_ad>2 || (Date.now()-(_sp._posFixAt||0))>1200)){
@@ -21244,29 +21557,77 @@ startRenderLoop();
     else if(m.t==='mycap'){ if(IS_LEADER && m.snap){ _peerCap=m.snap; _peerCapTs=Date.now(); } }
     else if(m.t==='setscene'){ if(m.snap){
       // a saved ⚭ duet scene arrives VERBATIM — no retro mirror, this is my own half
-      try{ var _mk3=(state.duo.mult|0); if(_mk3>1 && m.snap && m.snap.p){ var _q3=_multPrime(m.snap.p|0,_mk3); if(_q3){ m.snap=Object.assign({},m.snap); m.snap.p=_q3; if(m.snap.r) m.snap.r=Math.max(1,Math.min(_q3-1,Math.ceil(m.snap.r/_mk3))); if(m.snap.bpm) m.snap.bpm=Math.max(5,Math.min(999,m.snap.bpm/_mk3)); } } }catch(e){}   // (24.09) multiplicity — the peer sync arrives in her prime too
+      // (27.10) ×k maps it only on the answering half, outside free and the live crab (neither applies ×k), and only a half
+      // saved in the conductor's world (its p = hp, the sender's half of the same bundle). Her 2 s mycap is her OWN capture,
+      // so a half saved under ×k is already in her prime — mapping it again dropped her a level (37×3: 13→5, bpm/9); and the
+      // conductor's own half (sent from Markova's window, or hers under ♛ Markova) was mapped too — the mirror then took the pair down.
+      try{ var _mk3=(state.duo.mult|0); if(_mk3>1 && !_isLead() && state.duo.mode!=='free' && !(_palLive() && _palFull) && m.snap && m.snap.p && (m.snap.p|0)===(m.hp|0)){ var _q3=_multPrime(m.snap.p|0,_mk3); if(_q3){ m.snap=Object.assign({},m.snap); m.snap.p=_q3; if(m.snap.r) m.snap.r=Math.max(1,Math.min(_q3-1,Math.ceil(m.snap.r/_mk3))); if(m.snap.bpm) m.snap.bpm=Math.max(5,Math.min(999,m.snap.bpm/_mk3)); } } }catch(e){}   // (24.09) multiplicity — the peer sync arrives in her prime too
       state._mirrorUntil=Date.now()+2500;
       _applying=true; try{ scenes.restore(m.snap,{sim:true}); }catch(e){} _applying=false;
       _applyRoleMask(); _paint();
     } }
     else if(m.t==='grid'){ if(!_isLead() && state.running && m.wall && m.bpm>0){
       _lastLeaderBpm=m.bpm|0;
+      _leadBpm=+m.bpm;   // (27.10) his exact tempo (his state.bpm), once a second — window._qrBeatK counts the live prayer in his beats
       var _lock=!_palActive && ((state.duo.mode!=='free') || !!_freeRatio);   // (05.08) pal steps carry their OWN tempi — no grid tug-of-war mid-canon
       if(state.duo.mode==='free' && _freeRatio) _applyRatioBpm();
-      if(_lock && window._gridInfo && Math.abs(window._gridInfo.wall-Date.now())<2500){
-        var _st=60000/Math.max(5,state.bpm||120);               // HER beat step in ms (ratio already applied)
+      // (28.10) stale = schedulerTick stopped writing _gridInfo 2.5 s ago (⏸ returns before the write; a page whose timers stopped) — the only case the
+      // old |wall−now|<2500 ever caught (⏹ is state.running above; a suspended ctx keeps wall on Date.now()+const). Read as |wall−now| the bound also
+      // dropped a LIVE grid whose next beat was more than 2.5 s away: wall is written after the scheduling loop, SA..SA+her beat ahead of now, and
+      // under ×k her beat is k of his (6 s at ×6 @60, 12 s at the 5 bpm floor), so 60–80% of his 1 s messages were skipped and a block slide of one
+      // of his beats (0.3 of his beat per accepted message, below) took 10–25 s instead of ~4, the index map reading her misaligned beats meanwhile;
+      // a long chord dwell (_slotSec: whole beats above one, so it ends on the grid) was dropped the same way, at ×1 too — below ~26 bpm (desktop SA;
+      // ~31 touch, ~48 hidden) a pre-existing ×1 defect of the answering half. ×1 above that without such a dwell: every message passed before and passes now
+      // (30.10) …and only on her running clock. A suspended ctx (her frame cold until a gesture, the OS) still writes at, with
+      // wall=Date.now()+c (c=nextBeatTime−currentTime), so every message passed the stamp and each nudge moved c by −0.6·_er with
+      // nothing to bound it — the scheduling loop and the overflow guard catch only a negative drift, the stall detector needs a
+      // running ctx (40 bpm: c ≈ +8 s a minute, 50 bpm ≈ +12 s). __qrWake or a tap resumes without a re-base, so she woke that far
+      // ahead and silent. The old |wall−now| gate had capped it near 2.5 s; skipping the lock while frozen keeps c where the loop
+      // left it, in [SA, SA+her beat). Not a looser |wall−now| < her step + 2.5 s: that drops a multi-beat dwell again (above)
+      if(_lock && window._gridInfo && (Date.now()-(window._gridInfo.at||0))<2500 && typeof ctx!=='undefined' && ctx && ctx.state==='running'){
+        var _st=60000/Math.max(5,state.bpm||120), _mySt=_st;   // HER beat step in ms (ratio already applied) — _mySt keeps it past the ×k override below, for the k-block gate (28.10)
+        if(state.duo.mode!=='free' && m.hp && _multHere(m.hp|0)!==(m.hp|0)) _st=60000/Math.max(5,m.bpm);   // (27.10) under ×k one of her beats is k of his, and his anchor (his NEXT beat) moves on bpm/60 of his beats between these 1 s messages — a new phase of her k-beat step each time unless that is a multiple of k. Measured modulo HER step the lock chased it: her single beats stretched or shrank by up to ~45%, her mean beat left k of his (11% short at 120 bpm ×3, 17% long at 60 bpm ×3), her row no longer lasted one of his, and in retro main the k-fold repeat was cut at every row. Modulo HIS step it puts her beats on his beats, which is all ×k asks. ×1, free and a p with no q keep her own step
         var _er=(window._gridInfo.wall-m.wall)%_st; if(_er<0)_er+=_st;
         if(_er>_st/2)_er-=_st;                                   // minimal signed offset of her grid vs his anchor
+        // (27.10) …and under ×k to his k-GRID, not to any beat of his. Measured modulo his beat alone, every beat of his was a fixed point: her
+        // phase inside his k-block stayed whatever the two windows' last re-bases had left it (▶, a ⏸▶, an overflow re-base, her frame's late
+        // start by the _xport retry), and her station i began 0..k−1 of his beats after his k·i for the whole session — read at her next beat the
+        // index map saw no error (⌊(k·i+ph)/k⌋=i), the door and the hold read the same map, parts has no map at all. The block is his beat index
+        // on the wire (bi, in his section's list — in main his row's; bl its length, a multiple of k whenever the row is p−1 = k(q−1)): the error
+        // is taken modulo k of his beats against the block start m.wall−(bi mod k)·_st, and the step toward it is clamped to half of his beat —
+        // today's ×k envelope, so the overflow guard (schedulerTick: nextBeatTime < now−0.5 s flushes and re-bases, re-rolling the very phase)
+        // is never tripped; on the block _ebk equals the plain _er above, so the two readings never fight. A slide across a block is followed
+        // by the ±1 station fix of the pos receiver (_kAhd reads the map at her next beat). Without bi (his hold, a pause, a dwell, an older
+        // sender) or with a bl not divisible by k: the plain grid, as above. ×1: _multHere(hp)===hp, untouched
+        // (28.10) Retro only. The block is the index map's (⌊ri/k⌋ in the pos receiver) and only retro has one. In parts his residue mod k is not
+        // continuous — _openAtCentre (stands down for a retro duet, runs in parts for p>7) moves rIdx to j−up on the first beat of every prelude/
+        // postlude entry, and the live prayer's seek (rIdx=j−_upI), re-aim and hold→air move it at every station — and her walk is her own, so the
+        // block lock there only re-slid her beats after each teleport (up to half of his beat per 1 s message, ~4 of her beats at ×3 @60), where
+        // the plain modulo-his-beat lock had never moved them. Parts keeps that plain grid (bi/bl still arrive and are ignored); the written parts
+        // score is outside this lock anyway (_palActive) and pins its own grid. Free was already out, pal is out via _lock, ×1 as above.
+        // (28.10) …and only while her beat IS k of his: Math.round(_mySt/_st)===k — her own step (kept above, before the ×k override) over his,
+        // nearest whole number, as window._qrBeatK rounds its ratio. Floored at 5 bpm (his < 5k: 37×6 at 20 is 4 of his, not 6; 433×24 at 60 is
+        // 12), held by her hand (a pinned 30 at ×3 @60: 2) or by her pulse (_pulseOwnsTempo skips the 'bpm' handler: any m) her beat is m·his with
+        // m≠k, and a k-block residue then cycles — this lock walked every beat of hers onto the block for good (37×6 at 20: _ebk=−6 → −1.5 →
+        // +0.9 s per 1 s message, her 12-s beat became 18 s under a 12-s dur: 6-s holes in her continuous voices, every beat; the pinned 30:
+        // 2 s → 3 s, 1-s holes), where the plain grid above (modulo his beat, every multiple of it a fixed point) had never moved them. Those
+        // keep the plain grid. Rounding, not a tolerance of one beat of his: the 'bpm' wire carries his ROUNDED tempo and the grid his exact one
+        // (fractional under the ladder or the slider), so her step and k·his step differ by up to 0.5 bpm of his — a few per cent of the block,
+        // accepted here, while 4, 12, 2, 2.4, 1 are not. ×1 as above.
+        if(state.duo.mode==='retro' && m.hp && _multHere(m.hp|0)!==(m.hp|0) && m.bi!=null && (m.bi|0)>=0 && (m.bl|0)>0 && (state.duo.mult|0)>1 && ((m.bl|0)%(state.duo.mult|0))===0 && Math.round(_mySt/_st)===(state.duo.mult|0) && Date.now()>=_landUntilWall){   // (28.10) ×k: not while an announced landing is in flight — his bi counts the section he is leaving while my landing beat already ends on his next section's first beat; the plain grid (his beat does not move) holds me there (_landUntilWall, see _landHere)
+          var _kB=state.duo.mult|0, _bsp=_st*_kB, _ebk=(window._gridInfo.wall-(m.wall-((m.bi|0)%_kB)*_st))%_bsp; if(_ebk<0)_ebk+=_bsp; if(_ebk>_bsp/2)_ebk-=_bsp;
+          _er=Math.max(-_st/2,Math.min(_st/2,_ebk));
+        }
         window._beatNudge=-(_er/1000)*0.6;                       // gentle 60%/s — converges in ~3 s, never lurches
       }
     } }
-    else if(m.t==='ratio'){ _freeRatio=(m.v>0)?m.v:null; if(selRatio) selRatio.value=(m.k||'off'); if(!_isLead()) _applyRatioBpm(); }
+    else if(m.t==='ratio'){ _freeRatio=(m.v>0)?m.v:null; if(selRatio) selRatio.value=(m.k||'off'); if(!_isLead() && state.duo.mode==='free') _applyRatioBpm(); }   // (30.10) free only — the select's own title: in parts/retro the lock is 1:1. Applied there it set her to his tempo × ratio (retro 13 @ 240, ×3 → 720) under a grid lock holding 1:1, until his rounded tempo next moved; the value is kept and applies when the pair enters free (the 'mode' handler, _setDuoMode; the 'grid' handler's free-only apply)
     else if(m.t==='breath'){ if(!_isLead() && state.duo.mode!=='free' && window._breathAdopt){
       window._breathAdopt(((m.ph||0)+0.5)%1, m.T);   // ANTI-phase: her inhale on his exhale — two singers listening to each other
     } }
     else if(m.t==='lead'){ if(m.who){ state.duo.lead=m.who;
       _needMirrorJump=(state.duo.mode==='retro');
-      if(_isLead()){ broadcastScene(true); _sendPins(); }
+      if(_isLead()){ if(!m.bundle) broadcastScene(true); _sendPins(); }   // (27.10) same as 'mode': a ⚭ bundle's lead is followed by its setscene — no forced echo of the pre-restore scene; the pins are not part of a restore and still travel
       if(!_palActive) _mkFreeSync();   // (05.08 audit) in free mode the NEW follower must start improvising, the new lead's mirror must stand down
     } }
     else if(m.t==='uimir'){ try{ var _ue=document.getElementById(m.eid); if(_ue){ _uiEcho=true;   // eid, NOT id — send() stamps msg.id with the SENDER uuid (the 05.08h field collision)
@@ -21354,12 +21715,35 @@ startRenderLoop();
     // (05.08c author: «ретро не работает») THE POSITION BEACON: scenes and r-jumps
     // alone left the answering window in another SECTION (she sang main against his
     // prelude). The conductor now beacons phase+indices 4×/s; the answer leans in.
-    if(state.duo.on && state.duo.peer && state.duo.mode==='retro' && _isLead() && state.running && !state.paused && typeof synthState!=='undefined' && synthState && !synthState._fi && (synthState.currentR==null || synthState.currentR>0)){
+    // (27.10) …AND THROUGH HIS FREEDOM WINDOW UNDER ×k. At ×1 the beacon rests while his r=0 row improvises: she sits in her
+    // own window at the same index and drops hr=0 herself. Under ×k her row (q−1 of her beats) lasts exactly one row of his
+    // (p−1 of his), so his window pairs with ONE row of hers — a sounding row played once, or k of her windows — and the two
+    // devices that hold that pairing both read his index there: the replay/advance decision of the pos receiver (_tn, in his
+    // row's last k beats) and the ±1 pull-back after her own window's close (rIdx++). The silence fell exactly on them: her lazy
+    // rIdx++ sounded her next row's first note and she ran one of her beats late to the section's end; a sweep of hers spent in
+    // the last 250 ms before his window opened advanced instead of replaying; her last window over his zero got no pull-back
+    // and she left main a row of his early. The window beacon carries fi, his beats left in it, in place of his ai (the spent
+    // sweep of the row before the window: 0 left, in either direction); hr stays 0 — he sounds nothing. The beat between the
+    // window's close and his next row's first tick stays silent as before (currentR still 0, ai still stale): the window's
+    // last k beats already carry the look-ahead. The knob off, or no q for his p: the gate as it was
+    // (28.10) …AND AT ×1 TOO. The ×1 premise above does not hold in retro under the Fibonacci orders: her list is his
+    // reversed (_rValuesByOrder under her flipped rDir), so his zero row j and hers never share an index — both zero would
+    // need the rank of apparition α(p) to divide j+1 and p−1−j, hence p. When his main OPENS on a window (order 7 forward,
+    // or order 6 — the main r-level's «F» — under ◀: F(p−1) ≡ 0 for p ≡ ±1 mod 5, 11 19 29 31 41…) nothing named his main
+    // to her for p−1 beats. Her own walk (_advanceSection, 28.10) takes her in from his previous section; an answer standing
+    // anywhere else — at her flow[0], his LAST section, where a landing seated her until a beacon or a scene's section door
+    // moved her (30.10: the pause-before body now enters his FIRST), or in the s01 park (the next-prime choke) — kept that section or that silence through his whole window,
+    // and her flow's end then parked her until his row 1. The window beacon now goes at every ×; at ×1 the receiver reads
+    // it only as the door at his row 0 (see the 'pos' handler) and drops it everywhere else as before. And _fi outlives a
+    // landing (only main's sounding row clears it; resetSynth runs at ▶ alone): a prime landed mid-window shut this gate at
+    // ×1 through the new prime's prelude and postlude — those beacons are plain sounding stations and now go. A design
+    // reading the author can reverse: (state.duo.mult|0)>1 here, and she waits outside his main until his row 1
+    if(state.duo.on && state.duo.peer && state.duo.mode==='retro' && _isLead() && state.running && !state.paused && typeof synthState!=='undefined' && synthState && (!synthState._fi ? (synthState.currentR==null || synthState.currentR>0) : true)){
       var _s9=synthState;
       send({t:'pos', ph:_s9.phase, sec:((_s9.flow&&_s9.flow[_s9.flowIdx])||''), ri:_s9.rIdx|0, ai:_s9.aIdx|0, hr:(_s9.currentR!=null?_s9.currentR:0)|0, hp:_s9.p|0,
-            hn:((_s9._pray&&_s9._pray.stage==='hold'&&_s9.rList&&_s9.rList[_s9._pray.j]!=null)?(_s9.rList[_s9._pray.j]|0):((_s9.rList&&_s9.rIdx>=0&&_s9.rIdx<_s9.rList.length)?(_s9.rList[_s9.rIdx]|0):0)),   // (16.10) under his prayer's hold the beacon names the HELD station, not the road past it
+            hn:((_s9._pray&&_s9._pray.stage==='hold'&&_s9.rList&&_s9.rList[_s9._pray.j]!=null)?(_s9.rList[_s9._pray.j]|0):((_s9.rList&&_s9.rIdx>=0&&_s9.rIdx<_s9.rList.length)?((_s9.rList[_s9.rIdx]|0) || -1):0)),   // (16.10) under his prayer's hold the beacon names the HELD station, not the road past it · (28.10) −1: his next beat is a Fibonacci rest (isFibRest — orders 6/7 keep true zeros) — not 0, which meant «no next station» and sent the receiver to its hr fallback, his SOUNDING station; out of range stays 0 (r07's _kOut owns the section end); an older receiver reads −1 as the hr fallback it had
             hold:((_s9._pray&&_s9._pray.stage==='hold')?Math.max(1,Math.round((_s9._pray.until-ctx.currentTime)/beatDur())):0),   // (16.10) beats of hold left — her mirror holds the centre with him
-            rl:(_s9.rList?_s9.rList.length:0)|0, al:(_s9.aList?_s9.aList.length:0)|0, hj:((_s9._pray&&_s9._pray.stage==='hold')?(_s9._pray.j|0):-1)});   // (20.10) hj: the held station's index — under ×k her mirror maps indices, and between held beats his rIdx is already past the station
+            rl:(_s9.rList?_s9.rList.length:0)|0, al:(_s9.aList?_s9.aList.length:0)|0, hj:((_s9._pray&&_s9._pray.stage==='hold')?(_s9._pray.j|0):-1), hw:(window._gridInfo?Math.round(window._gridInfo.wall):0), hb:beatDur()*1000, fi:((_s9._fi&&_s9._fi.left>0)?(_s9._fi.left|0):0) /* (27.10) his beats left in his freedom window (FI.left names what is still to come, as ai does), 0 outside it */, dw:((typeof cfg!=='undefined' && cfg.chordQueue && cfg.chordQueue.length && !(state._palScore&&state._palScore.on))?Math.round(cfg.chordQueue.length*Math.max(0.25,cfgDurBeats())*beatDur()*1000):0)});   // (20.10) hj: the held station's index — under ×k her mirror maps indices, and between held beats his rIdx is already past the station · (27.10) hw, hb: the wall time of the beat ri names (BEAT-LOCK's clock, set in the tick that advances rIdx — one Date.now for both halves) and his beat, both in ms: under ×k her next beat lies up to k of his past hw, and her mirror reads his index THERE, by his own beat — hers ÷k is not his while her bpm sits clamped at 5 or his tempo change has not reached her · (27.10) dw: ms of Goncharova chord slots still queued PAST hw — a chord slot returns before the walk body and the tick steps by _slotSec, and the strict guard keeps the backlog, so during a block hw is the next SLOT, not the beat ri names: hw+dw is (0 with an empty queue, and under the score, where a chord only overlays its beat); the chord branch's own slot length, max(¼, cfgDurBeats())·beat
     }
   }catch(e){} },250);   // mask re-asserts after any local restore overwrote solo
 
@@ -21900,7 +22284,7 @@ startRenderLoop();
         if(v!=='off'){ var pr=v.split('/'); num=parseFloat(pr[0])/(pr[1]?parseFloat(pr[1]):1); }
         _freeRatio=num;
         send({t:'ratio', v:num||0, k:v});
-        if(!_isLead()) _applyRatioBpm();
+        if(!_isLead() && state.duo.mode==='free') _applyRatioBpm();   // (30.10) free only, as the 'ratio' handler: picked in parts/retro it moved her tempo off the 1:1 lock; kept for free
       };
       selRatio.onclick=function(ev){ ev.stopPropagation(); };
       bodyEl.appendChild(selRatio);
@@ -21946,7 +22330,13 @@ startRenderLoop();
         // the mirror fires only on a STRUCTURAL change (duoKey) — measured 24.09: after the knob turned, she
         // stayed on his p and tempo until the walk climbed to the next prime. So the knob forces one mirror
         // now, tempo included, and the change is heard at once.
-        if(_isLead()){ send({t:'mult', k:k}); try{ _lastBpmSent=0; broadcastScene(true); }catch(e){} } };
+        // (27.10) the knob sits on the pill in BOTH windows, but k was sent only by the conductor: turned on the answering pill it
+        // stayed in that window — his pill kept ×1, a form he composed never moved its primes to admit k (her pair fell back to
+        // the plain mirror at every seam), a ♛ hand-over left the new answering half on ×1, and only a heal (the beacon in retro,
+        // the heartbeat in parts) re-mirrored her. Now k always travels, as the offset does; the conductor re-mirrors — here, or on
+        // receipt in _onDuoMsg. The answering half marks that scene as asked for: a heal racing her 'mult' on the wire would ask
+        // for a second forced restore of the same scene (sweep restarted, chord queue cleared, held voices cut twice).
+        send({t:'mult', k:k}); if(_isLead()){ try{ _lastBpmSent=0; broadcastScene(true); }catch(e){} } else { try{ window._scnReqAt=performance.now(); }catch(e){} } };
       multSel.onclick=function(ev){ ev.stopPropagation(); };
       multWrap.appendChild(multSel);
       bodyEl.appendChild(multWrap);
@@ -21996,6 +22386,7 @@ startRenderLoop();
         if(state.duo.mode==='pal'){ _prePalMode=_was; if(!_palActive) _palStart(); }
         else {
           if(!_isLead()) _needMirrorJump=(state.duo.mode==='retro');   // the baton adopts our {t:'mode'} and re-broadcasts — no resync dance
+          if(!_isLead() && state.duo.mode==='free' && _freeRatio) _applyRatioBpm();   // (30.10) her own door into free: the kept ratio applies now, as on the 'mode' message (the ratio is no longer applied outside free)
           if(_isLead() && state.duo.mode!=='free') broadcastScene(true);   // re-mirror at once so the flip lands now
         }
         _paint(); };
