@@ -52,17 +52,32 @@ appear in:
 
 ## Using it
 
-- **Open** the live link above, or download `index.html` and open it in any
-  modern browser. It also works offline.
-- **Add to Home Screen** on a phone to run it full-screen like an app.
-- **Sound on mobile:** take the phone off silent mode and tap the screen once —
-  iOS/Android only start audio after a user gesture. The status bar shows the
-  audio state.
+Open the live link above. `index.html` there only redirects to the engine
+itself, `2907QR_Engine_8.html` — that is the file to download and open in any
+modern browser. From disk it plays offline; the shared ♥ memory needs the
+network, and an iPhone opens Markova's half only over http(s). On a phone,
+**Add to Home Screen** runs it full-screen like an app.
+
+1. **The demos:** `demos.html` → a picture → the first tap starts the sound
+   (headphones on, phone off silent) → the bar: ❚❚ pause · ↻ restart ·
+   ♥ keeps a moment · ← back.
+2. **The engine:** the ◆ form door → a genre → a form → min:sec → **start** —
+   with no score on hand the Markovs compose the piece and play it, and it
+   ends by itself; ✚ compose writes it without playing. The score stays:
+   start plays it until the face shows another genre or length, or a ⟲ or
+   ×k it was not written for — then the key reads **✚ recompose**: one
+   press composes the new piece, the next plays it.
+3. **The stage:** ⛶ stage or **F** gives the field the whole screen; **Esc** or
+   ✕ stage leaves it.
+4. **The keys:** ↑↓ prime · ←→ root · Space play / pause · H ♥ · F stage ·
+   ? the field's legend · C clears a pile-up of chords.
 
 ## Layout
 
-Same program everywhere; the interface adapts. On wide screens the controls sit
-in a side column next to the visualization; on narrow screens they stack, with
+Same program everywhere; the interface adapts. It opens on the face: the field
+above, the piece's keys beneath it, behind three doors — ◆ form, ∴ walk (the
+Musrara walk, played by hand) and ✎ manual. ✎ manual opens the full cockpit: on
+wide screens a side column next to the field; on narrow screens it stacks, with
 larger touch targets for sliders, buttons and checkboxes.
 
 ---

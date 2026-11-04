@@ -33,7 +33,7 @@
 
   /* the titles: the piece's own words, low on the field — the engine's captions live at the top */
   #titles { position:fixed; left:0; right:0; bottom:9vh; padding:0 8vw; text-align:center; pointer-events:none; z-index:5; }
-  body.barred #titles { bottom:23vh; }   /* the engine's bar is shown: the words stand above it */
+  body.barred #titles { bottom:23vh; }   /* the engine's bar is shown: the words stand above it — (30.10) a floor: the state listener raises them above the bar as it measures */
   #titles .line { font-size:clamp(18px, 3.2vmin, 48px); line-height:1.3; color:var(--fg); opacity:0; transition:opacity 1.2s;
     text-shadow:0 1px 14px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.9); max-width:1100px; margin:0 auto; }
   #titles .line.on { opacity:1; }
@@ -86,7 +86,7 @@
 </head>
 <body>
 
-<iframe id="stage" title="QR Engine — the ∴ demo door" allow="autoplay *; fullscreen *; screen-wake-lock *; microphone *; camera *"></iframe>
+<iframe id="stage" title="the Markovs — the ∴ walk door" allow="autoplay *; fullscreen *; screen-wake-lock *; microphone *; camera *"></iframe>
 
 <video id="film" muted playsinline preload="auto"></video>
 <div id="stills"></div>
@@ -190,6 +190,7 @@
   var eng={ p:null, r:null, running:false, demo:false, form:false, msg:null }, formSeen=false;
   function tell(m){ m.qr='tiyuta'; try{ stage.contentWindow.postMessage(m,'*'); }catch(e){} }
   window.addEventListener('message', function(ev){ var m=ev.data; if(m && m.qr==='tiyuta' && m.state){ eng=m.state;
+    titles.style.bottom=(document.body.classList.contains('barred') && eng.faceH>0)?'max(23vh, '+(eng.faceH+24)+'px)':'';   // (30.10) the words stand above the engine's bar as it MEASURES: the ∴ face grew a second row (the prime keys, ≈237 px, was ≈174) and 23vh fell into it below ≈1030 px — on a 1366×768 mirror by ≈60 px, over the door tabs. Hidden (B), or an engine that does not say, the CSS rule returns
     if(eng.form) formSeen=true;
     if(formSeen && !eng.form && ch===4) turn();   // the form ended by itself: the last chapter opens on its own, not on a snap
     paintHud(); } });
@@ -375,7 +376,7 @@
   $('h-dev').onchange=function(){ var id=this.value; try{ localStorage.setItem('tiyuta.mic', id); }catch(e){} useMic(id); this.blur(); };
   var bare=false;   // the engine's own bar: shown, as the hand's; B hides it for the show and brings it back
   document.body.classList.add('barred');
-  function setBare(on){ bare=on; document.body.classList.toggle('barred', !on); tell({cmd:'bare', on:on}); $('h-bar').textContent=on?'hidden':'shown'; }
+  function setBare(on){ bare=on; document.body.classList.toggle('barred', !on); titles.style.bottom=''; tell({cmd:'bare', on:on}); $('h-bar').textContent=on?'hidden':'shown'; }   // (30.10) the measured bottom is let go at once: hidden, the words drop to 9vh with the bar; shown, the next state reply measures it again
   $('h-sensr').oninput=function(){ sens=+this.value; $('h-sens').textContent='×'+sens; };
   $('h-rgr').oninput=function(){ revLevel=+this.value; $('h-rg').textContent=revLevel; if(revGain){ try{ revGain.gain.setTargetAtTime(Math.max(0.0001,revLevel), ctx.currentTime, 0.3); }catch(e){} } };
   veil.addEventListener('click', function(){ if(ctx) return; openMic().then(function(){ $('veil-s').innerHTML='the microphone is open<br><b>snap your fingers</b> — and it begins<br><span id="veil-deaf" class="err" style="display:none">this input is silent — press H and choose another microphone</span>'; }).catch(function(err){ $('veil-s').innerHTML='<span class="err">the microphone did not open: '+(err&&err.message||err)+'</span><br>space still works as a snap'; try{ if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }); });

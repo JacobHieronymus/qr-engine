@@ -15,29 +15,39 @@
   a.demo img { display:block; width:100%; aspect-ratio: 4/5; object-fit: cover; background:#000; border:1px solid #2a2a2a; }
   a.demo:hover img, a.demo:active img { border-color:#8fb7c9; }
   a.demo b { display:block; font-weight:400; font-size: 20px; margin: 10px 0 0; text-align:center; }
-  a.demo span { display:block; color:#9a948a; font-size: 15px; line-height:1.4; }
+  a.demo span { display:block; color:#9a948a; font-size: 15px; line-height:1.4; margin-top: 4px; text-align:center; }   /* (30.10) now filled (audit 27.10 L87): centred under its centred title */
+  p.how { color:#9a948a; font-size: 16px; margin: 0 0 16px; }   /* (30.10) the one line a visitor needs before the first tap */
   footer { margin-top: 56px; color:#9a948a; font-size: 16px; }
   footer a { color:#e9e4da; }
-  @media (max-width: 720px) { h1 { font-size: 28px; } p.sub { font-size: 17px; } a.demo b { font-size: 17px; } .row { gap: 10px; } }
+  /* (30.10) up to 720 px one card per row: three columns left thumbnails of ≈102×128 on a phone (audit 27.10 L87). At most 420 px wide,
+     so a card stays whole on a small tablet's screen; 28 px between cards, so a card's words do not touch the next picture. */
+  @media (max-width: 720px) { h1 { font-size: 28px; } p.sub { font-size: 17px; } p.how { font-size: 15px; } a.demo b { font-size: 17px; } .row { grid-template-columns: 1fr; gap: 28px; max-width: 420px; } }
 </style>
 </head>
 <body>
 <main>
   <h1>Sonification of Primes</h1>
   <p class="sub">a generative instrument built on quadratic residues modulo primes</p>
+  <!-- (30.10) what the engine asks for only after the click, said before it (audit 27.10 L87) -->
+  <p class="how">headphones on · phone off silent · the first tap starts the sound · ♥ keeps a moment</p>
 
+  <!-- (30.10) each card names its piece: genre · form · length — the form in the words of the engine's own FORMS tooltip
+       (paintForms), the genre in the face's word, as the bridge's start line will say it on the stage -->
   <div class="row">
     <a class="demo" href="2907QR_Engine_8.html?demo=focus,free,90">
       <img src="demo/demo1.jpg" alt="Demo 1 — Focus, free">
       <b>demo 1</b>
+      <span>focus · free · 1:30 — he reads the score; she improvises her own</span>
     </a>
     <a class="demo" href="2907QR_Engine_8.html?demo=meditate,pal,150">
       <img src="demo/demo2.jpg" alt="Demo 2 — Meditation, palindrome">
       <b>demo 2</b>
+      <span>meditate · palindrome · 2:30 — the score plays forward here and back note-for-note on the other half</span>
     </a>
     <a class="demo" href="2907QR_Engine_8.html?demo=chores,retro,120">
       <img src="demo/demo3.jpg" alt="Demo 3 — Chores, retro">
       <b>demo 3</b>
+      <span>chores · retro · 2:00 — she answers with his material reversed, live</span>
     </a>
   </div>
 
