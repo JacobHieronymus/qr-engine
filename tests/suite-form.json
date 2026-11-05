@@ -123,5 +123,61 @@
   "duoMode": "parts",
   "secs": 90,
   "cockpit": true
+ },
+ {
+  "name": "lyric chords 30s",
+  "mode": "form",
+  "genre": "lyric",
+  "T": 30,
+  "duoMode": "parts",
+  "secs": 75,
+  "expect": "chords",
+  "setup": "window.__hasT=performance.now(); ['complete','diamond','cycle','paw','star','path4','triangle','matching','path3','one_edge'].forEach(function(t){ cfgHasQuads(313,t); cfgHasQuads(101,t); cfgHasQuads(13,t); }); window.__hasMs=Math.round(performance.now()-window.__hasT);",
+  "probes": [
+   [
+    3,
+    "({hasMs:window.__hasMs, inset:!!_insetRect, p:state.p, type:state.typeId, quads:cfg.quads.length})"
+   ],
+   [
+    6,
+    "({inset:!!_insetRect})"
+   ],
+   [
+    9,
+    "({inset:!!_insetRect})"
+   ],
+   [
+    12,
+    "({inset:!!_insetRect})"
+   ],
+   [
+    15,
+    "({inset:!!_insetRect})"
+   ],
+   [
+    18,
+    "({inset:!!_insetRect})"
+   ],
+   [
+    21,
+    "({inset:!!_insetRect})"
+   ],
+   [
+    24,
+    "({inset:!!_insetRect})"
+   ],
+   [
+    27,
+    "({inset:!!_insetRect})"
+   ],
+   [
+    30,
+    "({inset:!!_insetRect})"
+   ],
+   [
+    33,
+    "({inset:!!_insetRect})"
+   ]
+  ]
  }
 ]

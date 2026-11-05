@@ -153,6 +153,7 @@
     wrap('scheduleOneBeat', function (time) { const s = G(w, 'synthState'), st = G(w, 'state'); E.push({ t: now(), w: tag, ev: 'beat', at: +(+time).toFixed(3), c: ct(), ph: s && s.phase, ri: s && s.rIdx, p: st && st.p }); });
     wrap('killLongSustains', function (reason, tau) { E.push({ t: now(), w: tag, ev: 'kill', why: String(reason), tau: tau, c: ct() }); });
     wrap('flushVoices', function () { E.push({ t: now(), w: tag, ev: 'flush', c: ct() }); });
+    wrap('cfgChordAt', function (at, quad) { const st = G(w, 'state'); E.push({ t: now(), w: tag, ev: 'chord', at: +(+at).toFixed(3), quad: quad && quad.slice ? quad.slice(0, 4) : null, p: st && st.p, type: st && st.typeId }); });   // (05.11) a Goncharova configuration sounding
     wrap('pauseAudio', function () { const st = G(w, 'state'); E.push({ t: now(), w: tag, ev: 'pause', to: st && st.running ? !st.paused : null, c: ct() }); });
     try { const sc = G(w, 'scenes'); if (sc && sc.restore && !sc.__qrtSpy2) { sc.__qrtSpy2 = 1; const o = sc.restore; sc.restore = function (st, opts) { E.push({ t: now(), w: tag, ev: 'restore', p: st && st.p, c: ct(), opts: opts ? Object.keys(opts).join(',') : '' }); return o.apply(this, arguments); }; } } catch (e) {}
     try { const mg = G(w, 'masterGain'); if (mg && mg.gain && !mg.gain.__qrtSpy) { mg.gain.__qrtSpy = 1; ['setTargetAtTime', 'linearRampToValueAtTime', 'exponentialRampToValueAtTime', 'setValueAtTime', 'cancelScheduledValues'].forEach(m => { const o = mg.gain[m]; if (typeof o !== 'function') return; mg.gain[m] = function () { E.push({ t: now(), w: tag, ev: 'master', m, v: +(+arguments[0]).toFixed(4), c: ct() }); return o.apply(this, arguments); }; }); } } catch (e) {}
@@ -234,12 +235,18 @@
       // a restart inside the tail (a scripted second start): beats queued between the press and the new form's first restore belong to the ENDED scene
       const goSteps = T.marks.filter(m => m.restart);   // the steps that actually pressed start (the scenario marks them)
       const restarts = goSteps.map(g => { const r1 = E.find(e => e.w === tag && e.ev === 'restore' && e.t > g.t); const nb = E.filter(e => e.w === tag && e.ev === 'beat' && e.t > g.t && (!r1 || e.t < r1.t)).length; return { t: g.t, firstRestoreT: r1 ? r1.t : null, oldBeatsBeforeIt: nb }; });
-      return { beats: beats.length, lastBeatT: lastT, lastBeatAt: last ? last.at : null, parkT, pauseT: pause ? pause.t : null, silentT: silT, dbAtPause, restarts, gRef: +gRef.toFixed(3), gMin: isFinite(gMin) ? +gMin.toFixed(3) : null,
+      const chords = E.filter(e => e.w === tag && e.ev === 'chord' && e.t >= startT);
+      return { chords: chords.length, chordPrimes: [...new Set(chords.map(c => c.p))].slice(0, 8), chordTypes: [...new Set(chords.map(c => c.type))].slice(0, 6), beats: beats.length, lastBeatT: lastT, lastBeatAt: last ? last.at : null, parkT, pauseT: pause ? pause.t : null, silentT: silT, dbAtPause, restarts, gRef: +gRef.toFixed(3), gMin: isFinite(gMin) ? +gMin.toFixed(3) : null,
         killsBeforeSilence: kills.map(k => ({ t: k.t, why: k.why })), masterCallsFromLastBeat: masterCalls.slice(0, 12), beatsAfterPark, beatsAfterPause, seams: seams.slice(0, 16),
         seamsWithEarlyBeat: seams.filter(s => s.oldBeatsAfter > 0).length, seamLateMax: seams.length ? +Math.max(...seams.map(s => Math.abs(s.late || 0))).toFixed(2) : null };
     };
     out.his = side('his', 'H'); if (R.some(x => x.M)) out.her = side('her', 'M');
     const h = out.his;
+    if (cfg.expect === 'chords') {   // (05.11) the configurations are heard and shown: chords sounded, the inset stood while they rang, the plan's primes are 4k+1
+      const insetSeen = T.probes.some(pr => pr.his && pr.his.inset); const plan = T.plan || {};
+      out.verdict = { chords: h.chords, chordPrimes: h.chordPrimes, chordTypes: h.chordTypes, insetSeen, planPrimes: plan.ps, all4k1: (plan.ps || []).every(v => v % 4 === 1), hasMs: (T.probes[0] && T.probes[0].his && T.probes[0].his.hasMs) || null, verdictText: (h.chords > 0 && insetSeen) ? 'HEARD AND SHOWN' : (h.chords > 0 ? 'heard, inset NOT seen' : 'NO CHORD SOUNDED'), errors: T.errors.length };
+      return out;
+    }
     if (cfg.expect === 'p') {   // the prime left behind: the last probe's p on both sides and the next plan's primes
       const last = T.probes[T.probes.length - 1] || {}; const pl = (last.his && last.his.planP) || [];
       out.verdict = { pHis: last.his && last.his.p, pHer: last.her && last.her.p, planP: pl, bigPLeft: ((last.his && last.his.p) >= 5000) || pl.some(v => v >= 5000) ? 'BIG P LEFT' : 'none', errors: T.errors.length };

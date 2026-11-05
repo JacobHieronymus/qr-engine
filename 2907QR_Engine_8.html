@@ -807,7 +807,7 @@ details.acc[open] { padding-bottom: 0; }
       <label><input type="checkbox" class="cfg-trig" value="r2"> r²</label>
       <label><input type="checkbox" class="cfg-trig" value="diag"> diag</label>
     </div>
-    <div class="row" style="font-size:11px;gap:10px;margin-top:6px">
+    <div class="row" style="font-size:11px;gap:10px;margin-top:6px;display:none">   <!-- (05.11) the graph follows the sound now (see the inset draw in drawFrame); the box stays for saved scenes that carry 'inset' -->
       <label style="flex:0"><input type="checkbox" id="cfg-inset"> show chord graph (inset)</label>
     </div>
     <div class="row" style="font-size:11px;gap:10px">
@@ -3447,7 +3447,7 @@ const state={
   omSpeed:15,            // index into _OM_STEPS: 15 = 1/4 of a beat per strike — the author's default (21.08)
   topHz:1250,            // (21.08) nothing is composed above this — the whole map lives under it
   omArp:true,            // the ring spins the circle as an ARPEGGIO by default; false = struck as a chord (author 21.08)
-  omArpOrd:'sweep',      // (12.09) the arpeggio's ORDER: 'sweep' = by pitch, up and back · 'square' = the circle's own, each member the square of the one before
+  omArpOrd:'square',     // (12.09) the arpeggio's ORDER: 'sweep' = by pitch, up and back · 'square' = the circle's own, each member the square of the one before — (05.11, author: «почему омега не играет в порядке квадратов, а только гаммой? это скучно») the circle's own order is the default; the hand can still choose the sweep
   omEcho:true,           // omega arpeggio on/off (the old delay is gone — it will return as an insert effect): the touch of ω/ω² delays the beat's vertical slice in the world's Legendre rhythm, fading over √p beats
   solo:new Set(),   // soloed layer keys; if non-empty, only these layers sound
   // Prelude/Postlude as separate tracks (volume), plus a time offset for the
@@ -6872,6 +6872,9 @@ function _palScoreGen(plan){
         var p=Math.max(3,(st.p|0)||3);
         var flow=sectionFlow(state.playmode,false), fi=0, guard=0;
         var push=function(ph,pp,r,i,a,j){ slots.push([ph,pp,r,i|0,(a==null?0:a),(j==null?0:j)]); made++; };
+        var _sec0=plan[si].sec||null, _ri0=0;   // (05.11) the scene's own section (see _qrBuildPlan): a main scene's slots start in MAIN at its r, the closing's at the postlude
+        if(_sec0==='main'){ var _fm=flow.indexOf('main'); if(_fm>=0){ fi=_fm; var _rl0=getMainRValues(p,1); var _ix=_rl0.indexOf(st.r|0); _ri0=(_ix>=0)?_ix:0; } }
+        else if(_sec0==='postlude'){ var _fp=flow.indexOf('postlude'); if(_fp>=0) fi=_fp; }
         if(st.activity==='meditate'){   // (15.10) the prayer is written into the slots — see _prayerScoreFill
           var _lstP=getPPRValues(p,1);
           var _dualP=(st.motion==='prepost'||st.motion==='self'||((typeof isDualMode==='function')&&isDualMode(st.motionMode)));   // the scene says 'prepost' in words; the key the loop above copies is the number
@@ -6890,7 +6893,7 @@ function _palScoreGen(plan){
           var sec=flow[fi];
           if(sec==='main'){
             var rl=getMainRValues(p,1);
-            for(var ri=0; ri<rl.length && made<N; ri++){
+            for(var ri=_ri0; ri<rl.length && made<N; ri++){   // (05.11) from the scene's own row the first time round
               var r=rl[ri];
               if(isFibRest(r)){
                 var w=Math.min(1597,Math.max(1,p-1));
@@ -6901,6 +6904,7 @@ function _palScoreGen(plan){
                 for(var ai=0; ai<al.length && made<N; ai++) push(5,p,r,ri,al[ai],ai);
               }
             }
+            _ri0=0;
           } else {
             var lst=getPPRValues(p,1);
             var dual=(st.motion==='prepost'||st.motion==='self'||((typeof isDualMode==='function')&&isDualMode(st.motionMode)));   // (16.10) the SCENE's motion, not the live one — same test as _dualP above
@@ -14214,6 +14218,32 @@ function cfgCompleteCount(p){ const k=(p-1)>>2, J=cfgJ(p), d=(J*J-4)/32; return 
 // quadruple it belongs to. Enumeration is bounded so large p stays responsive.
 const CFG_MAX_SCAN=2_000_000;   // cap on 4-subset combinations examined
 const CFG_MAX_QUADS=6000;       // cap on stored quadruples (per type/prime)
+// (05.11, author: «почему я не вижу и не слышу ни в одном жанре конфигурации Гончаровой?») DOES THIS TYPE EXIST AT p — a cheap
+// existence test for the improviser: the quadruples live only in 4k+1 worlds, and a type can be empty at a given p (complete K4 has
+// none below 41). The scan stops at the first quadruple of the type; a type not found within `cap` combinations counts as absent.
+// Memoised per (p, type): the improviser asks at every scene it composes.
+const _cfgHasCache=new Map();
+function cfgHasQuads(p, typeId, cap){
+  p=p|0; if(!isPrime(p) || p%4!==1) return false;
+  const key=p+':'+typeId; if(_cfgHasCache.has(key)) return _cfgHasCache.get(key);
+  cap=cap||200000;
+  let found=false;
+  try{
+    const qt=qrTable(p); const seen=new Uint8Array(p); const QR=[];
+    for(let a=1;a<p;a++){ const q=(a*a)%p; if(!seen[q]){ seen[q]=1; QR.push(q); } }
+    const n=QR.length; let scanned=0;
+    outer:
+    for(let i=0;i<n;i++){ const A=QR[i];
+      for(let j=i+1;j<n;j++){ const B=QR[j]; const eAB=qt[(((A-B)%p)+p)%p]===1;
+        for(let k=j+1;k<n;k++){ const Cc=QR[k]; const eAC=qt[(((A-Cc)%p)+p)%p]===1, eBC=qt[(((B-Cc)%p)+p)%p]===1;
+          for(let l=k+1;l<n;l++){ if(++scanned>cap) break outer; const D=QR[l];
+            const eAD=qt[(((A-D)%p)+p)%p]===1, eBD=qt[(((B-D)%p)+p)%p]===1, eCD=qt[(((Cc-D)%p)+p)%p]===1;
+            const dg=[0,0,0,0]; if(eAB){dg[0]++;dg[1]++;} if(eAC){dg[0]++;dg[2]++;} if(eAD){dg[0]++;dg[3]++;} if(eBC){dg[1]++;dg[2]++;} if(eBD){dg[1]++;dg[3]++;} if(eCD){dg[2]++;dg[3]++;}
+            const t=CFG_BY_KEY[dg.slice().sort((a,b)=>b-a).join('')]; if(t && t.id===typeId){ found=true; break outer; } } } } }
+  }catch(e){ found=false; }
+  if(_cfgHasCache.size>512) _cfgHasCache.clear();
+  _cfgHasCache.set(key,found); return found;
+}
 function cfgBuild(p, typeId){
   const qt=qrTable(p);
   // de-duplicated QR list (each residue once)
@@ -14698,7 +14728,7 @@ function cfgDrawOverlay(cc,W,H){
     if(ctx && _lastChordSoundT>0 && ((ctx.currentTime-_avLat())-_lastChordSoundT)<1.5) return true;   // (14.10) same shifted clock as _t
   }catch(e){} return false; })();
   _insetRect=null;   // cleared each frame; set only when the inset is actually drawn (so hidden = not draggable)
-  if((_cfgInsetOn || _cfgBig()) && _chordsActive){   // (16.09) under #musrara the graph is not a toggle: the improviser's scenes carry no 'inset' and switched it off 1.2 s after begin
+  if(_chordsActive){   // (05.11, author: «всегда когда используем конфигурации Гончаровой, показываем их граф; когда они не звучат — не показываем») the graph is the way a configuration is SHOWN: it stands while one sounds (and 1.5 s after), on every page, and never otherwise — the cockpit's «show chord graph» box no longer gates it (16.09: under #musrara it was not a toggle either)
     const S=_cfgBig() ? Math.max(170, Math.min(280, Math.round(W*0.2))) : Math.max(124, Math.min(150, Math.round(W*0.13)));   // (30.10) min 124: at 96 the lower nodes reached y0+88, where the caption sat
     // position: draggable; default just below the top-right zoom controls (under #musrara: below the title lines)
     if(_insetPos.x==null){ _insetPos.x=W-S-10; _insetPos.y=_cfgBig()?Math.max(52,Math.round(H*0.17)):52; }
@@ -18190,6 +18220,22 @@ const learner = (()=>{
     }
     else if(out.groove) delete out.groove;
     out=_actShape(base,out);                    // ACTIVITY frame shapes the final scene
+    // (05.11, author: «почему я не вижу и не слышу ни в одном жанре конфигурации Гончаровой?») A SCENE THAT TRIGGERS CHORDS GETS A
+    // WORLD WHERE THEY EXIST. Verified: the quadruples live only at p ≡ 1 (mod 4) — half the primes the improviser walks gave no
+    // chord at all — and the chosen type can be empty at this p (complete K4 below 41), so a scene's triggers fired into
+    // silence, and with vol.chord at 0 the chord layer was dropped as an «inaudible block». Now: the prime moves to the nearest
+    // 4k+1 prime unless the hand holds it (keepP / a pinned 'prime'), the type falls back to the nearest existing one (richer
+    // first), and the chord fader is lifted off the floor. Meditate sets no triggers and keeps its room.
+    try{ const _tr=out.trig; const _trOn=!!(_tr && _tr!=='none' && _tr.length);
+      if(_trOn && typeof cfgHasQuads==='function' && typeof isPrime==='function'){
+        const _pinnedP=keepP || (state.apPins && state.apPins.has('prime'));
+        let q=out.p|0;
+        if(q%4!==1 && !_pinnedP){ let up=q+1, dn=q-1; while(up<100003 && !(up%4===1 && isPrime(up))) up++; while(dn>=5 && !(dn%4===1 && isPrime(dn))) dn--;
+          q=(dn>=5 && (q-dn)<=(up-q))?dn:up; out.p=q; out.r=Math.max(1,Math.min(q-1,out.r|0||1)); }
+        if(q%4===1){ const _order=['complete','diamond','cycle','paw','star','path4','triangle','matching','path3','one_edge'];
+          let t=out.typeId||'complete'; if(!cfgHasQuads(q,t)){ const alt=_order.find(x=>cfgHasQuads(q,x)); if(alt) t=alt; } out.typeId=t;
+          if(!out.vol) out.vol={}; if(!(out.vol.chord>0.05)) out.vol.chord=0.22; if(!(out.vol.glue>0.02)) out.vol.glue=Math.max(out.vol.glue||0,0.10); }
+      } }catch(e){}
     // MARKOVA answers by crossing: when she is present, the pre/post lean toward
     // direct = −reversed (contrary motion), more as the scene tenses — her reply to him.
     if(state.markova){
@@ -20634,7 +20680,7 @@ startRenderLoop();
   // play the TAIL against his HEAD — two unrelated pieces. She must enter at the
   // point HIS traversal reaches by step end, and walk BACK to his entry: then her
   // segment is his segment read backwards, whatever the duration.
-  function _palEndPos(st, durSec){
+  function _palEndPos(st, durSec, sec){   // (05.11) sec: the scene's own section (see _qrBuildPlan) — the reach is counted from where the scene ENTERS
     try{
       var p=st.p|0; if(p<3) return null;
       var bpm=Math.max(5,(st.bpm||state.bpm||60));
@@ -20661,6 +20707,10 @@ startRenderLoop();
       if(st.reorderA!=null) state.reorderA=st.reorderA|0;
       var out=null;
       try{
+        if(!(st.dir<0)){   // (05.11) a main scene enters at its row, the closing at the postlude's first station: the reach moves by the same offset (a reversed step keeps its mirror arithmetic)
+          if(sec==='main' && mainL>0){ var _ml0=(typeof getMainRValues==='function')?getMainRValues(p,1):null; var _ix0=_ml0?_ml0.indexOf(st.r|0):-1; B=(preL+Math.max(0,_ix0)*(p-1)+B)%total; }
+          else if(sec==='postlude' && postL>0){ B=(preL+mainL+B)%total; }
+        }
         if(B<preL){
           var pl=(typeof _sectionRList==='function')?_sectionRList('prelude',p,1):null;
           out={sec:'prelude', rV:(pl&&pl[B])?pl[B]:(B+1), aV:1};
@@ -20909,7 +20959,7 @@ startRenderLoop();
     // (05.08 author: «звук стартует только от play / play form / autopilot») pal
     // selection ARMS the crab silently — the plan's pause-freeze waits for the
     // transport, and both windows enter together when ▶ finally sounds.
-    plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur); });   // (05.08i) each step's reach — kept as the scoreless fallback
+    plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur, it.sec); });   // (05.08i) each step's reach — kept as the scoreless fallback
     var _score=(typeof _palScoreGen==='function')?_palScoreGen(plan):null;   // (20.08) the walk, written down once for both halves
     var _t0=Date.now()+_qrFormLead();   // the shared downbeat: both windows enter the crab together — (04.11) the lead covers the lookahead on a running transport (armed silently, the plan slides to ▶ as before)
     send({t:'pal', plan:plan, t0:_t0, score:_score});
@@ -20947,7 +20997,7 @@ startRenderLoop();
         if(state.duo.mode==='pal'){ state.duo.mode=_prePalMode||'parts'; send({t:'mode',mode:state.duo.mode}); }   // (05.08 audit) a failed ride must not strand the family in pal
         return false;
       }
-      plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur); });
+      plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur, it.sec); });
       var _score2=(typeof _palScoreGen==='function')?_palScoreGen(plan):null;
       var _t0=Date.now()+_qrFormLead();   // (04.11) the lead covers the lookahead
       send({t:'pal', plan:plan, t0:_t0, score:_score2});
@@ -21072,7 +21122,30 @@ startRenderLoop();
       Lst.groove={arch:'off',intensity:0};
       Lst.bpm=Math.max(40,Math.round((Lst.bpm||60)*0.85));   // ritenuto, composed in
     }catch(e){}
-    plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur); });
+    // (05.11) THE FORM'S SECTIONS. Measured 05.11 (tests/run-form.sh): every scene of a face form began at the prelude's first
+    // station, and with scenes of 8–20 s against preludes of p−1 beats (40 s at p=41, 60 bpm) not one form reached MAIN —
+    // where the melody a/b, the Goncharova triggers, the crossing and the harp's doors live; the cockpit's form (whose steps
+    // land in main) was the only one heard there. The author's form (30.10): beginnings, developments, endings. The FIRST
+    // scene is the opening — one whole prelude of a world small enough for T (its p−1 beats take at most a quarter of the
+    // form; p steps down to the nearest prime that fits, 4k+1 kept where the scene triggers chords, the tempo lifts only
+    // when p cannot go lower); every INNER scene enters MAIN at its own r — the plain seam's goto and the written score's
+    // slots both start there; the LAST scene is the closing — one whole postlude, so that its last station is the plan's end,
+    // the law's own event, which the end gate takes. Meditate keeps its room (its prayer is written as a form of its own).
+    try{ if(plan.length>=2 && !(plan[0].state && plan[0].state.activity==='meditate')){
+      var _fit=function(it, share){
+        var st=it.state, bpm=Math.max(5,st.bpm||60), pp=st.p|0, want=Math.max(3, Math.floor(share*bpm/60)+1);   // p−1 ≤ share·bpm/60
+        var tr=st.trig, k1=!!(tr && tr!=='none' && tr.length);
+        if(pp>want){ var q=want; while(q>=5 && !(isPrime(q) && (!k1 || q%4===1))) q--; pp=(q>=5)?q:5; }
+        if((pp-1)*60/bpm>share+0.5){ bpm=Math.min(999, Math.ceil((pp-1)*60/share)); st.bpm=bpm; }
+        st.p=pp; if(st.r) st.r=Math.max(1,Math.min(pp-1,st.r|0)); it.dur=(pp-1)*60/bpm; };
+      var _share=Math.max(2, T/4), _L=plan.length-1;
+      _fit(plan[0], _share); plan[0].sec='prelude';
+      _fit(plan[_L], _share); plan[_L].sec='postlude';
+      for(i=1;i<_L;i++) plan[i].sec='main';
+      var _rest=T-plan[0].dur-plan[_L].dur, _sum=0; for(i=1;i<_L;i++) _sum+=plan[i].dur;
+      if(_L>1 && _sum>0 && _rest>0) for(i=1;i<_L;i++) plan[i].dur=plan[i].dur*_rest/_sum;
+    } }catch(e){}
+    plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur, it.sec); });
     return plan;
   }
   var _parkT=null;   // (16.10) the fermata's timer, reachable from the hand's stop and from the next form — (04.11) now the tail watch's interval (no release any more: nothing on the master moves)
@@ -21124,12 +21197,20 @@ startRenderLoop();
               if(_nn){ try{ if(state.activeSus) for(var q2=0;q2<state.activeSus.length;q2++){ var su=state.activeSus[q2]; if((su.t1-su.t0)>3 && su.t1>_nn) su.t1=_nn; } }catch(e3){}
                 try{ if(state.ppSus && (state.ppSus.t1-state.ppSus.t0)>3 && state.ppSus.t1>_nn) state.ppSus.t1=_nn; }catch(e3){}   // the drone's picture ends with its sound (as killLongSustains draws it)
                 try{ if(typeof _fl==='function') _fl('form','the held drones release at the last beat — their own exhale, not a cut'); }catch(e3){} } }catch(e){}
+            // (05.11, author: «всё уводим») EVERY voice still sounding past the last beat's end is led out here, not only the drones:
+            // each registered sink (the tail governor's list — every note's own gain) takes a bow's exhale from its value at this
+            // instant, ≈0.9 s to the floor (never the 60 ms of a flush); the hall then rings by itself. A note the last station
+            // wrote long (durIdx up to 32 beats) no longer outlives the form; the cap below has nothing to wait for.
+            try{ var _nr=0; for(var q4=0;q4<_ringReg.length;q4++){ var rr4=_ringReg[q4]; if(!rr4 || !rr4.sp || !(rr4.t1x>now+0.95)) continue;
+                try{ rr4.sp.gain.cancelScheduledValues(now); rr4.sp.gain.setTargetAtTime(1e-4, now, 0.18); rr4.t1x=now+1.0; _nr++; }catch(e5){} }
+              if(_nr && typeof _fl==='function') _fl('form','the last beat has ended — '+_nr+' voice(s) led out over a bow\'s exhale'); }catch(e){}
           }
           var silent=true;
           if(_outMeter){ if(!buf) buf=new Float32Array(_outMeter.fftSize); _outMeter.getFloatTimeDomainData(buf);
             var sq=0; for(var k=0;k<buf.length;k++) sq+=buf[k]*buf[k]; silent=Math.sqrt(sq/buf.length)<2e-4; }   // RMS under −74 dBFS: the bowl and the hall have reached silence
           var wn=performance.now(); if(silent){ if(!quietSince) quietSince=wn; } else quietSince=0;
-          var mine=!!(quietSince && wn-quietSince>=600), cap=(now>end+20) || (g2.wall>0 && Date.now()>g2.wall+25000);   // the cap also on the wall clock: a rebuilt audio context starts its clock over and `now` would never reach `end`
+          var endN=end; try{ for(var q3=0;q3<_ringReg.length;q3++){ var rr=_ringReg[q3]; if(rr && rr.t1x>endN) endN=rr.t1x; } endN=Math.min(endN, end+60); }catch(e){}   // (05.11) the cap counts from the longest registered voice's end (after «всё уводим» above that is ≈1 s past the last beat; the bound stays for a voice registered after the lead-out)
+          var mine=!!(quietSince && wn-quietSince>=600), cap=(now>endN+20) || (g2.wall>0 && Date.now()>g2.wall+25000+Math.max(0,endN-end)*1000);   // the cap also on the wall clock: a rebuilt audio context starts its clock over and `now` would never reach `end`
           var paired=!!(state.duo && state.duo.on && state.duo.peer), lead=!paired || _isLead();   // read every tick: a peer that left mid-tail leaves this half to decide for itself
           if(paired && !lead){ if(mine && !g2._said){ g2._said=true; send({t:'end-gate', silent:true}); } return; }   // the answering half only reports its own tail; the baton's half rests both — her longer tail (×k, her register) is never cut by the mailed pause's flush
           var both=mine && (!paired || g2.peerSilent);
@@ -21240,7 +21321,8 @@ startRenderLoop();
         // erased the pending request outright. Same condition as that guard: the hand's prime rides the seam.
         var _handP=(state.reqP!=null && (state.reqP|0)!==(st.p|0) && typeof apPinned==='function' && apPinned('prime'))?(state.reqP|0):0;
         if(state.activity==='meditate' && typeof synthState!=='undefined' && synthState && (st.p|0)===(synthState.p|0)){ if(!_handP){ state.reqP=null; state.reqSkip=false; } state.reqGotoMain=null; }   // (14.10) a prayer in the same room walks on through the seam — no corner, no restart of the run-up; (20.10) a hand's pending prime still lands, exactly as between seams
-        else state.reqGoto={p:(_handP||st.p), sec:first, rPos:'first', seam:true};   // (20.10) seam:true — the one goto a later press may retarget (stepPrime, typed p); mirror, plan, session, scrub gotos keep their owners
+        else if(it.sec==='main' && !_handP && (st.secMask||{main:true}).main!==false){ state.reqGoto={p:st.p, sec:'main', rPos:'first', seam:true}; state.reqGotoMain=st.r|0; }   // (05.11) an inner scene enters MAIN at its own r (see _qrBuildPlan): the goto lands the world and the section, reqGotoMain (consumed last) the row
+        else state.reqGoto={p:(_handP||st.p), sec:(it.sec==='postlude' && (st.secMask||{post:true}).post!==false)?'postlude':first, rPos:'first', seam:true};   // (20.10) seam:true — the one goto a later press may retarget (stepPrime, typed p); mirror, plan, session, scrub gotos keep their owners — (05.11) the closing enters the postlude
       }catch(e){}
       i++; _arm();   // (04.11) the next seam goes to the scheduler at once — a short scene's first beat may be queued before the look comes round
     }
@@ -21300,7 +21382,7 @@ startRenderLoop();
       // a crab reads best when the seams are symmetric in time: palindromic durations
       var _k=plan.length;
       for(var _i=0;_i<(_k>>1);_i++){ var _m=(plan[_i].dur+plan[_k-1-_i].dur)/2; plan[_i].dur=_m; plan[_k-1-_i].dur=_m; }
-      plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur); });
+      plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur, it.sec); });
     }
     var _ev=null;
     try{ if(state.activity==='meditate'){
