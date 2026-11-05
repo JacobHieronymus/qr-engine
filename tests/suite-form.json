@@ -38,22 +38,42 @@
   "genre": "focus",
   "T": 16,
   "duoMode": "parts",
-  "secs": 75,
+  "secs": 80,
   "untilPause": false,
   "steps": [
    [
-    21.5,
-    "T.face.go()"
+    20,
+    "if(state.running&&state.paused&&!T._re){T._re=1;T.marks.push({t:T.now(),restart:1});T.face.go();}"
+   ],
+   [
+    23,
+    "if(state.running&&state.paused&&!T._re){T._re=1;T.marks.push({t:T.now(),restart:1});T.face.go();}"
+   ],
+   [
+    26,
+    "if(state.running&&state.paused&&!T._re){T._re=1;T.marks.push({t:T.now(),restart:1});T.face.go();}"
+   ],
+   [
+    29,
+    "if(state.running&&state.paused&&!T._re){T._re=1;T.marks.push({t:T.now(),restart:1});T.face.go();}"
+   ],
+   [
+    32,
+    "if(state.running&&state.paused&&!T._re){T._re=1;T.marks.push({t:T.now(),restart:1});T.face.go();}"
+   ],
+   [
+    36,
+    "if(state.running&&state.paused&&!T._re){T._re=1;T.marks.push({t:T.now(),restart:1});T.face.go();}"
+   ],
+   [
+    40,
+    "if(state.running&&state.paused&&!T._re){T._re=1;T.marks.push({t:T.now(),restart:1});T.face.go();}"
    ]
   ],
   "probes": [
    [
-    21,
+    19,
     "({gate:window._qrEndGate&&{closed:window._qrEndGate.closed,n:window._qrEndGate.n}, run:state.running, pau:state.paused, key:document.getElementById('face-go').textContent})"
-   ],
-   [
-    23,
-    "({gate:window._qrEndGate&&{closed:window._qrEndGate.closed,n:window._qrEndGate.n}, run:state.running, pau:state.paused, key:document.getElementById('face-go').textContent, on:!!window._formOn})"
    ]
   ]
  },
@@ -86,13 +106,22 @@
    ],
    [
     11,
-    "({p:state.p, viz:state.vizP, act:state.activity, run:state.running, pau:state.paused, row:(document.getElementById('live-p')||{}).textContent})"
+    "({p:state.p, viz:state.vizP, act:state.activity, run:state.running, pau:state.paused, row:(document.getElementById('live-p')||{}).textContent, live:_liveP()})"
    ],
    [
     15,
-    "({p:state.p, act:state.activity, planP:window._qrFormPlan&&window._qrFormPlan.plan.map(function(it){return it.state.p}), row:(document.getElementById('live-p')||{}).textContent})"
+    "({p:state.p, act:state.activity, planP:window._qrFormPlan&&window._qrFormPlan.plan.map(function(it){return it.state.p}), row:(document.getElementById('live-p')||{}).textContent, live:_liveP()})"
    ]
   ],
   "expect": "p"
+ },
+ {
+  "name": "cockpit form end 20s",
+  "mode": "form",
+  "genre": "focus",
+  "T": 20,
+  "duoMode": "parts",
+  "secs": 90,
+  "cockpit": true
  }
 ]

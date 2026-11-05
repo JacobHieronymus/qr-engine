@@ -179,6 +179,9 @@
     const genre = g => { const b = [...document.querySelectorAll('#face-gen button')].find(x => x.textContent.trim() === g); if (!b) throw new Error('no genre key ' + g); b.click(); };
     const setLen = s => { const mi = document.getElementById('face-min'), si = document.getElementById('face-sec'); mi.value = String(Math.floor(s / 60)); mi.dispatchEvent(new Event('change', { bubbles: true })); si.value = String(s % 60); si.dispatchEvent(new Event('change', { bubbles: true })); };
     T.face = { genre, setLen, make: () => document.getElementById('face-make').click(), go: () => document.getElementById('face-go').click() };
+    if (cfg.cockpit) {   // (05.11) the cockpit's ▶ play form (learner.formStart via #form-go, its length in #form-dur) instead of the face's ✚ + start
+      try { if (cfg.genre) genre(cfg.genre); await sleep(400); const fd = document.getElementById('form-dur'); fd.value = String(cfg.T || 20); fd.dispatchEvent(new Event('change', { bubbles: true })); await sleep(200); document.getElementById('form-go').click(); T.marks.push({ t: T.now(), note: 'start' }); } catch (e) { return { name: cfg.name, error: 'cockpit: ' + String(e) }; }
+    } else
     try { if (cfg.genre) genre(cfg.genre); await sleep(400); setLen(cfg.T || 20); await sleep(300); T.face.make(); await sleep(1200); T.plan = G(window, 'window._qrFormPlan && {n:window._qrFormPlan.plan.length, T:window._qrFormPlan.T, form:window._qrFormPlan.form, p0:window._qrFormPlan.plan[0].state.p, bpm0:window._qrFormPlan.plan[0].state.bpm, durs:window._qrFormPlan.plan.map(function(it){ return +(+it.dur).toFixed(2); }), ps:window._qrFormPlan.plan.map(function(it){ return it.state.p; })}'); T.marks.push({ t: T.now(), note: 'composed ' + JSON.stringify(T.plan) }); T.face.go(); T.marks.push({ t: T.now(), note: 'start' }); } catch (e) { return { name: cfg.name, error: 'face: ' + String(e) }; }
     const steps = (cfg.steps || []).slice().sort((a, b) => a[0] - b[0]);
     const probes = (cfg.probes || []).slice().sort((a, b) => a[0] - b[0]);
@@ -201,7 +204,7 @@
     const side = (tag, key) => {
       const beats = E.filter(e => e.w === tag && e.ev === 'beat' && e.t >= startT);
       const last = beats[beats.length - 1] || null;
-      const pause = E.find(e => e.w === tag && e.ev === 'pause' && e.to === true && e.t > startT + 1 && !(cfg.steps || []).some(st => Math.abs(st[0] - e.t) < 0.3 && /FormStop|face-go|go\(\)/.test(st[1]))) || null;   // the transport's own pause (to:true = running→paused; a scripted stop by hand is not the form's own end)
+      const pause = E.find(e => e.w === tag && e.ev === 'pause' && e.to === true && e.t > startT + 1 && !T.marks.some(m => (m.restart || (m.step && /FormStop/.test(m.step))) && Math.abs(m.t - e.t) < 0.3)) || null;   // the transport's own pause (to:true = running→paused; a scripted stop by hand is not the form's own end)
       const parkS = R.find(x => x.t > startT + 1 && x[key] && !x[key].on); const parkT = parkS ? parkS.t : null;
       const lastT = last ? last.t : null;
       const samples = R.filter(x => x[key]);
@@ -229,7 +232,7 @@
         const oldAfter = E.filter(e => e.w === tag && e.ev === 'beat' && e.t < r.t && e.at != null && b1 && e.at >= b1.at - 0.005).length;   // an older beat sounding at or after the new scene's first beat
         return { t: r.t, p: r.p, c: r.c, firstBeatWall: a1w, due, late: (a1w != null && due != null) ? +(a1w - due).toFixed(2) : null, oldBeatsAfter: oldAfter }; });
       // a restart inside the tail (a scripted second start): beats queued between the press and the new form's first restore belong to the ENDED scene
-      const goSteps = T.marks.filter(m => m.step && /go\(\)/.test(m.step));
+      const goSteps = T.marks.filter(m => m.restart);   // the steps that actually pressed start (the scenario marks them)
       const restarts = goSteps.map(g => { const r1 = E.find(e => e.w === tag && e.ev === 'restore' && e.t > g.t); const nb = E.filter(e => e.w === tag && e.ev === 'beat' && e.t > g.t && (!r1 || e.t < r1.t)).length; return { t: g.t, firstRestoreT: r1 ? r1.t : null, oldBeatsBeforeIt: nb }; });
       return { beats: beats.length, lastBeatT: lastT, lastBeatAt: last ? last.at : null, parkT, pauseT: pause ? pause.t : null, silentT: silT, dbAtPause, restarts, gRef: +gRef.toFixed(3), gMin: isFinite(gMin) ? +gMin.toFixed(3) : null,
         killsBeforeSilence: kills.map(k => ({ t: k.t, why: k.why })), masterCallsFromLastBeat: masterCalls.slice(0, 12), beatsAfterPark, beatsAfterPause, seams: seams.slice(0, 16),

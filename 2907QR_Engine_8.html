@@ -13871,7 +13871,7 @@ document.getElementById('btn-export-video')?.addEventListener('click',exportVide
 
 // ---- Live prime stepping (p−/p+) + keyboard arrows + live indicator ----
 let _lastShownP=null;
-function _liveP(){ return (synthState ? synthState.p : state.p)|0; }
+function _liveP(){ if(state.running && state.paused && state.reqP!=null && (state.reqP|0)>=3) return state.reqP|0; return (synthState ? synthState.p : state.p)|0; }   // (05.11) while the transport is held a prime on its way (reqP: the genre door's return from a prayer room, a typed p) is the one that will sound — the row and the field say it, not the number the held synth still shows (measured 05.11: «p = 70297» stayed on both halves after the room was released)
 function _liveR(){ return (synthState ? (synthState.currentR||state.vizR||1) : (state.vizR||1))|0; }
 function _refreshLiveP(){
   const el=document.getElementById('live-p'); if(!el) return;
@@ -15215,6 +15215,7 @@ state.activity=null;
           var _back=_preActP||61;
           try{ const _c0=scenes.capture()||{}; scenes.restore(Object.assign({},_c0,{p:_back}),{}); }catch(e){}   // land NOW — a queued reqP lost the race to the next generated scene
           try{ state.reqP=_back; if(!state.running || state.paused){ state.p=_back; state.vizP=_back; } }catch(e){}   // (05.11) measured: with the transport held (■ then a genre) reqP waits for a beat that never comes, and ✚'s reset kept the room as the live p — the number lands now, as stepPrime lands a prime while stopped; reqP stays for the synth's re-base on ▶
+          try{ if(window.QRDuo && state.duo && state.duo.on && state.duo.peer && window._qrIsLead && window._qrIsLead()) window.QRDuo.broadcast(); }catch(e){}   // (05.11) and Markova is told (see the next-genre door)
           try{ if(typeof _fl==='function') _fl('activity','the prayer room is released — back to p='+_back); }catch(e){}
         }
         _preActP=null;
@@ -15227,6 +15228,7 @@ state.activity=null;
         var _bk2=_preActP||61;
         try{ const _c1=scenes.capture()||{}; scenes.restore(Object.assign({},_c1,{p:_bk2}),{}); }catch(e){}
         try{ state.reqP=_bk2; if(!state.running || state.paused){ state.p=_bk2; state.vizP=_bk2; } }catch(e){}   // (05.11) as the toggle-off door: the return lands now while the transport is held (measured 05.11: p stayed the room through ✚)
+        try{ if(window.QRDuo && state.duo && state.duo.on && state.duo.peer && window._qrIsLead && window._qrIsLead()) window.QRDuo.broadcast(); }catch(e){}   // (05.11) and Markova is told: her half kept the dead room until start (her frame learns scenes only by the mirror)
       }   // one prayer room does not follow you into the next frame
       state.activity=act; paint();
       // (17.08 author: «между жанрами должно проходить сбрасывание параметров —
@@ -18666,18 +18668,26 @@ const learner = (()=>{
       const held=state.running && state.paused && !h.rest, r=due-_play(); if(held || r>1){ set(setTimeout(w, held?250:r)); return; } fn(); };
       set(setTimeout(w,ms)); };
     _late(()=>{
-      _masterFade(0.0001,fadeOut,()=>{
-        h.rest=true;   // (30.10) from here the pause is the form's own
-        try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}   // (05.08 audit) pauseAudio TOGGLES — unguarded it un-paused a user-stopped engine
-        try{ if(window._duoRest) window._duoRest(); }catch(e){}   // Markova rests WITH him — one ending for two
-        _fadeOutTimer=setTimeout(()=>{   // (05.08 audit) tracked — a stale rest timer used to kill the NEXT form
-          if(!formOn) return;
-          const pm=_formPrevMaster; formStop(`form complete · ${plan.length} scene(s) / ${T}s · the silence belongs to the piece`);
-          if(pm!=null) _setMaster(pm);
-        }, rest);
-      });
+      // (05.11, author: «пусть звенит») THE COCKPIT FORM ENDS AS THE FACE'S FORMS DO — through the end gate, not the fader:
+      // the gate is aimed where the fade used to end (its last beat), the scheduler closes on it, nothing on the master moves,
+      // the held drones ring their full hold, and the transport rests — both halves, through the wrapped pauseAudio — when
+      // the tail has reached silence (_qrEndArm's watch). The rest window (rest) then counts from that pause, as it did from
+      // the fade's end; Markova rests with him by the same pause, so the old {t:'rest'} mail is not needed.
+      let armed=false; try{ if(window._qrEndArm && state.running && !state.paused){ window._qrEndArm(Date.now()+fadeOut, 'the cockpit form', false); armed=!!window._qrEndGate; } }catch(e){}
+      if(!armed){ try{ if(state.running && !state.paused) pauseAudio(); }catch(e){} }   // no gate (no audio, or already resting): the old instant pause, no fader
+      const w2=()=>{ if(!formOn || _formHold!==h) return;
+        if(state.paused || !state.running){ h.rest=true;   // (30.10) from here the pause is the form's own
+          _fadeOutTimer=setTimeout(()=>{   // (05.08 audit) tracked — a stale rest timer used to kill the NEXT form
+            if(!formOn) return;
+            const pm=_formPrevMaster; formStop(`form complete · ${plan.length} scene(s) / ${T}s · the silence belongs to the piece`);
+            if(pm!=null) _setMaster(pm);
+          }, rest); return; }
+        _fadeOutTimer=setTimeout(w2,250); };
+      w2();
     }, Math.max(200,T*1000-fadeOut-rest), t=>{ _fadeOutTimer=t; });
-    _late(()=>{ if(formOn) formStop('form complete'); }, T*1000+2500, t=>{ _formGuard=t; });
+    _late(()=>{ if(!formOn) return; const g=window._qrEndGate;   // (05.11) the guard waits for the rest while the gate holds a ringing tail: formStop's master restore must not land on it
+      if(g && state.running && !state.paused){ const w3=()=>{ if(!formOn) return; if(state.paused || !window._qrEndGate) formStop('form complete'); else _formGuard=setTimeout(w3,500); }; w3(); }
+      else formStop('form complete'); }, T*1000+2500, t=>{ _formGuard=t; });
     let i=0;
     const step=()=>{
       if(!formOn) return;
@@ -21072,8 +21082,9 @@ startRenderLoop();
   // start, so no lookahead can cross it, however short the last scene — and re-aims it at every look (it slides with a
   // pause); the scheduler closes it ON the first beat that would start at or after it (schedulerTick) and queues nothing
   // more. Nothing on the master moves. A drone the last beat still holds (sustainHold: up to 300 s; the prayer's hold) takes
-  // its OWN release at that last beat's end — the bow lifts where the walk stops, over the exhale its envelope was written
-  // with (rel, from scheduleSustainVoice), never the 60 ms kill of a flush; the hall then rings out. The transport pauses —
+  // its OWN release at that last beat's end (author 05.11: «дрон уводим» — led out, not held to its written end) — the bow
+  // lifts where the walk stops, over the exhale its envelope was written with (rel, from scheduleSustainVoice), never the
+  // 60 ms kill of a flush; the hall then rings out. The transport pauses —
   // through the wrapped pauseAudio, both halves — only when this window's output (_outMeter) has been under −74 dBFS RMS for
   // 600 ms AND the other half has said the same of its own tail ({t:'end-gate', silent:true}), or 20 s after the last queued
   // beat's end for a stuck tail (a wall-clock backstop covers a rebuilt audio context). The baton's half rests the pair; the
@@ -21324,7 +21335,7 @@ startRenderLoop();
     try{ if(state.running && state.paused) _wasClosed=true; }catch(e){}   // (05.11) measured: a start after the REST (the transport paused by the tail watch, or by the hand) re-walked the ended scene for one beat before the new form's first seam, as a start inside the tail did — the same re-base below
     try{ if(!state.running) startAudio(); else if(state.paused) pauseAudio(); }catch(e){}
     var t0=Date.now()+_qrFormLead();   // (04.11) the lead covers the lookahead (700 ms alone on a Mac at rest, as before)
-    if(_wasClosed){ try{ var _nb=ctx.currentTime+(t0-Date.now())/1000+0.01; if(nextBeatTime<_nb) nextBeatTime=_nb; if(state.duo && state.duo.on && state.duo.peer) send({t:'end-gate', wall:0, why:'the next form', lead:t0}); }catch(e){} }   // (04.11) a form started inside the previous form's tail: with the gate open the very next tick queued the ENDED scene from where it stood, at full faders, for the whole lead (0.7–1.6 s), and the first seam then killed those re-started drones — a burst of the old scene after its own tail. The scheduler waits for the downbeat (10 ms past it: a beat starting before the seam's instant would still be the old scene's — measured 05.11); the other half is told the same lead (round-6 review)
+    if(_wasClosed){ try{ var _nb=ctx.currentTime+(t0-Date.now())/1000+0.06; if(nextBeatTime<_nb) nextBeatTime=_nb; if(state.duo && state.duo.on && state.duo.peer) send({t:'end-gate', wall:0, why:'the next form', lead:t0}); }catch(e){} }   // (04.11) a form started inside the previous form's tail: with the gate open the very next tick queued the ENDED scene from where it stood, at full faders, for the whole lead (0.7–1.6 s), and the first seam then killed those re-started drones — a burst of the old scene after its own tail. The scheduler waits for the downbeat (60 ms past it: a beat starting before the seam's instant would still be the old scene's, and the audio clock and the wall clock disagree by up to ±20 ms between two readings — measured 05.11, 10 ms was not enough); the other half is told the same lead (round-6 review)
     try{ if(typeof masterGain!=='undefined' && masterGain && ctx && masterGain.gain.value<0.02)
       masterGain.gain.setTargetAtTime(Math.max(0.05,state.vol.master||0.72), ctx.currentTime, 0.2); }catch(e){}   // an interrupted prayer must not darken the next form — (16.10) for every form: the darkness is gone (15.10), so a form with events is no exception
     try{ window._formArc={t0:performance.now()+(t0-Date.now()), T:Fp.T*1000}; window._formOn=true; }catch(e){}
@@ -22121,7 +22132,7 @@ startRenderLoop();
       if(m.silent){ if(window._qrEndGate) window._qrEndGate.peerSilent=true; }   // the other half's tail has reached silence — the baton's half may rest the pair once its own has
       else if(+m.wall>0){ if(state.running && !state.paused) _qrEndArm(+m.wall, m.why||'', true); else if(+m.wall>Date.now()+200) window._qrEndPend={wall:+m.wall, why:m.why||''}; else send({t:'end-gate', silent:true}); }   // the other half's form reaches its last beat: this scheduler closes on the same wall instant and the tail rings out here too; a half not yet running (booting, or paused) keeps the aim for its start / ▶ while the instant is ahead (round-6 review); a half at rest past it has no tail to wait for
       else { var _wasC=!!(window._qrEndGate && window._qrEndGate.closed); _qrEndOpen(m.why||'', true);   // a door on the other half (a new form, ▶ once, a seek, the walk, the hand's ■) opened its gate: this half's opens too
-        try{ if(_wasC && +m.lead>Date.now() && typeof ctx!=='undefined' && ctx){ var _nbW=ctx.currentTime+(+m.lead-Date.now())/1000+0.01; if(nextBeatTime<_nbW) nextBeatTime=_nbW; } }catch(e){} }   // (04.11) a form started on the other half inside this half's tail: the ended scene is not walked again for the lead — the first queued beat is the new form's own (round-6 review)
+        try{ if(_wasC && +m.lead>Date.now() && typeof ctx!=='undefined' && ctx){ var _nbW=ctx.currentTime+(+m.lead-Date.now())/1000+0.06; if(nextBeatTime<_nbW) nextBeatTime=_nbW; } }catch(e){} }   // (04.11) a form started on the other half inside this half's tail: the ended scene is not walked again for the lead — the first queued beat is the new form's own (round-6 review)
     }catch(e){} }
     else if(m.t==='sdist'){ try{ window._spaceHandAt=Date.now(); if(window._duoSpaceSet) window._duoSpaceSet(+m.v, true); if(window._duoSpaceUI) window._duoSpaceUI(+m.v); }catch(e){} }   // one hand, both windows
     else if(m.t==='bh'){ try{ if(m.o && m.o.act){ window._breathHint=m.o;
