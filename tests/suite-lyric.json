@@ -1,0 +1,209 @@
+[
+ {
+  "name": "lyric arc 3:00",
+  "mode": "form",
+  "genre": "lyric",
+  "T": 180,
+  "duoMode": "parts",
+  "secs": 215,
+  "expect": "lyric",
+  "probes": [
+   [
+    4,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    8,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    12,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    16,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    20,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    24,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    28,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    32,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    36,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    40,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    44,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    48,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    52,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    56,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    60,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    64,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    68,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    72,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    76,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    80,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    84,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    88,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    92,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    96,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    100,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    104,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    108,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    112,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    116,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    120,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    124,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    128,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    132,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    136,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    140,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    144,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    148,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    152,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    156,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    160,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    164,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    168,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    172,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    176,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    180,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    184,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    188,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    192,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ],
+   [
+    196,
+    "({stage:state._lyrStage||null, bpm:state.bpm, master:+(+state.vol.master).toFixed(2), p:state.p, ph:synthState&&synthState.phase, ev:state._lyrEvent||null, climaxAt:window._lyrClimaxAt||0})"
+   ]
+  ]
+ }
+]

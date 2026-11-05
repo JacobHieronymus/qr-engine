@@ -153,6 +153,7 @@
     wrap('scheduleOneBeat', function (time) { const s = G(w, 'synthState'), st = G(w, 'state'); E.push({ t: now(), w: tag, ev: 'beat', at: +(+time).toFixed(3), c: ct(), ph: s && s.phase, ri: s && s.rIdx, p: st && st.p }); });
     wrap('killLongSustains', function (reason, tau) { E.push({ t: now(), w: tag, ev: 'kill', why: String(reason), tau: tau, c: ct() }); });
     wrap('flushVoices', function () { E.push({ t: now(), w: tag, ev: 'flush', c: ct() }); });
+    wrap('_omegaEcho', function (p, time, dur, beat, cyc) { E.push({ t: now(), w: tag, ev: 'harp', p, k: cyc && cyc.length, at: +(+time).toFixed(3) }); });   // (05.11) the omega harp (the ring) spoke
     wrap('cfgChordAt', function (at, quad) { const st = G(w, 'state'); E.push({ t: now(), w: tag, ev: 'chord', at: +(+at).toFixed(3), quad: quad && quad.slice ? quad.slice(0, 4) : null, p: st && st.p, type: st && st.typeId }); });   // (05.11) a Goncharova configuration sounding
     wrap('pauseAudio', function () { const st = G(w, 'state'); E.push({ t: now(), w: tag, ev: 'pause', to: st && st.running ? !st.paused : null, c: ct() }); });
     try { const sc = G(w, 'scenes'); if (sc && sc.restore && !sc.__qrtSpy2) { sc.__qrtSpy2 = 1; const o = sc.restore; sc.restore = function (st, opts) { E.push({ t: now(), w: tag, ev: 'restore', p: st && st.p, c: ct(), opts: opts ? Object.keys(opts).join(',') : '' }); return o.apply(this, arguments); }; } } catch (e) {}
@@ -183,7 +184,7 @@
     if (cfg.cockpit) {   // (05.11) the cockpit's ▶ play form (learner.formStart via #form-go, its length in #form-dur) instead of the face's ✚ + start
       try { if (cfg.genre) genre(cfg.genre); await sleep(400); const fd = document.getElementById('form-dur'); fd.value = String(cfg.T || 20); fd.dispatchEvent(new Event('change', { bubbles: true })); await sleep(200); document.getElementById('form-go').click(); T.marks.push({ t: T.now(), note: 'start' }); } catch (e) { return { name: cfg.name, error: 'cockpit: ' + String(e) }; }
     } else
-    try { if (cfg.genre) genre(cfg.genre); await sleep(400); setLen(cfg.T || 20); await sleep(300); T.face.make(); await sleep(1200); T.plan = G(window, 'window._qrFormPlan && {n:window._qrFormPlan.plan.length, T:window._qrFormPlan.T, form:window._qrFormPlan.form, p0:window._qrFormPlan.plan[0].state.p, bpm0:window._qrFormPlan.plan[0].state.bpm, durs:window._qrFormPlan.plan.map(function(it){ return +(+it.dur).toFixed(2); }), ps:window._qrFormPlan.plan.map(function(it){ return it.state.p; })}'); T.marks.push({ t: T.now(), note: 'composed ' + JSON.stringify(T.plan) }); T.face.go(); T.marks.push({ t: T.now(), note: 'start' }); } catch (e) { return { name: cfg.name, error: 'face: ' + String(e) }; }
+    try { if (cfg.genre) genre(cfg.genre); await sleep(400); setLen(cfg.T || 20); await sleep(300); T.face.make(); await sleep(1200); T.plan = G(window, 'window._qrFormPlan && {n:window._qrFormPlan.plan.length, T:window._qrFormPlan.T, form:window._qrFormPlan.form, p0:window._qrFormPlan.plan[0].state.p, bpm0:window._qrFormPlan.plan[0].state.bpm, durs:window._qrFormPlan.plan.map(function(it){ return +(+it.dur).toFixed(2); }), ps:window._qrFormPlan.plan.map(function(it){ return it.state.p; }), stages:window._qrFormPlan.plan.map(function(it){ return it.state._lyrStage||null; }), secs:window._qrFormPlan.plan.map(function(it){ return it.sec||null; })}'); T.marks.push({ t: T.now(), note: 'composed ' + JSON.stringify(T.plan) }); T.face.go(); T.marks.push({ t: T.now(), note: 'start' }); } catch (e) { return { name: cfg.name, error: 'face: ' + String(e) }; }
     const steps = (cfg.steps || []).slice().sort((a, b) => a[0] - b[0]);
     const probes = (cfg.probes || []).slice().sort((a, b) => a[0] - b[0]);
     const end = cfg.secs || ((cfg.T || 20) + 40); T.abort = false; let pausedSince = null;
@@ -242,6 +243,18 @@
     };
     out.his = side('his', 'H'); if (R.some(x => x.M)) out.her = side('her', 'M');
     const h = out.his;
+    const gen = { fader: h.gRef > 0 && h.gMin != null && h.gMin < 0.9 * h.gRef ? 'FADER ' + h.gMin + '/' + h.gRef : 'none' };
+    if (cfg.expect === 'lyric') {   // (05.11) the five-stage arc: stages in order with their tempo and master, chords and harps per stage, the climax event, the end
+      const sc = T.probes.filter(pr => pr.his && pr.his.stage !== undefined).map(pr => ({ t: pr.t, stage: pr.his.stage, bpm: pr.his.bpm, master: pr.his.master, p: pr.his.p, ph: pr.his.ph, ev: pr.his.ev, climaxAt: pr.his.climaxAt }));
+      const stages = []; sc.forEach(x => { if (!stages.length || stages[stages.length - 1].stage !== x.stage) stages.push({ stage: x.stage, from: x.t, bpm: x.bpm, master: x.master, p: x.p }); });
+      const byStage = {}; for (const st of stages) byStage[st.stage] = { chords: 0, harps: 0 };
+      const stageAt = t => { let cur = null; for (const st of stages) { if (st.from <= t) cur = st.stage; } return cur; };
+      E.filter(e => e.w === 'his' && (e.ev === 'chord' || e.ev === 'harp')).forEach(e => { const st = stageAt(e.t); if (st && byStage[st]) byStage[st][e.ev === 'chord' ? 'chords' : 'harps']++; });
+      const climax = sc.find(x => x.climaxAt > 0);
+      out.verdict = { stages: stages.map(x => x.stage + '@' + x.from + 's·' + x.bpm + 'bpm·' + x.master + '·p' + x.p), order: stages.map(x => x.stage).join('→'), byStage, climaxFired: !!climax, climaxT: climax ? climax.t : null,
+        end: h.pauseT != null ? (h.dbAtPause != null && h.dbAtPause <= floor ? 'silence' : 'SOUND') : 'never', fader: gen.fader, errors: T.errors.length };
+      return out;
+    }
     if (cfg.expect === 'chords') {   // (05.11) the configurations are heard and shown: chords sounded, the inset stood while they rang, the plan's primes are 4k+1
       const insetSeen = T.probes.some(pr => pr.his && pr.his.inset); const plan = T.plan || {};
       out.verdict = { chords: h.chords, chordPrimes: h.chordPrimes, chordTypes: h.chordTypes, insetSeen, planPrimes: plan.ps, all4k1: (plan.ps || []).every(v => v % 4 === 1), hasMs: (T.probes[0] && T.probes[0].his && T.probes[0].his.hasMs) || null, verdictText: (h.chords > 0 && insetSeen) ? 'HEARD AND SHOWN' : (h.chords > 0 ? 'heard, inset NOT seen' : 'NO CHORD SOUNDED'), errors: T.errors.length };

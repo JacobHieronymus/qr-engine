@@ -22,10 +22,13 @@ const server = Deno.serve({ port: 0, hostname: '127.0.0.1', signal: ac.signal, o
 const port = (server.addr as Deno.NetAddr).port;
 const prof = Deno.env.get('QRT_TMP') ? Deno.env.get('QRT_TMP') + '/chrome-' + port : await Deno.makeTempDir({ prefix: 'qrt-chrome-' });
 await Deno.mkdir(prof, { recursive: true });
+// (05.11) --disable-audio-output: the Web Audio clock then runs on Chrome's own fake sink. Measured 05.11 20:10: with the Mac's audio
+// device stalled (afplay of a 0.2 s sound took 15 s after the AirPods left), the muted headless context reported 'running' with
+// currentTime frozen at 0.023 s and every verdict degraded; the analysers upstream of the destination still read the signal.
 const chrome = new Deno.Command('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', {
   args: ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${prof}`, '--mute-audio', '--autoplay-policy=no-user-gesture-required',
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--disable-features=CalculateNativeWinOcclusion',
-    '--no-first-run', '--no-default-browser-check', '--window-size=1400,900', 'about:blank'], stderr: 'piped', stdout: 'null' }).spawn();
+    '--no-first-run', '--no-default-browser-check', '--disable-audio-output', '--window-size=1400,900', 'about:blank'], stderr: 'piped', stdout: 'null' }).spawn();
 let wsUrl = ''; { const rd = chrome.stderr.pipeThrough(new TextDecoderStream()).getReader(); let buf = '';
   while (!wsUrl) { const { value, done } = await rd.read(); if (done) break; buf += value; const m = buf.match(/DevTools listening on (ws:\/\/\S+)/); if (m) wsUrl = m[1]; }
   (async () => { try { while (!(await rd.read()).done) {} } catch {} })(); }

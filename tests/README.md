@@ -23,3 +23,10 @@ with after a meditation; one restarts the form inside its tail.
 
     ./tests/run-form.sh                          # six scenarios, ~4 minutes
     ./tests/run-form.sh some-copy.html label
+
+## The lyric arc (05.11)
+
+`run-lyric.sh` plays a 3:00 lyric form in the pair and reads its five stages — caress · desire · passion · climax · catharsis —
+in order, with each stage's tempo, master and prime, the Goncharova configurations and omega harps that sounded in it, whether
+the climax event fired (the complete configuration with the harp at the meeting of a and b, then a beat held), and how the form
+ended. About four minutes.

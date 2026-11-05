@@ -8674,6 +8674,13 @@ function _scheduleOneBeatBody(time){
         else scheduleDiagBell((timeA+timeB)*0.5,Math.min(dur*rb2,3),fd,1,ld,rd);
       }
     }
+    // (05.11) THE CLIMAX (lyric, stage 4 of 5 — _lyrEvent 'climax' rides the scene): ONE event. At the first meeting of a and b in the
+    // climax scene the complete configuration (the scene's 'diag' trigger queues it below) is joined by the harp in the squaring
+    // order — the circle through a (or through r), forced through the dose — and the beat after is held: the walk rests a beat.
+    // Fires on whichever half emits this beat with the stage's voices (in parts the harp is hers: her window carries the same scene).
+    try{ if(state._lyrEvent==='climax' && !s._lyrClimaxAt && ((a===b && a!==0) || ((s._lyrN=(s._lyrN|0)+1)>=4))){ s._lyrClimaxAt=time; window._lyrClimaxAt=Date.now();   // at the meeting — or by the fourth beat of the scene: in a big world the meeting is one beat in a row of p−1
+      const _cc=_omCircle(p,a)||_omCircle(p,r); if(_cc && _cc.length>=2 && state.omEcho){ window._omRing={next:0,end:0}; _omegaSing(p,_cc,time,dur,0.7,s.aIdx,s); _omegaEcho(p,time,dur,s.aIdx,_cc,s); }
+      s._slotSec=dur*2; try{ if(typeof _fl==='function') _fl('lyric','the climax — a meets b on '+a+': the configuration and the harp, then a beat held'); }catch(e){} } }catch(e){}
     emitVisual(time,'main',p,r,s.aIdx,a,b,{tA:timeA,tB:timeB});   // (08.09) the two voices are split in time by abOffsetBeats; one frame carried both rings at the base beat
     // Goncharova triggers (multi-voice): each SELECTED voice that sounds this beat
     // queues the quadruples its value belongs to. Values are residues mod p, so
@@ -14446,6 +14453,7 @@ function _quadKey(qi){
 }
 function cfgQueueForNote(noteVal, pos){
   if(!cfg.index || !cfg.quads.length) return 0;
+  try{ var _cd=state._chordDose; if(_cd!=null && _cd<1 && Math.random()>=_cd) return 0; }catch(e){}   // (05.11, author: 35 chords a minute «это не событие, а фон») the scene's chord DOSE — the share of its triggers that may fire (the lyric stages set it: passion a quarter, the climax a third); unset = every trigger, as before
   let v=((noteVal%cfg.p)+cfg.p)%cfg.p;
   const list=cfg.index.get(v);
   if(!list || !list.length) return 0;
@@ -14464,7 +14472,8 @@ function cfgQueueForNote(noteVal, pos){
   if(!fresh.length) return 0;
   fresh.sort((a,b)=> asc ? (_quadKey(a)-_quadKey(b)) : (_quadKey(b)-_quadKey(a)) );
   const cap=cfgMaxPerNote();
-  const take=(cap===Infinity)? fresh.length : Math.min(cap, fresh.length);
+  let take=(cap===Infinity)? fresh.length : Math.min(cap, fresh.length);
+  try{ if(state._chordDose!=null) take=Math.min(take,1); }catch(e){}   // (05.11) under a scene's chord dose one trigger is ONE chord — a value sits in many quadruples (18 at p=37 for one kiss), and every one of them held the walk a slot
   const P=(pos|0)||0;
   for(let i=0;i<take;i++){ const qi=fresh[i]; cfg.chordQueue.push({qi, hit:v, pos:P}); cfg.played.add(qi); }
   return take;
@@ -17397,8 +17406,17 @@ const learner = (()=>{
   };
   let _actPhase=1, _actMedP=null, _actPreMedP=null, _actDeadMedP=null;    // workout interval phase (1=work, 0=recovery) · meditation's fixed room · (04.11) the prime the hand had before the room · the room that died (resetActivity, or a genre carried away by a scene) while its number may still be the live p
   let _actBeatN=0;                   // beat-rebuild counter: the kit re-arranges itself as scenes pass
-  let _lyricPhase=0, _lyricLeft=2;   // lyric arousal arc: 0 tender → 1 desire → 2 passion → 3 afterglow
-  try{ window._lyricArcReset=function(){ _lyricPhase=0; _lyricLeft=2+Math.floor(Math.random()*2); try{ window._lyrPassN=0; }catch(e){} }; }catch(e){}   // (21.08) a form is a piece: its arc is born in tenderness, not wherever the last cycle died
+  // (05.11, the author) THE LYRIC ARC IN FIVE STAGES — ласка · желание · страсть · кульминация · катарсис: 0 CARESS — two voices,
+  // breath, a medium tempo that quickens and slows, touches, whispers, strokes, kisses · 1 DESIRE — the caress developing ·
+  // 2 PASSION — the body · 3 CLIMAX — one event · 4 CATHARSIS — the release. The old four names stay as the stamp the
+  // listener and the breath read (_lyrPhase: tender · desire · passion · passion · afterglow); the five-stage name rides as _lyrStage.
+  const _LYR5=['caress','desire','passion','climax','catharsis'], _LYR5_OLD=['tender','desire','passion','passion','afterglow'];
+  let _lyricPhase=0, _lyricLeft=2, _lyrCounts=[2,2,2,1,1], _lyrCaressN=0, _lyrBase=0;   // _lyrCounts: scenes per stage (the plan's, or the autopilot's default) · _lyrCaressN: the caress wave · _lyrBase: the caress tempo the arc climbs from
+  try{ window._lyricArcReset=function(k){   // k: the plan's scene count (✚) — the stages are laid over ALL its scenes: the opening (prelude) is caress, the closing (postlude) catharsis, the climax the last inner scene, passion ≈ 60 % of the rest, desire the remainder
+      k=k|0; if(k>=3){ var m=k-2, cl=(m>=1)?1:0, pa=Math.max(0,Math.round((m-1)*0.6)), de=Math.max(0,m-1-pa); _lyrCounts=[1,de,pa,cl,1]; if(de===0 && pa>0){ _lyrCounts[1]=1; _lyrCounts[2]=pa-1; } }
+      else _lyrCounts=[2,2,2,1,1];
+      _lyricPhase=0; _lyricLeft=(_lyrCounts[0]||1)+1; _lyrCaressN=0; _lyrBase=0;   // +1: generate() counts a scene down BEFORE it shapes it (the advance sits at its top), so the first scene costs one — measured 05.11: counts of 1 skipped the caress
+      try{ window._lyrPassN=0; }catch(e){} }; }catch(e){}   // (21.08) a form is a piece: its arc is born in tenderness, not wherever the last cycle died
   let _chorePomp=false;              // chores: a mock-heroic fanfare owes the NEXT scene its deflation
   let _focusStep=-1,_focusLen=6,_focusTheme=null,_focusPal=null;   // focus-as-proof: thesis → lemmas → conclusion
   let _prayStep=0;                   // meditate-as-prayer: invocation → litany (elevating) → amen, a cycle of seven
@@ -17584,127 +17602,118 @@ const learner = (()=>{
       out.voiceInst=Object.assign({},out.voiceInst||{},_focusPal||_FPAL[0]);
     }
     if(act==='lyric'){
-      // the living map: heartbeat = the rare heart itself · breath = the prelude/postlude
-      // mirror · bloodstream = sustain · nerve sparks = diag · thought = the a-line.
-      // AROUSAL ARC (author 29.07: «нежность, эротика, страсть» — the old wave was
-      // dull): 0 TENDER — intimacy, one voice and a breath answering · 1 DESIRE —
-      // pursuit and retreat, both voices slide, the shiver · 2 PASSION — contrary
-      // crossing at full body · 3 AFTERGLOW — suddenly almost nothing, very close.
-      // CANTILENA throughout: legato, glissando, long tied tones — singers, always.
+      // (05.11, the author: «лирика очень вялая — должна быть самая интересная. нет ни секса ни страсти, ни ласки, ни
+      // кульминации, ни катарсиса») THE ARC IN FIVE STAGES (see _LYR5). CANTILENA throughout except the body: legato, glissando,
+      // long tied tones — singers, always two of them. The stamp _lyrPhase keeps the four old names for the listener and the breath.
       const P_=_lyricPhase;
-      out._lyrPhase=['tender','desire','passion','afterglow'][P_]||'tender';   // (21.08) the phase is STAMPED into the scene: restore carries it to both windows at play time — the ledger reads the scene being PLAYED, not the build's stale breath
-      if(P_!==2){ try{ window._lyrPassN=0; }catch(e){} }   // the passion climb counter re-arms outside passion
-      // breath dramaturgy helper: consecutive scenes of the SAME stage keep the
-      // original timestamp, so the climax ramp builds across scenes, not per scene
+      out._lyrPhase=_LYR5_OLD[P_]||'tender';   // (21.08) the phase is STAMPED into the scene: restore carries it to both windows at play time
+      out._lyrStage=_LYR5[P_]||'caress';        // (05.11) the five-stage name — the seams, the ledger and the montage read it
+      out._lyrEvent=(P_===3)?'climax':null;     // (05.11) the climax scene carries its event — the main-section emission fires it at the first meeting of a and b
+      if(P_!==2 && P_!==3){ try{ window._lyrPassN=0; }catch(e){} }   // the passion climb counter re-arms outside passion
+      // breath dramaturgy helper: consecutive scenes of the SAME stage keep the original timestamp, so a ramp builds across scenes
       const _setBH=(o)=>{ const pv=window._breathHint; o.act='lyric'; o.ts=(pv&&pv.stage===o.stage)?pv.ts:Date.now(); window._breathHint=o;
         try{ if(window._duoMailBH && state.duo && state.duo.on && !document.body.classList.contains('mk-embedded')) window._duoMailBH(o); }catch(e){} };   // (21.08) the phase breathes in BOTH windows
       out.motion='prepost'; out.secMask={pre:true,main:true,post:true};
       out.glissA=true; out.tie=true; out.arp=false;
-      // (21.08) THE MARKOVS' OWN HAND on the distance between them (O7: entry-
-      // distance compresses across the arc): a breath apart in tender, trading
-      // the lead in desire, skin in passion, a far echo in afterglow. Only the
-      // parent window steers, only when the human hand has been idle a while.
+      // THE CARESS TEMPO is the arc's ground (author 05.11: «темп средний с ускорениями и замедлениями»): a medium pulse, fixed
+      // once per arc, that the caress quickens and slows scene by scene (a wave of ±9 %), and that every later stage climbs from.
+      if(!_lyrBase){ const _bl=(A.bpmMin||60), _bh=(A.bpmMax||184); _lyrBase=Math.round(Math.max(_bl, Math.min(_bh, 84+Math.random()*20))); }
+      const _wave=(n)=> (n%2===0)? 1.09 : 0.91;   // accelerando, ritardando, accelerando…
+      // (21.08) THE MARKOVS' OWN HAND on the distance between them, by stage: a breath apart in caress, closer in desire, the
+      // tightest overlap in passion, nothing between them at the climax, a far echo in catharsis. Only the parent window steers,
+      // only when the human hand has been idle a while.
       try{
         if(state.duo && state.duo.on && state.duo.mode!=='pal' && !document.body.classList.contains('mk-embedded')
            && window._duoSetOffset && (Date.now()-(window._offHandAt||0))>90000){
-          // (21.08, author: «ручка офсет используется для канона») — the offset IS
-          // the canon interval between dux and comes. The arc leads it by canon
-          // law: half-canon apart in tender (a breath, not yet a canon); the true
-          // canon in desire at a quarter of the world, dux and comes trading; the
-          // STRETTO in passion — the distance halves, then skin (O7: the tightest
-          // overlap last); the far echo in afterglow.
           const _P9=Math.max(5,(out.p|0)||((base&&base.p)|0)||(state.p|0)||13);
           const _cn=Math.max(1,Math.round((_P9-1)/4));
-          const _tgt=[ Math.min(2,_cn*0.5),
-                       (_actBeatN%2? -_cn:_cn),
-                       (_lyricLeft>1? Math.max(1,Math.round(_cn/2)) : 0),
-                       Math.min(3,_cn) ][P_]||0;
+          const _tgt=[ Math.min(2,_cn*0.5), Math.max(1,Math.round(_cn*0.35)), Math.max(1,Math.round(_cn/2)), 0, Math.min(3,_cn) ][P_]||0;
           window._duoSetOffset(_tgt);
         }
       }catch(e){}
       out.exprArticOn=true; out.exprArticDepth=Math.max(out.exprArticDepth||0,0.7);
       if(!out.vol) out.vol={};
-      if(P_===0){                     // TENDER
-        _setBH({stage:'tender', Tlo:7.0, Thi:10.0, depth:0.32, inh:0.38});   // calm, close breathing — near 0.1 Hz, the one proven screen-to-body channel (Vickhoff 2013)
-        if(!out.vol) out.vol={}; out.vol.master=0.35;   // the arc's floor states are explicit: the mountain is only as tall as its valleys are low
-        out.abOffsetBeats=0.06+Math.random()*0.06;            // b answers a with a breath's delay
+      if(P_===0){                     // CARESS — ласка: two voices, breath, touches, whispers, strokes, kisses
+        _setBH({stage:'tender', Tlo:6.0, Thi:9.0, depth:0.34, inh:0.40});   // calm, close breathing — near 0.1 Hz
+        out.vol.master=0.36;                                  // the arc's floor is explicit: the mountain is only as tall as its valleys are low
+        out.bpm=Math.round(_lyrBase*_wave(_lyrCaressN++));    // the medium pulse, quickening and slowing scene by scene
+        out.abOffsetBeats=0.05+Math.random()*0.05;            // touches: b answers a a breath later
         out.postOffsetBeats=0.08+Math.random()*0.06;
-        out.durIdx=Math.max(out.durIdx||18,24);
-        out.reorderA=(Math.random()<0.5?0:4); out.glissB=false; out.trig=['a'];
-        out.vibDepth=10; out.tremDepth=0.04; out.modDepth=Math.max(out.modDepth||0,0.35);
-        out.attackMorph=Math.max(out.attackMorph||0,0.6);     // the softest touch there is
-        out.vol.a=Math.max(out.vol.a||0,0.20); out.vol.b=Math.max(out.vol.b||0,0.10);
+        out.durIdx=Math.max(out.durIdx||18,22);               // long strokes
+        out.reorderA=(Math.random()<0.5?0:4); out.glissB=true;   // both voices slide — the strokes
+        out.vibDepth=8; out.tremDepth=0.03; out.modDepth=Math.max(out.modDepth||0,0.30);
+        out.attackMorph=Math.max(out.attackMorph||0,0.75);    // the softest touch there is
+        out.vol.a=Math.max(out.vol.a||0,0.17); out.vol.b=Math.max(out.vol.b||0,0.15);   // two voices, both whispering
+        out.vol.diag=0.12;                                    // the kiss: the bell where a meets b, soft
+        out.vol.kick=0; out.vol.hat=0; out.vol.omega=0;       // no drums; the circle is silent
         out.vol.prelude=Math.max(out.vol.prelude||0,0.12); out.vol.postlude=Math.max(out.vol.postlude||0,0.12);   // the breath stays audible
-        out.vol.sustain=Math.max(out.vol.sustain||0,0.14);
-        out.minFreq=Math.round(Math.max(out.minFreq||90,150));
-        out.voiceInst=Object.assign({},out.voiceInst||{},{a:'flute',b:'str',sustain:'str',chord:'bell',prelude:'flute',postlude:'reed'});
-      } else if(P_===1){              // DESIRE: pursuit — the lead changes hands scene by scene
-        _setBH({stage:'desire', Tlo:4.0, Thi:6.0, depth:0.44, inh:0.42});   // quickening, deepening
-        if(!out.vol) out.vol={}; out.vol.master=0.44;   // one step up the mountain
-        out.abOffsetBeats=(_actBeatN%2?1:-1)*(0.04+Math.random()*0.06);
-        out.postOffsetBeats=0.10;                             // a held breath
-        out.durIdx=Math.max(out.durIdx||18,20);
-        out.reorderA=4; out.glissB=true;                      // both voices slide — skin
-        out.trig=(Math.random()<0.5)?['a']:['a','b'];
-        out.vibDepth=18; out.tremDepth=0.10;                  // the shiver
-        out.modDepth=Math.max(out.modDepth||0,0.5);
-        out.attackMorph=Math.max(out.attackMorph||0,0.45);
-        out.vol.a=Math.max(out.vol.a||0,0.22); out.vol.b=Math.max(out.vol.b||0,0.19);   // (21.08 ear) the answerer steps forward — desire wants more of her
+        out.vol.sustain=Math.max(out.vol.sustain||0,0.12);
+        out.trig=[];
+        out.minFreq=Math.round(Math.max(out.minFreq||90,170)); // whispers: higher, lighter
+        out.voiceInst=Object.assign({},out.voiceInst||{},{a:'flute',b:'str',sustain:'str',chord:'bell',prelude:'flute',postlude:'reed',diag:'bell'});
+      } else if(P_===1){              // DESIRE — желание: the caress developing — closer, warmer, a little faster, the first chord on a kiss
+        _setBH({stage:'desire', Tlo:4.5, Thi:6.5, depth:0.44, inh:0.42});   // quickening, deepening
+        out.vol.master=0.42;
+        out.bpm=Math.round(_lyrBase*1.12*_wave(_lyrCaressN++));   // the same wave, a step quicker
+        out.abOffsetBeats=(_actBeatN%2?1:-1)*(0.03+Math.random()*0.03);   // the answer comes closer, from either side
+        out.postOffsetBeats=0.06;
+        out.durIdx=Math.max(out.durIdx||18,18);
+        out.glissB=true; out.vibDepth=14; out.tremDepth=0.06; out.modDepth=Math.max(out.modDepth||0,0.45);
+        out.attackMorph=Math.max(out.attackMorph||0,0.5);
+        out.vol.a=Math.max(out.vol.a||0,0.22); out.vol.b=Math.max(out.vol.b||0,0.20);   // the answerer steps forward — desire wants more of her
+        out.vol.diag=0.16;                                    // the kisses, more
+        out.vol.kick=0; out.vol.hat=0.06; out.vol.omega=0.12; // the circle begins to speak (in the squaring order)
         out.vol.sustain=Math.max(out.vol.sustain||0,0.18);    // the bloodstream warms
-        out.minFreq=Math.round(Math.max(out.minFreq||90,130));
-        out.voiceInst=Object.assign({},out.voiceInst||{},{a:'reed',b:'str',sustain:'str',chord:'bell',prelude:'reed',postlude:'reed'});
-      } else if(P_===2){              // PASSION
-        // (21.08, the ear: «возбуждения, страсти и оргазма нет — реальность»)
-        // Passion gets a BODY: Dean 2011 — the intensity envelope IS the felt-
-        // arousal contour, causally. Each passion scene climbs: tempo ×1.18,
-        // master a step louder, the groove fuller. The mind was built; this is
-        // the blood.
-        // 21.08 signal verdict on the first recorded arc: passion measured
-        // QUIETER than desire — the 12:1 compressor (never bypassed) flattens
-        // everything upstream, and a 0.06 master step is one decibel of sand.
-        // master sits AFTER the compressor: it is the one honest lever, so the
-        // mountain is built there — ~6 dB of climb with a cliff into afterglow.
+        out.vol.chord=0.18; out.trig=['diag']; out.typeId='cycle'; out._chordDose=1;   // a configuration on a kiss — the first chords, rare by themselves
+        out.minFreq=Math.round(Math.max(out.minFreq||90,140));
+        out.voiceInst=Object.assign({},out.voiceInst||{},{a:'reed',b:'str',sustain:'str',chord:'bell',prelude:'reed',postlude:'reed',diag:'bell'});
+      } else if(P_===2){              // PASSION — страсть: the body
+        // (21.08, the ear: «абсолютная вялость» — «жгите») passion is ARTICULATION, not just level: tempo ×1.5, hard attacks,
+        // gliss OFF (the pulse returns), short notes, the kick alive; master sits AFTER the 12:1 compressor — the one honest lever.
         window._lyrPassN=(window._lyrPassN|0)+1;
-        // (21.08, the ear again: «абсолютная вялость» — «жгите») passion is
-        // ARTICULATION, not just level: tempo ×1.5, hard attacks, gliss OFF
-        // (the pulse returns), short notes, the kick alive. Loud tenderness is
-        // not passion; the pulse is.
-        out.bpm=Math.min(A.bpmMax||184, Math.round((out.bpm||120)*1.5));
-        if(!out.vol) out.vol={};
-        out.vol.master=Math.min(0.60, 0.40+0.10*Math.min(2,window._lyrPassN));
+        out.bpm=Math.min(A.bpmMax||184, Math.round(_lyrBase*1.5*(1+0.04*Math.min(3,window._lyrPassN))));   // climbing scene by scene
+        out.vol.master=Math.min(0.58, 0.46+0.04*Math.min(3,window._lyrPassN));
         out.vol.hat=Math.max(out.vol.hat||0,0.20); out.vol.kick=Math.max(out.vol.kick||0,0.22);
         out.attackMorph=0.1;                          // the sharpest touch — the bite
         out.glissA=false; out.glissB=false;           // no sliding at the peak: attacks, not caresses
         out.durIdx=Math.min(out.durIdx||18,13);       // short notes — event density is its own fire
-        _setBH({stage:'passion', Tlo:3.6, Thi:5.0, Tlo2:1.3, Thi2:2.0, depth:0.50, depth2:0.66, inh:0.46, ramp:22});
-        // THE CLIMAX (author 29.07: «страсть гораздо быстрее в кульминации»): the
-        // breath ACCELERATES through passion — over ~22 s the period collapses from
-        // ~4 s to 1.3–2 s and deepens to 66%; the afterglow's sudden 8–11 s calm is
-        // the release. The contrast IS the culmination.
+        _setBH({stage:'passion', Tlo:3.6, Thi:5.0, Tlo2:1.3, Thi2:2.0, depth:0.50, depth2:0.66, inh:0.46, ramp:22});   // the breath ACCELERATES through passion
         out.abOffsetBeats=-(0.03+Math.random()*0.05);         // a leaps ahead
-        out.postOffsetBeats=0.04;
-        out.reorderA=9; out.archANQR=-1;                      // contrary crossing stays — but STRUCK now, not slid («жгите»)
-        out.trig=['a','b'];
-        out.vibDepth=30; out.tremDepth=0.18;
-        out.modDepth=Math.max(out.modDepth||0,0.65);
-        out.vol.a=Math.max(out.vol.a||0,0.30); out.vol.b=Math.max(out.vol.b||0,0.26);   // (21.08 ear: «страсть — много больше») both bodies at full voice
+        out.vol.a=Math.max(out.vol.a||0,0.30); out.vol.b=Math.max(out.vol.b||0,0.26);   // both bodies at full voice
         out.vol.sustain=Math.max(out.vol.sustain||0,0.20);
+        out.vol.diag=0.14; out.vol.omega=0.30;                // the circle in the squaring order
+        out.vol.chord=0.24; out.trig=['a','b']; out.typeId='diamond'; out._chordDose=0.06;   // the configurations from both voices — one trigger in sixteen, one chord each, so they stay events (measured 05.11: a quarter gave 130 in 68 s — a wall)
+        out.vibDepth=30; out.tremDepth=0.18; out.modDepth=Math.max(out.modDepth||0,0.65);
         out.minFreq=Math.round(Math.max(out.minFreq||90,110));   // the full body sings
         out.voiceInst=Object.assign({},out.voiceInst||{},{a:'str',b:'str',chord:'brass',sustain:'str',prelude:'reed',postlude:'reed'});
-      } else {                        // AFTERGLOW: suddenly very quiet, very close
-        _setBH({stage:'afterglow', Tlo:8.0, Thi:11.0, depth:0.26, inh:0.30});   // long, settling, spent
-        if(!out.vol) out.vol={}; out.vol.master=0.30;   // the cliff after the peak — the contrast IS the culmination
-        out.vol.diag=Math.min(out.vol.diag!=null?out.vol.diag:0.15, 0.15);   // 21.08 signal: an afterglow bell measured as the take's loudest moment — the cradle is hushed
+      } else if(P_===3){              // CLIMAX — кульминация: ONE scene, one event (see the main-section emission: _lyrEvent)
+        _setBH({stage:'passion', Tlo:2.6, Thi:3.4, Tlo2:1.2, Thi2:1.6, depth:0.62, depth2:0.70, inh:0.48, ramp:10});
+        out.bpm=Math.min(A.bpmMax||184, Math.round(_lyrBase*1.6));
+        out.vol.master=0.60;
+        out.vol.hat=0.24; out.vol.kick=0.26;
+        out.attackMorph=0.08; out.glissA=false; out.glissB=false; out.durIdx=Math.min(out.durIdx||18,11);
+        out.abOffsetBeats=0;                                  // nothing between them
+        out.vol.a=0.32; out.vol.b=0.30; out.vol.sustain=Math.max(out.vol.sustain||0,0.22);
+        out.vol.diag=0.20; out.vol.omega=0.50;                // the bell of the meeting; the harp at full
+        out.vol.chord=0.30; out.vol.glue=Math.max(out.vol.glue||0,0.14); out.trig=['a','b','diag']; out.typeId='complete'; out._chordDose=0.12;   // the complete configuration — all six differences agree; one trigger in eight (measured 05.11: a third gave 13 chords in the climax's 24 s — the event must stand alone)
+        out.vibDepth=34; out.tremDepth=0.20; out.modDepth=Math.max(out.modDepth||0,0.7);
+        out.minFreq=Math.round(Math.max(out.minFreq||90,110));
+        out.voiceInst=Object.assign({},out.voiceInst||{},{a:'str',b:'str',chord:'brass',sustain:'str',prelude:'reed',postlude:'reed'});
+      } else {                        // CATHARSIS — катарсис: the release, warm, held, far apart
+        _setBH({stage:'afterglow', Tlo:8.0, Thi:11.0, depth:0.26, inh:0.30});   // long, settling
+        out.vol.master=0.40;                                  // warm, not a cliff
+        out.bpm=Math.max(A.bpmMin||60, Math.round(_lyrBase*0.8));   // the bottom of the arc's ladder
+        out.vol.diag=0.10;
         out.abOffsetBeats=0.15;                               // b far behind — an echo of what just was
         out.postOffsetBeats=0.12;
         out.durIdx=Math.max(out.durIdx||18,26);
-        out.reorderA=0; out.glissB=false; out.trig=[];
-        out.vibDepth=8; out.tremDepth=0.03;
-        out.modDepth=Math.max(out.modDepth||0,0.3);
+        out.reorderA=0; out.glissA=true; out.glissB=true; out.trig=[];
+        out.vibDepth=8; out.tremDepth=0.03; out.modDepth=Math.max(out.modDepth||0,0.3);
         out.attackMorph=Math.max(out.attackMorph||0,0.7);
-        out.vol.a=Math.max(out.vol.a||0,0.16); out.vol.b=0.06;
-        out.vol.sustain=Math.max(out.vol.sustain||0,0.18);
-        out.vol.prelude=Math.max(out.vol.prelude||0,0.14); out.vol.postlude=Math.max(out.vol.postlude||0,0.14);   // only the breath remains
+        out.vol.a=0.16; out.vol.b=0.12; out.vol.kick=0; out.vol.hat=0;
+        out.sustainOn=true; out.vol.sustain=Math.max(out.vol.sustain||0,0.26);   // the bowl held on its anchor
+        out.vol.omega=0.16;                                   // the harp once more, quiet
+        out.vol.prelude=Math.max(out.vol.prelude||0,0.14); out.vol.postlude=Math.max(out.vol.postlude||0,0.14);   // the breath remains
         out.minFreq=Math.round(Math.max(out.minFreq||90,140));
         out.voiceInst=Object.assign({},out.voiceInst||{},{a:'flute',b:'flute',sustain:'str',chord:'bell',prelude:'flute',postlude:'flute'});
       }
@@ -17839,10 +17848,10 @@ const learner = (()=>{
       // (03.08 author: «колотушки в лирике излишни») — the kick left the bedroom:
       // the pulse belongs to the rare heart alone; the groove keeps body and air only
       const _lm=_pickMeter('lyric'), _ld=_pickDen('lyric',_lm);
-      out.groove = (_lyricPhase===2) ? JSON.parse(JSON.stringify(_grv('broken',0.55,0.05,['kick','bass','tom','hatC','hatO'],_lm,_ld)))
-                 : (_lyricPhase===1) ? JSON.parse(JSON.stringify(_grv('breath',0.25,0.10,['bass','hatC'],_lm,_ld)))
-                 : (_lyricPhase===3) ? ((Math.random()<0.6)?{arch:'off',intensity:0}:JSON.parse(JSON.stringify(_grv('slow',0.15,0.12,['bass'],_lm,_ld))))
-                 : ((Math.random()<0.6)?{arch:'off',intensity:0}:JSON.parse(JSON.stringify(_grv('slow',0.20,0.12,['bass','hatC'],_lm,_ld))));
+      out.groove = (_lyricPhase===2 || _lyricPhase===3) ? JSON.parse(JSON.stringify(_grv('broken',_lyricPhase===3?0.70:0.55,0.05,['kick','bass','tom','hatC','hatO'],_lm,_ld)))   // (05.11) passion and the climax have the body
+                 : (_lyricPhase===1) ? JSON.parse(JSON.stringify(_grv('breath',0.22,0.10,['bass'],_lm,_ld)))   // desire: the breath's pulse, no kit
+                 : (_lyricPhase===4) ? ((Math.random()<0.7)?{arch:'off',intensity:0}:JSON.parse(JSON.stringify(_grv('slow',0.12,0.12,['bass'],_lm,_ld))))
+                 : {arch:'off',intensity:0};   // caress: no drums at all (author 05.11)
     }
     return out;
   }
@@ -18116,8 +18125,7 @@ const learner = (()=>{
       else { _actPhase=_actPhase?0:1;
         if(_actPhase){ _woRound++; if(_woRound>8){ _woVict=true; _actPhase=0; } } }   // 8 rounds, then the victory lap
     }
-    if(state.activity==='lyric'){ if(--_lyricLeft<=0){ _lyricPhase=(_lyricPhase+1)%4;
-      _lyricLeft=[2+Math.floor(Math.random()*2), 2, 1+(Math.random()<0.5?1:0), 1][_lyricPhase]; } }   // tender → desire → passion → afterglow, then again
+    if(state.activity==='lyric'){ if(--_lyricLeft<=0){ do{ _lyricPhase=(_lyricPhase+1)%5; _lyricLeft=_lyrCounts[_lyricPhase]|0; if(_lyricPhase===0){ _lyricLeft=_lyrCounts[0]||2; _lyrBase=0; } }while(_lyricLeft<=0); } }   // (05.11) caress → desire → passion → climax → catharsis, then again (a stage with no scenes in this plan is skipped)
     if(state.activity==='meditate') _prayStep++;   // the prayer advances one verse per scene
     if(state.activity==='focus'){ _focusStep++; if(_focusStep>=_focusLen){ _focusStep=0; _focusLen=5+Math.floor(Math.random()*3); } }   // proofs of 5–7 scenes
     let out=JSON.parse(JSON.stringify(base));
@@ -18220,22 +18228,6 @@ const learner = (()=>{
     }
     else if(out.groove) delete out.groove;
     out=_actShape(base,out);                    // ACTIVITY frame shapes the final scene
-    // (05.11, author: «почему я не вижу и не слышу ни в одном жанре конфигурации Гончаровой?») A SCENE THAT TRIGGERS CHORDS GETS A
-    // WORLD WHERE THEY EXIST. Verified: the quadruples live only at p ≡ 1 (mod 4) — half the primes the improviser walks gave no
-    // chord at all — and the chosen type can be empty at this p (complete K4 below 41), so a scene's triggers fired into
-    // silence, and with vol.chord at 0 the chord layer was dropped as an «inaudible block». Now: the prime moves to the nearest
-    // 4k+1 prime unless the hand holds it (keepP / a pinned 'prime'), the type falls back to the nearest existing one (richer
-    // first), and the chord fader is lifted off the floor. Meditate sets no triggers and keeps its room.
-    try{ const _tr=out.trig; const _trOn=!!(_tr && _tr!=='none' && _tr.length);
-      if(_trOn && typeof cfgHasQuads==='function' && typeof isPrime==='function'){
-        const _pinnedP=keepP || (state.apPins && state.apPins.has('prime'));
-        let q=out.p|0;
-        if(q%4!==1 && !_pinnedP){ let up=q+1, dn=q-1; while(up<100003 && !(up%4===1 && isPrime(up))) up++; while(dn>=5 && !(dn%4===1 && isPrime(dn))) dn--;
-          q=(dn>=5 && (q-dn)<=(up-q))?dn:up; out.p=q; out.r=Math.max(1,Math.min(q-1,out.r|0||1)); }
-        if(q%4===1){ const _order=['complete','diamond','cycle','paw','star','path4','triangle','matching','path3','one_edge'];
-          let t=out.typeId||'complete'; if(!cfgHasQuads(q,t)){ const alt=_order.find(x=>cfgHasQuads(q,x)); if(alt) t=alt; } out.typeId=t;
-          if(!out.vol) out.vol={}; if(!(out.vol.chord>0.05)) out.vol.chord=0.22; if(!(out.vol.glue>0.02)) out.vol.glue=Math.max(out.vol.glue||0,0.10); }
-      } }catch(e){}
     // MARKOVA answers by crossing: when she is present, the pre/post lean toward
     // direct = −reversed (contrary motion), more as the scene tenses — her reply to him.
     if(state.markova){
@@ -18379,6 +18371,26 @@ const learner = (()=>{
     { const _T=(state.topHz!=null?state.topHz:1250);
       out.minFreq=clamp(Math.round(out.minFreq||111),20,Math.max(40,_T-40));
       out.maxFreq=clamp(Math.round(out.maxFreq||1332),Math.max(40,out.minFreq+1),_T); }
+    // (05.11, author: «почему я не вижу и не слышу ни в одном жанре конфигурации Гончаровой?») A SCENE THAT TRIGGERS CHORDS GETS A
+    // WORLD WHERE THEY EXIST. Verified: the quadruples live only at p ≡ 1 (mod 4) — half the primes the improviser walks gave no
+    // chord at all — and the chosen type can be empty at this p (complete K4 below 41), so a scene's triggers fired into
+    // silence, and with vol.chord at 0 the chord layer was dropped as an «inaudible block». Now: the prime moves to the nearest
+    // 4k+1 prime unless the hand holds it (keepP / a pinned 'prime'), the type falls back to the nearest existing one (richer
+    // first), and the chord fader is lifted off the floor. Meditate sets no triggers and keeps its room. (05.11 later) THE LAST WORD ON p:
+    // placed at the end of generate — the dialogue's class alternation (4k+1 ↔ 4k+3, 60 %) and the omega-circle guard both re-chose
+    // the prime after this block and sent a triggering scene back to a 4k+3 world (measured: the climax at p=19, no chord). Where the
+    // circle guard applies (omega on) the 4k+1 prime found here must have a circle too.
+    try{ const _tr=out.trig; const _trOn=!!(_tr && _tr!=='none' && _tr.length);
+      if(_trOn && typeof cfgHasQuads==='function' && typeof isPrime==='function'){
+        const _pinnedP=keepP || (state.apPins && state.apPins.has('prime'));
+        let q=out.p|0;
+        const _needC=(vget('omega')>0.05 && typeof _hasCircle==='function'); const _okP=(v)=> v%4===1 && isPrime(v) && (!_needC || _hasCircle(v));
+        if(q%4!==1 && !_pinnedP){ let up=q+1, dn=q-1; while(up<100003 && !_okP(up)) up++; while(dn>=5 && !_okP(dn)) dn--;
+          q=(dn>=5 && (q-dn)<=(up-q))?dn:up; out.p=q; out.r=Math.max(1,Math.min(q-1,out.r|0||1)); }
+        if(q%4===1){ const _order=['complete','diamond','cycle','paw','star','path4','triangle','matching','path3','one_edge'];
+          let t=out.typeId||'complete'; if(!cfgHasQuads(q,t)){ const alt=_order.find(x=>cfgHasQuads(q,x)); if(alt) t=alt; } out.typeId=t;
+          if(!out.vol) out.vol={}; if(!(out.vol.chord>0.05)) out.vol.chord=0.22; if(!(out.vol.glue>0.02)) out.vol.glue=Math.max(out.vol.glue||0,0.10); }
+      } }catch(e){}
     lastState=out; return out;
   }
   function applyNext(addToSession=false){
@@ -18720,6 +18732,7 @@ const learner = (()=>{
       // the tail has reached silence (_qrEndArm's watch). The rest window (rest) then counts from that pause, as it did from
       // the fade's end; Markova rests with him by the same pause, so the old {t:'rest'} mail is not needed.
       let armed=false; try{ if(window._qrEndArm && state.running && !state.paused){ window._qrEndArm(Date.now()+fadeOut, 'the cockpit form', false); armed=!!window._qrEndGate; } }catch(e){}
+      if(formTimer){ clearTimeout(formTimer); formTimer=null; }   // (05.11, measured) the form's own scene stepping stops here: with formStop deferred to the rest, the next step landed inside the tail (a restore 16 s after the last beat — its drone kill and its master move), so the end is the last scene's
       if(!armed){ try{ if(state.running && !state.paused) pauseAudio(); }catch(e){} }   // no gate (no audio, or already resting): the old instant pause, no fader
       const w2=()=>{ if(!formOn || _formHold!==h) return;
         if(state.paused || !state.running){ h.rest=true;   // (30.10) from here the pause is the form's own
@@ -20828,7 +20841,7 @@ startRenderLoop();
         try{ _q2=(_mk2>1)?_multPrime(st.p|0,_mk2):null;
           if(_q2){ st.p=_q2; if(st.r) st.r=Math.max(1,Math.min(_q2-1,Math.ceil((st.r|0)/_mk2))); st.bpm=Math.max(5,Math.min(999,(st.bpm||state.bpm)/_mk2)); } }catch(e){ _q2=null; }
         scenes.restore(st,{at:_at});   // (04.11) the previous scene's long voices, the faders, sends and pans land at the beat, not at the queueing
-        try{ state._lyrPhase=st._lyrPhase||null;
+        try{ state._lyrPhase=st._lyrPhase||null; state._lyrStage=st._lyrStage||null; state._lyrEvent=st._lyrEvent||null; state._chordDose=(st._chordDose!=null)?st._chordDose:null; if(typeof synthState!=='undefined' && synthState){ synthState._lyrClimaxAt=0; synthState._lyrN=0; }   // (05.11) the five-stage name, the climax event and the chord dose ride the seam too; the event re-arms per scene
           if(st._lyrPhase && window._duoMailBH && !document.body.classList.contains('mk-embedded')) window._duoMailBH({act:'lyric', stage:st._lyrPhase, ts:Date.now()});
           if(st._lyrPhase && window._duoSpaceSet) window._duoSpaceSet({tender:0.75,desire:0.45,passion:0.08,afterglow:0.15}[st._lyrPhase] ?? 0.5);
         }catch(e){}   // (21.08) the stamped phase rides the pal seam too
@@ -21308,7 +21321,7 @@ startRenderLoop();
         if(st.duo) delete st.duo; if(st.solo) delete st.solo;
         try{ if(typeof apStripPinned==='function') apStripPinned(st, scenes.capture()); }catch(e){}   // (14.10) the pins hold at every seam
         scenes.restore(st,{at:_at});   // (04.11) the previous scene's long voices, the faders, sends and pans land at the beat, not at the queueing
-        try{ state._lyrPhase=st._lyrPhase||null;
+        try{ state._lyrPhase=st._lyrPhase||null; state._lyrStage=st._lyrStage||null; state._lyrEvent=st._lyrEvent||null; state._chordDose=(st._chordDose!=null)?st._chordDose:null; if(typeof synthState!=='undefined' && synthState){ synthState._lyrClimaxAt=0; synthState._lyrN=0; }   // (05.11) the five-stage name, the climax event and the chord dose ride the seam too; the event re-arms per scene
           if(st._lyrPhase && window._duoMailBH && !document.body.classList.contains('mk-embedded')) window._duoMailBH({act:'lyric', stage:st._lyrPhase, ts:Date.now()});
           if(st._lyrPhase && window._duoSpaceSet) window._duoSpaceSet({tender:0.75,desire:0.45,passion:0.08,afterglow:0.15}[st._lyrPhase] ?? 0.5);   // the arc walks them through the room: across -> approaching -> skin -> the room dissolves
         }catch(e){}   // (21.08) the scene's stamped arc phase rides the seam — and the breath mail carries it to her window
@@ -21373,7 +21386,7 @@ startRenderLoop();
   };
   window._qrFormCreate=function(T){
     T=Math.max(10,Math.min(59940,+T||0));
-    try{ if(state.activity==='lyric' && window._lyricArcReset) window._lyricArcReset(); }catch(e){}   // (21.08) the arc is born in tenderness at COMPOSITION time — generate() consumes the phases while building the scenes
+    try{ if(state.activity==='lyric' && window._lyricArcReset) window._lyricArcReset(Math.max(3,Math.min(13,Math.round(T/20)))); }catch(e){}   // (05.11) the five stages are laid over the plan's scenes   // (21.08) the arc is born in tenderness at COMPOSITION time — generate() consumes the phases while building the scenes
     var plan=_qrBuildPlan(T);
     if(!plan){ try{ if(typeof _fl==='function') _fl('form','nothing to create — the improviser gave no scenes'); }catch(e){} return null; }
     var _form=null; try{ _form=(state.duo&&state.duo.mode)||'parts'; }catch(e){}
