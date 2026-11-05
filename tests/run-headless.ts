@@ -40,7 +40,8 @@ const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
 const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
 await send('Page.enable', {}, sessionId); await send('Runtime.enable', {}, sessionId);
 try { await send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId); } catch {}
-const ev = async (expr: string) => { const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true, userGesture: true }, sessionId);
+// (05.11) every evaluate under a timeout: a page whose main thread stalls must fail the scenario, not the whole run
+const ev = async (expr: string, ms = 30000) => { const r = await Promise.race([send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true, userGesture: true }, sessionId), sleep(ms).then(() => { throw new Error('evaluate timeout (' + ms + ' ms): ' + expr.slice(0, 60)); })]);
   if (r.exceptionDetails) throw new Error(String(r.exceptionDetails.exception?.description || r.exceptionDetails.text).slice(0, 500)); return r.result.value; };
 async function load(page: string) {
   await send('Page.navigate', { url: `http://127.0.0.1:${port}/${page}` }, sessionId);
@@ -54,7 +55,8 @@ let loaded = '';
 for (const sc of scenarios) {
   const page = sc.page || PAGE;
   // every scenario starts from a freshly loaded page (no mode, pin, ratio or paused prime left over from the one before)
-  if (sc.reload !== false) { await load(page); loaded = page; }
+  if (sc.reload !== false) { try { await load(page); } catch (e) { console.log(`  ${sc.name}: load failed — ${String(e).slice(0, 200)}`); results.push({ name: sc.name, error: 'load: ' + String(e).slice(0, 300), page }); continue; } loaded = page; }
+  console.error(`  … ${sc.name}`);
   const t1 = Date.now(); exceptions.length = 0;
   let res: any;
   try {

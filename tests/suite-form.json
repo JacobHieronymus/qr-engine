@@ -1,0 +1,98 @@
+[
+ {
+  "name": "form end · focus parts 20s",
+  "mode": "form",
+  "genre": "focus",
+  "T": 20,
+  "duoMode": "parts",
+  "secs": 70
+ },
+ {
+  "name": "form end · focus solo 20s",
+  "mode": "form",
+  "genre": "focus",
+  "T": 20,
+  "pair": false,
+  "secs": 70
+ },
+ {
+  "name": "form end · meditate parts 24s",
+  "mode": "form",
+  "genre": "meditate",
+  "T": 24,
+  "duoMode": "parts",
+  "secs": 80
+ },
+ {
+  "name": "form end · pal from free 20s",
+  "mode": "form",
+  "genre": "focus",
+  "T": 20,
+  "duoMode": "free",
+  "secs": 70,
+  "setup": "var b=[...document.querySelectorAll('#face-formp button')].find(function(b){return /palindrome/.test(b.textContent)}); if(b) b.click();"
+ },
+ {
+  "name": "restart inside the tail",
+  "mode": "form",
+  "genre": "focus",
+  "T": 16,
+  "duoMode": "parts",
+  "secs": 75,
+  "untilPause": false,
+  "steps": [
+   [
+    21.5,
+    "T.face.go()"
+   ]
+  ],
+  "probes": [
+   [
+    21,
+    "({gate:window._qrEndGate&&{closed:window._qrEndGate.closed,n:window._qrEndGate.n}, run:state.running, pau:state.paused, key:document.getElementById('face-go').textContent})"
+   ],
+   [
+    23,
+    "({gate:window._qrEndGate&&{closed:window._qrEndGate.closed,n:window._qrEndGate.n}, run:state.running, pau:state.paused, key:document.getElementById('face-go').textContent, on:!!window._formOn})"
+   ]
+  ]
+ },
+ {
+  "name": "big p after meditation",
+  "mode": "form",
+  "genre": "meditate",
+  "T": 14,
+  "duoMode": "parts",
+  "secs": 30,
+  "untilPause": false,
+  "steps": [
+   [
+    8,
+    "window._qrFormStop()"
+   ],
+   [
+    10,
+    "T.face.genre('focus')"
+   ],
+   [
+    12,
+    "T.face.make()"
+   ]
+  ],
+  "probes": [
+   [
+    6,
+    "({p:state.p, act:state.activity})"
+   ],
+   [
+    11,
+    "({p:state.p, viz:state.vizP, act:state.activity, run:state.running, pau:state.paused, row:(document.getElementById('live-p')||{}).textContent})"
+   ],
+   [
+    15,
+    "({p:state.p, act:state.activity, planP:window._qrFormPlan&&window._qrFormPlan.plan.map(function(it){return it.state.p}), row:(document.getElementById('live-p')||{}).textContent})"
+   ]
+  ],
+  "expect": "p"
+ }
+]

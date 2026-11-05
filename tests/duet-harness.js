@@ -51,7 +51,7 @@
     return false;
   };
   // cfg: {name, mode:'retro'|'parts'|'free'|'solo', k, p, bpm, secs, pinBpm, auto, keys:[[sec,'ArrowUp'],...], sections:'all'}
-  T.start = function (cfg) { T.cfg = cfg; T.done = false; T.result = null; T.promise = T.run(cfg).then(r => { T.result = r; T.done = true; return r; }, e => { T.result = { error: String(e && e.stack || e) }; T.done = true; }); return 'started ' + cfg.name; };
+  T.start = function (cfg) { T.cfg = cfg; T.done = false; T.result = null; T.promise = (cfg.mode === 'form' ? T.runForm(cfg) : T.run(cfg)).then(r => { T.result = r; T.done = true; return r; }, e => { T.result = { error: String(e && e.stack || e) }; T.done = true; }); return 'started ' + cfg.name; };
   T.run = async function (cfg) {
     T.errors = []; T.restores = {}; T.rec = []; T.marks = [];
     const solo = cfg.mode === 'solo';
@@ -140,8 +140,116 @@
     out.verdict = { p: pct(pOK, pBad), tempo: cfg.pinBpm ? 'pinned' : pct(bOK, bBad), section: pct(sOK, sBad), rogue, errors: T.errors.length };
     return out;
   };
+  // ===== (04.11) THE FORM'S END — mode 'form': the face's written form from ✚ to its own end, both halves spied.
+  // cfg: {name, mode:'form', genre:'focus', T:20, secs, pair:true, duoMode:'parts', steps:[[sec, js]], floorDb:-60, stopAt:sec}
+  // Spies (no engine code changed): scheduleOneBeat (every queued beat with its audio time), killLongSustains, flushVoices,
+  // pauseAudio, scenes.restore, and every method of masterGain.gain — in both windows. Samples every 50 ms: the master's
+  // gain value, the output RMS (dB) from _outMeter, _formOn, the transport. The verdict reads the author's rule on endings:
+  // no fader on the master, no cut of a held drone before the tail is silent, the pause only at silence, no beat after the end.
+  function spyWin(w, tag) {
+    if (!w || w.__qrtSpied) return; w.__qrtSpied = 1;
+    const E = T.ev, now = T.now, ct = () => { try { const c = G(w, 'ctx'); return c ? +c.currentTime.toFixed(3) : null; } catch (e) { return null; } };
+    const wrap = (name, fn) => { try { const o = G(w, name); if (typeof o !== 'function') return; w[name] = function () { try { fn.apply(this, arguments); } catch (e) {} return o.apply(this, arguments); }; } catch (e) {} };
+    wrap('scheduleOneBeat', function (time) { const s = G(w, 'synthState'), st = G(w, 'state'); E.push({ t: now(), w: tag, ev: 'beat', at: +(+time).toFixed(3), c: ct(), ph: s && s.phase, ri: s && s.rIdx, p: st && st.p }); });
+    wrap('killLongSustains', function (reason, tau) { E.push({ t: now(), w: tag, ev: 'kill', why: String(reason), tau: tau, c: ct() }); });
+    wrap('flushVoices', function () { E.push({ t: now(), w: tag, ev: 'flush', c: ct() }); });
+    wrap('pauseAudio', function () { const st = G(w, 'state'); E.push({ t: now(), w: tag, ev: 'pause', to: st && st.running ? !st.paused : null, c: ct() }); });
+    try { const sc = G(w, 'scenes'); if (sc && sc.restore && !sc.__qrtSpy2) { sc.__qrtSpy2 = 1; const o = sc.restore; sc.restore = function (st, opts) { E.push({ t: now(), w: tag, ev: 'restore', p: st && st.p, c: ct(), opts: opts ? Object.keys(opts).join(',') : '' }); return o.apply(this, arguments); }; } } catch (e) {}
+    try { const mg = G(w, 'masterGain'); if (mg && mg.gain && !mg.gain.__qrtSpy) { mg.gain.__qrtSpy = 1; ['setTargetAtTime', 'linearRampToValueAtTime', 'exponentialRampToValueAtTime', 'setValueAtTime', 'cancelScheduledValues'].forEach(m => { const o = mg.gain[m]; if (typeof o !== 'function') return; mg.gain[m] = function () { E.push({ t: now(), w: tag, ev: 'master', m, v: +(+arguments[0]).toFixed(4), c: ct() }); return o.apply(this, arguments); }; }); } } catch (e) {}
+  }
+  function rmsDb(w) {
+    try { const an = G(w, '_outMeter'); if (!an) return null; const b = w.__qrtBuf || (w.__qrtBuf = new Float32Array(an.fftSize)); an.getFloatTimeDomainData(b); let s = 0; for (let i = 0; i < b.length; i++) s += b[i] * b[i]; const r = Math.sqrt(s / b.length); return +(20 * Math.log10(Math.max(r, 1e-7))).toFixed(1); } catch (e) { return null; }
+  }
+  function fsnap(w) {
+    const st = G(w, 'state'), s = G(w, 'synthState'), mg = G(w, 'masterGain'), c = G(w, 'ctx'); if (!st) return null;
+    return { c: c ? +c.currentTime.toFixed(2) : null, g: mg ? +mg.gain.value.toFixed(3) : null, db: rmsDb(w), run: !!st.running, pau: !!st.paused, on: !!G(w, 'window._formOn'), ph: s && s.phase, p: st.p, held: !!G(w, 'window._masterHeld') };
+  }
+  T.runForm = async function (cfg) {
+    T.errors = []; T.restores = {}; T.rec = []; T.marks = []; T.ev = []; T.probes = [];
+    const pair = cfg.pair !== false;
+    if (pair && !(await T.ensurePair())) return { name: cfg.name, error: 'no pair' };
+    const M = pair ? T.W() : null;
+    hookErrors(window, 'his'); if (M) hookErrors(M, 'her');
+    await stopBoth();
+    try { const L = G(window, 'learner'); if (L && L.isAutoOn && L.isAutoOn()) L.toggleAuto(); } catch (e) {}
+    if (pair && cfg.duoMode) { try { window._qrDuo.mode(cfg.duoMode); } catch (e) {} await sleep(500); }
+    if (cfg.setup) { try { (new Function(cfg.setup))(); } catch (e) { T.errors.push({ w: 'setup', t: 0, m: String(e) }); } await sleep(300); }
+    T.t0 = performance.now() / 1000;
+    spyWin(window, 'his'); if (M) spyWin(M, 'her');
+    const genre = g => { const b = [...document.querySelectorAll('#face-gen button')].find(x => x.textContent.trim() === g); if (!b) throw new Error('no genre key ' + g); b.click(); };
+    const setLen = s => { const mi = document.getElementById('face-min'), si = document.getElementById('face-sec'); mi.value = String(Math.floor(s / 60)); mi.dispatchEvent(new Event('change', { bubbles: true })); si.value = String(s % 60); si.dispatchEvent(new Event('change', { bubbles: true })); };
+    T.face = { genre, setLen, make: () => document.getElementById('face-make').click(), go: () => document.getElementById('face-go').click() };
+    try { if (cfg.genre) genre(cfg.genre); await sleep(400); setLen(cfg.T || 20); await sleep(300); T.face.make(); await sleep(1200); T.plan = G(window, 'window._qrFormPlan && {n:window._qrFormPlan.plan.length, T:window._qrFormPlan.T, form:window._qrFormPlan.form, p0:window._qrFormPlan.plan[0].state.p, bpm0:window._qrFormPlan.plan[0].state.bpm, durs:window._qrFormPlan.plan.map(function(it){ return +(+it.dur).toFixed(2); }), ps:window._qrFormPlan.plan.map(function(it){ return it.state.p; })}'); T.marks.push({ t: T.now(), note: 'composed ' + JSON.stringify(T.plan) }); T.face.go(); T.marks.push({ t: T.now(), note: 'start' }); } catch (e) { return { name: cfg.name, error: 'face: ' + String(e) }; }
+    const steps = (cfg.steps || []).slice().sort((a, b) => a[0] - b[0]);
+    const probes = (cfg.probes || []).slice().sort((a, b) => a[0] - b[0]);
+    const end = cfg.secs || ((cfg.T || 20) + 40); T.abort = false; let pausedSince = null;
+    while (T.now() < end && !T.abort) {
+      const t = T.now();
+      while (steps.length && steps[0][0] <= t) { const js = steps.shift()[1]; T.marks.push({ t, step: js.slice(0, 60) }); try { (new Function('T', js))(T); } catch (e) { T.errors.push({ w: 'step', t, m: String(e) }); } }
+      while (probes.length && probes[0][0] <= t) { const ex = probes.shift()[1]; T.probes.push({ t, his: G(window, '(' + ex + ')'), her: M ? G(M, '(' + ex + ')') : null }); }
+      const H = fsnap(window); T.rec.push({ t, H, M: M ? fsnap(M) : null });
+      if (H && H.run && H.pau) { if (pausedSince == null) pausedSince = t; if (cfg.untilPause !== false && t - pausedSince > 4 && !steps.length) break; } else pausedSince = null;
+      await sleep(50);
+    }
+    await stopBoth();
+    return T.analyzeForm(cfg);
+  };
+  T.analyzeForm = function (cfg) {
+    const R = T.rec, E = T.ev, out = { name: cfg.name, cfg, samples: R.length, errors: T.errors.slice(0, 12), errorCount: T.errors.length, marks: T.marks, probes: T.probes };
+    const floor = cfg.floorDb != null ? cfg.floorDb : -60;
+    const startT = (T.marks.find(m => m.note === 'start') || { t: 0 }).t;
+    const side = (tag, key) => {
+      const beats = E.filter(e => e.w === tag && e.ev === 'beat' && e.t >= startT);
+      const last = beats[beats.length - 1] || null;
+      const pause = E.find(e => e.w === tag && e.ev === 'pause' && e.to === true && e.t > startT + 1 && !(cfg.steps || []).some(st => Math.abs(st[0] - e.t) < 0.3 && /FormStop|face-go|go\(\)/.test(st[1]))) || null;   // the transport's own pause (to:true = running→paused; a scripted stop by hand is not the form's own end)
+      const parkS = R.find(x => x.t > startT + 1 && x[key] && !x[key].on); const parkT = parkS ? parkS.t : null;
+      const lastT = last ? last.t : null;
+      const samples = R.filter(x => x[key]);
+      const tailS = lastT != null ? samples.filter(x => x.t > lastT) : [];
+      let silT = null; { let run0 = null; for (const x of tailS) { if (x[key].db != null && x[key].db <= floor) { if (run0 == null) run0 = x.t; if (x.t - run0 >= 0.6) { silT = run0; break; } } else run0 = null; } }
+      const until = pause ? pause.t : (R.length ? R[R.length - 1].t : 0);
+      // the fader test looks only at the END: the master as the last beat was queued (a scene's own master move at a seam is the scene's) against its lowest value from there to the pause
+      const gRefS = lastT != null ? samples.filter(x => x.t <= lastT).pop() : null; const gRef = gRefS && gRefS[key].g != null ? gRefS[key].g : 0;
+      const gMin = Math.min(...samples.filter(x => lastT != null && x.t >= lastT && x.t <= until).map(x => x[key].g).filter(v => v != null), Infinity);
+      const kills = E.filter(e => e.w === tag && e.ev === 'kill' && e.t > startT + 1 && (lastT == null || e.t >= lastT) && (silT == null || e.t < silT));
+      const masterCalls = E.filter(e => e.w === tag && e.ev === 'master' && e.t > startT + 1 && (lastT == null || e.t >= lastT - 0.5)).map(e => ({ t: e.t, m: e.m, v: e.v }));
+      const beatsAfterPark = parkT != null ? beats.filter(b => b.t > parkT).length : null;
+      const beatsAfterPause = pause ? beats.filter(b => b.t > pause.t).length : null;
+      const dbAtPause = pause ? (samples.filter(x => x.t <= pause.t).pop() || { [key]: {} })[key].db : null;
+      // seams (04.11, measured on the wall): the first beat queued AFTER each restore is the new scene's first beat; its audio
+      // instant, carried to the wall (r.t + a1 − r.c), is compared with the scene's DUE instant (the first seam's own instant
+      // + the plan's durations). Before e09 the restore fell on a wall timer at the due instant while the beat for that instant
+      // was already queued, so the first new beat came a lookahead late (and an old-coloured beat sounded in the new scene);
+      // after it the seam is applied at queue time and the first new beat lands within a beat of the due instant.
+      const restores = E.filter(e => e.w === tag && e.ev === 'restore' && e.t > startT + 0.5);
+      const durs = (T.plan && T.plan.durs) || [];
+      let due0 = null;
+      const seams = restores.map((r, i) => { const b1 = E.find(e => e.w === tag && e.ev === 'beat' && e.t >= r.t && e.at != null); const a1w = (b1 && r.c != null) ? +(r.t + (b1.at - r.c)).toFixed(2) : null;
+        if (i === 0) due0 = a1w; const due = (due0 != null && i < durs.length + 1) ? +(due0 + durs.slice(0, i).reduce((a, b) => a + b, 0)).toFixed(2) : null;
+        const oldAfter = E.filter(e => e.w === tag && e.ev === 'beat' && e.t < r.t && e.at != null && b1 && e.at >= b1.at - 0.005).length;   // an older beat sounding at or after the new scene's first beat
+        return { t: r.t, p: r.p, c: r.c, firstBeatWall: a1w, due, late: (a1w != null && due != null) ? +(a1w - due).toFixed(2) : null, oldBeatsAfter: oldAfter }; });
+      // a restart inside the tail (a scripted second start): beats queued between the press and the new form's first restore belong to the ENDED scene
+      const goSteps = T.marks.filter(m => m.step && /go\(\)/.test(m.step));
+      const restarts = goSteps.map(g => { const r1 = E.find(e => e.w === tag && e.ev === 'restore' && e.t > g.t); const nb = E.filter(e => e.w === tag && e.ev === 'beat' && e.t > g.t && (!r1 || e.t < r1.t)).length; return { t: g.t, firstRestoreT: r1 ? r1.t : null, oldBeatsBeforeIt: nb }; });
+      return { beats: beats.length, lastBeatT: lastT, lastBeatAt: last ? last.at : null, parkT, pauseT: pause ? pause.t : null, silentT: silT, dbAtPause, restarts, gRef: +gRef.toFixed(3), gMin: isFinite(gMin) ? +gMin.toFixed(3) : null,
+        killsBeforeSilence: kills.map(k => ({ t: k.t, why: k.why })), masterCallsFromLastBeat: masterCalls.slice(0, 12), beatsAfterPark, beatsAfterPause, seams: seams.slice(0, 16),
+        seamsWithEarlyBeat: seams.filter(s => s.oldBeatsAfter > 0).length, seamLateMax: seams.length ? +Math.max(...seams.map(s => Math.abs(s.late || 0))).toFixed(2) : null };
+    };
+    out.his = side('his', 'H'); if (R.some(x => x.M)) out.her = side('her', 'M');
+    const h = out.his;
+    if (cfg.expect === 'p') {   // the prime left behind: the last probe's p on both sides and the next plan's primes
+      const last = T.probes[T.probes.length - 1] || {}; const pl = (last.his && last.his.planP) || [];
+      out.verdict = { pHis: last.his && last.his.p, pHer: last.her && last.her.p, planP: pl, bigPLeft: ((last.his && last.his.p) >= 5000) || pl.some(v => v >= 5000) ? 'BIG P LEFT' : 'none', errors: T.errors.length };
+      return out;
+    }
+    out.verdict = { fader: h.gRef > 0 && h.gMin != null && h.gMin < 0.9 * h.gRef ? 'FADER ' + h.gMin + '/' + h.gRef : 'none',
+      cutBeforeSilence: h.killsBeforeSilence.length, pausedAt: h.pauseT == null ? 'never' : (h.dbAtPause != null && h.dbAtPause <= floor ? 'silence' : 'SOUND ' + h.dbAtPause + ' dB'),
+      pauseAfterSilence: (h.pauseT != null && h.silentT != null) ? +(h.pauseT - h.silentT).toFixed(2) : null, beatsAfterPark: h.beatsAfterPark, beatsAfterPause: h.beatsAfterPause,
+      seamsWithEarlyBeat: h.seamsWithEarlyBeat + '/' + h.seams.length, seamLateMax: h.seamLateMax, restartOldBeats: h.restarts.length ? h.restarts.map(r => r.oldBeatsBeforeIt).join('+') : null, herPauseLag: (out.her && out.her.pauseT != null && h.pauseT != null) ? +(out.her.pauseT - h.pauseT).toFixed(2) : null, errors: T.errors.length };
+    return out;
+  };
   // compact raw samples, so a result can be re-analysed with a changed rule without re-running the scenario
-  T.raw = () => (T.rec || []).map(x => [x.t, x.H && x.H.p, x.H && x.H.bpm, x.H && x.H.ph, x.H && x.H.run && !x.H.pau ? 1 : 0, x.M && x.M.p, x.M && x.M.bpm, x.M && x.M.ph]);
+  T.raw = () => T.cfg && T.cfg.mode === 'form' ? { rec: T.rec, ev: T.ev } : (T.rec || []).map(x => [x.t, x.H && x.H.p, x.H && x.H.bpm, x.H && x.H.ph, x.H && x.H.run && !x.H.pau ? 1 : 0, x.M && x.M.p, x.M && x.M.bpm, x.M && x.M.ph]);
   T.report = () => T.done ? T.result : { running: T.cfg && T.cfg.name, t: T.now(), samples: (T.rec || []).length };
   T.summary = r => r && r.verdict ? { name: r.name, verdict: r.verdict, hisPath: r.hisPath.slice(0, 8), herPath: r.herPath.slice(0, 10), p: r.p.episodes.slice(0, 4), tempo: r.tempo.episodes.slice(0, 4), section: r.section.episodes.slice(0, 5), rogue: r.rogue.slice(0, 4), errors: r.errors.slice(0, 4), restores: r.restores } : r;
   return 'harness loaded';

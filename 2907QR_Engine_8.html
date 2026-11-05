@@ -564,6 +564,7 @@ details.qr-help .qr-help-body{ font-size:10px; color:var(--muted); margin:4px 0 
 }
 #top-dock #tb-like:hover { color: var(--warn); border-color: var(--warn); }
 #top-dock .tb-btn.rec-on { color: #fff; background: var(--warn); border-color: var(--warn); animation: recblink 1s steps(1) infinite; }
+#top-dock #tb-likes.arm { color: #fff; background: var(--warn); border-color: var(--warn); box-shadow: none; }   /* (04.11) the erase of the book of yeses is ARMED: red across the room, the dock's warn, still (not a record's blink); box-shadow off, or .active's green inset ring shows under the red */
 @keyframes recblink { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
 @keyframes tbpulse { 0% { transform: scale(1); } 50% { transform: scale(1.18); } 100% { transform: scale(1); } }
 #top-dock .tb-btn.pulse { animation: tbpulse .35s; color: var(--accent); border-color: var(--accent); }
@@ -3065,7 +3066,7 @@ try{ if(typeof Mp4Muxer!=="undefined"){ window.Mp4Muxer = Mp4Muxer; } }catch(e){
 // was just shipped, the tab is stale») became a standing false alarm. The tab said «Musrara Presentation», the lock screen
 // «QR Engine», the field's plate «The Markovs». Raising QR_BUILD is the FIRST LINE OF EVERY SHIPMENT — the dock's stamp and
 // its title, the #td-label title, the tab (document.title) and the Media Session artist read these two.
-const QR_BUILD='04.11', QR_NAME='The Markovs';
+const QR_BUILD='05.11', QR_NAME='The Markovs';
 try{ document.title=QR_NAME+' \u00b7 '+QR_BUILD; }catch(e){}
 
 // ---------- Math ----------
@@ -5244,7 +5245,14 @@ function indexTable(p){
 // dynamic programming. No log-stretch: the ratio is the sounding ratio over
 // minFreq. Above LADDER_E_PMAX the half-step window falls under ~2 cents, where
 // the exact solution and LOG-EQ are indistinguishable to any trained ear
-// (best musician thresholds ≈ 2.25 cents, Micheyl 2006) — LOG-EQ takes over.
+// (best musician thresholds ≈ 2.25 cents, Micheyl 2006) — so the exact DP stops here.
+// (04.11) Comment corrected, no code changed: until now this line said that LOG-EQ
+// took over above 311, which has been false since 20.08. Above LADDER_E_PMAX mode 1
+// does NOT fall to LOG-EQ: ladderE returns null and freqForIndex hands over to the
+// k/n² map (uniqueRationalRatiosForPrime — the vast worlds' voice, the prayer
+// meditation lives there; the two maps meet at p = 311). For p ≥ 3 the LOG-EQ branch
+// (h0) is unreachable in modes 1 and 2: it is mode 0's map, and the fallthrough for
+// a legacy mode value (3/4, pre-17.06 scenes) that freqForIndex no longer knows.
 const LADDER_E_PMAX=311;
 const _ladECache=new Map();
 function ladderE(p,q){
@@ -5435,14 +5443,15 @@ function _buildLayerNodes(){
 // Push the current per-layer volumes (incl. solo) onto the live nodes — instant.
 // LVOL is the dry fader; LWET is the per-note reverb send (post-fader = vget, so the
 // reverb follows the volume; pre-fader = solo gate only, i.e. send independent of volume).
-function refreshLVol(){
+function refreshLVol(at){   // (04.11) at: ramp AT this audio instant (a form seam's beat, from _restoreInner) rather than now — the seam's restore runs when the beat is queued, a lookahead ahead of its sound; without 'at' exactly as before
   if(!ctx) return;
+  const _tA=Math.max(ctx.currentTime,(+at||0));
   const anySolo=state.solo.size>0;
   for(const k of VOL_LAYERS){
-    if(LVOL[k]) LVOL[k].gain.setTargetAtTime(vget(k), ctx.currentTime, 0.02);
-    if(LWET[k]){ const gate=((anySolo && !state.solo.has(k)) || (k==='omega' && !state.omEcho))?0:1;   /* (20.10) ⏻ off holds omega's pre-fader send shut */ LWET[k].gain.setTargetAtTime((state.sendPreFader?gate:vget(k))*(_wetDoseLast||1), ctx.currentTime, 0.02); }   // volume changes keep the tempo dose
+    if(LVOL[k]) LVOL[k].gain.setTargetAtTime(vget(k), _tA, 0.02);
+    if(LWET[k]){ const gate=((anySolo && !state.solo.has(k)) || (k==='omega' && !state.omEcho))?0:1;   /* (20.10) ⏻ off holds omega's pre-fader send shut */ LWET[k].gain.setTargetAtTime((state.sendPreFader?gate:vget(k))*(_wetDoseLast||1), _tA, 0.02); }   // volume changes keep the tempo dose
   }
-  try{ const BG=window._bodyGate; if(BG){ for(const bk in BG){ const lk=bk.split('|')[0]; if(!lk) continue; BG[bk].gain.setTargetAtTime((anySolo && !state.solo.has(lk))?0:Math.min(1,(vget(lk)||0)/0.02), ctx.currentTime, 0.02); } } }catch(e){}   // (14.10) the instrument bodies follow solo with the faders — (16.10) a fader at zero mutes the body too; above 0.02 nothing changes
+  try{ const BG=window._bodyGate; if(BG){ for(const bk in BG){ const lk=bk.split('|')[0]; if(!lk) continue; BG[bk].gain.setTargetAtTime((anySolo && !state.solo.has(lk))?0:Math.min(1,(vget(lk)||0)/0.02), _tA, 0.02); } } }catch(e){}   // (14.10) the instrument bodies follow solo with the faders — (16.10) a fader at zero mutes the body too; above 0.02 nothing changes
   // (08.09) THE MASTER REACHES THE NODE. VOL_LAYERS has no 'master' in it, so this
   // loop never touched it — and every programmatic path moved only the state and the
   // slider's .value, which fires no 'input' event: scenes.restore, the automation
@@ -5451,7 +5460,7 @@ function refreshLVol(){
   // mends all of them. While tacet, the prayer's darkness or the park's fermata are
   // speaking through the node, they hold it and this stays silent.
   if(!window._masterHeld && typeof masterGain!=='undefined' && masterGain)
-    try{ masterGain.gain.setTargetAtTime(Math.max(0.0001, +state.vol.master||0), ctx.currentTime, 0.02); }catch(e){}
+    try{ masterGain.gain.setTargetAtTime(Math.max(0.0001, +state.vol.master||0), _tA, 0.02); }catch(e){}
   if(qrBus&&qrBus.applyFX) qrBus.applyFX();
 }
 // Per-note low-pass that opens (QR) or closes (NQR) over the note's life. Depth is
@@ -5895,9 +5904,9 @@ const _LONG_SUS=[];
 // which used to queue a fresh three-hundred-second voice each time: a hundred and
 // forty stacked copies of one tone. A drone is a CROSSING, not a state.
 const _lastPnSus={};
-function killLongSustains(reason,fadeTau){
+function killLongSustains(reason,fadeTau,at){   // (04.11) at: release AT this audio instant (a form seam's beat) rather than now — the seam's restore runs when the beat is queued, a lookahead ahead of its sound
   if(typeof ctx==='undefined'||!ctx||!_LONG_SUS.length) return 0;
-  const now=ctx.currentTime; let n=0;
+  const now=Math.max(ctx.currentTime,(+at||0)); let n=0;   // (04.11) a seam's beat: the previous scene's long voices exhale from the beat's instant; without 'at' exactly as before
   fadeTau=(fadeTau!=null)?fadeTau:0.30;                      // a real exhale, not a click (panic paths still pass 0.05)
   for(const v of _LONG_SUS){
     if(!v || v.until<=now) continue;
@@ -5934,7 +5943,7 @@ function scheduleSustainVoice(t,dur,freq,vol,pL,pR,qrBeats){
   const bf=_brightFilter(t,dur,freq,true); osc.connect(bf.in); bf.out.connect(env); env.connect(makePannedSink(pL,pR,vol,{t,dur}));   // long p/n drone = held → settle+hold
   osc.start(t); osc.stop(t+dur+0.03);
   if(dur>3){                                                 // [29.07] only long voices are tracked (cheap)
-    _LONG_SUS.push({osc, env, until:t+dur});
+    _LONG_SUS.push({osc, env, until:t+dur, rel:_relS});   // (04.11) rel: the exhale this envelope was written with — the end gate lifts a drone still held past the form's last beat over exactly this, its own release (never a flush)
     if(_LONG_SUS.length>96){ const now=ctx.currentTime; for(let i=_LONG_SUS.length-1;i>=0;i--){ if(_LONG_SUS[i].until<=now) _LONG_SUS.splice(i,1); } if(_LONG_SUS.length>96) _LONG_SUS.splice(0,_LONG_SUS.length-96); }
   }
 }
@@ -6503,7 +6512,7 @@ function consumeRequests(){
       s.p=p; state.p=p; s.phase='pause-before'; s.rIdx=0; s.aIdx=0; s.rList=[];
       s.contFarIdx=null; s.contFreq=null;
       if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); cfgTieReset(); }
-      try{ if(typeof _omEchoDamp==='function') _omEchoDamp(); }catch(e){}   // (review) the ring is ONE line carrying the old world's word, written k%p deep — it must not pulse the old arithmetic into the new world, and its dose belongs to the world that opened it
+      try{ if(typeof _omEchoDamp==='function') _omEchoDamp(state._seamBeat?(state._seamAt||0):0); }catch(e){}   // (04.11) on a form seam's beat the ring exhales from the beat, not from this queueing (_seamAt, set by _scheduleOneBeatBody's hook) — (review) the ring is ONE line carrying the old world's word, written k%p deep — it must not pulse the old arithmetic into the new world, and its dose belongs to the world that opened it
       state.reqP=null;
       // (03.08) DO NOT wipe the queue: each frame carries its own p, and the old
       // prime's scheduled audio still sounds for up to a lookahead — let its picture
@@ -6621,8 +6630,7 @@ function consumeRequests(){
     if(req.aim) s._openAim=true;   // (30.10) a goto standing in for a natural section entry (the parts answer's ×k door in _restoreInner, opts.ans) opens the section as _enterFlowPhase does: _openAtCentre runs right after this call in the same body and moves rIdx onto the approach (j−up), where his own entry stands for p>7. At index 0 she walked up·hb behind his stations for the whole prime (parts has no station door). Its own gates (p≤7, strict, retro, the crab) still stand it down
     s.contFarIdx=null; s.contFreq=null;
     if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); cfgTieReset(); }
-    state.visQueue.length=0;
-    flushVoices();
+    if(!state._seamBeat){ state.visQueue.length=0; flushVoices(); }   // (04.11) NOT ON A FORM SEAM'S BEAT: the beats and frames queued before this one are the previous scene's last and this beat is the new scene's first (restored in _scheduleOneBeatBody just above) — the flush that makes a hand's jump sound at once would cut that tail and pull this beat a lookahead early
   }
   // Similar-position jump (automatic scene transitions). Rescale the captured
   // residues into the new prime's space — y = round(x·P/p_old) — keep the same
@@ -6666,8 +6674,7 @@ function consumeRequests(){
     s.aDir=(s.rDir<0)?-1:1; s.aIdx=0; s.aFresh=true;
     s.contFarIdx=null; s.contFreq=null; s.r2FarIdx=null; s.r2Freq=null;
     if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); cfgTieReset(); }
-    state.visQueue.length=0;
-    flushVoices();
+    if(!state._seamBeat){ state.visQueue.length=0; flushVoices(); }   // (04.11) not on a form seam's beat (her scoreless crab's it.end lands here) — see the seam goto above
   }
   if(state.reqGotoMain!==null && state.reqGotoMain!==undefined && state.running && !state._landArmed){   // within-screen: free, ladder-landed
     const tr=_ladderSnap(s.p|0, Math.max(1,Math.min(s.p-1,state.reqGotoMain|0)));
@@ -6686,8 +6693,7 @@ function consumeRequests(){
       s.aDir=(s.rDir<0)?-1:1; s.aIdx=0; s.aFresh=true;
       s.contFarIdx=null; s.contFreq=null;
       if(typeof cfg!=='undefined'){ cfg.chordQueue.length=0; cfg.played.clear(); cfgTieReset(); }
-      state.visQueue.length=0;
-      flushVoices();
+      if(!state._seamBeat){ state.visQueue.length=0; flushVoices(); }   // (04.11) not on a form seam's beat — see the seam goto above
     }
     // if main is OFF, typing r/p does not force main — leave playback as is
   }
@@ -7779,11 +7785,11 @@ function _omegaEcho(p,time,dur,beat,cyc,s,stepOverride){
 // The damp hand: the ring is scheduled voices now, so silencing it is the engine's
 // own flushVoices — nothing of ours keeps sounding on a bus. What remains is to
 // forget the dose and clear the picture, so neither outlives the sound.
-function _omEchoDamp(){
+function _omEchoDamp(at){   // (04.11) at: the ring exhales AT this audio instant (a form seam's beat, from the reqP landing in consumeRequests) rather than now — the seam's restore and its requests land when the beat is queued, a lookahead ahead of its sound; without 'at' exactly as before
   try{
-    if(window._omSinks && typeof ctx!=='undefined' && ctx){ const t0=ctx.currentTime, S=window._omSinks; window._omSinks=null;
+    if(window._omSinks && typeof ctx!=='undefined' && ctx){ const t0=Math.max(ctx.currentTime,(+at||0)), S=window._omSinks; window._omSinks=null;
       for(const s2 of S){ try{ s2.gain.setTargetAtTime(0.0001,t0,0.06); }catch(e){}
-        setTimeout(()=>{ try{ s2.disconnect(); }catch(e){} },380); } }   // (08.09) flushVoices' own exhale, 0.06 τ / 380 ms — «не обрываться», not a guillotine
+        setTimeout(()=>{ try{ s2.disconnect(); }catch(e){} },380+Math.round(Math.max(0,t0-ctx.currentTime)*1000)); } }   // (08.09) flushVoices' own exhale, 0.06 τ / 380 ms — «не обрываться», not a guillotine
     if(window._omRing){ window._omRing.next=0; window._omRing.end=0; }
     if(window._omEchoVis) window._omEchoVis.length=0;
     if(window._omVis) window._omVis.length=0;
@@ -8147,7 +8153,29 @@ function _openAtCentre(s,p,time){
 
 function _scheduleOneBeatBody(time){
   if(!synthState) resetSynth();
-  consumeRequests();
+  // (04.11) THE SEAM RIDES THE BEAT. A ✚ form's scene used to be restored by its run's wall timer at the seam's instant,
+  // while this body had already queued that instant's beat up to a lookahead earlier (0.2 s Mac, 0.55–1.25 s touch /
+  // hidden): the scene's first beat sounded in the previous scene's colours, the restore's prime request landed on the
+  // next queued beat and cleared the chords the first had queued, and the goto's flush then cut what was sounding. The
+  // run now hands its next seam to the scheduler (window._formSeam, armed by _palRun / _qrPlainRun): the first beat whose
+  // own instant reaches the seam applies the scene HERE, before consumeRequests lands its requests on this same beat —
+  // under the score the same beat _palScoreApply puts first in the new segment (same rel, same 1 ms tolerance). The
+  // seam's instant is read LIVE from the run: at() = its wall instant on the run's _base, which the run's look slides by
+  // every pause it has folded; held() = the held clock the look last folded (step._lh); plus what the transport has held
+  // since (_qrHeldMs()−held()). Read live, the instant is the same whether this beat or the look comes first after ▶ (an
+  // overdue tick runs before the look's 0 ms timer) — a snapshot taken at the arm from an unslid _base, with the pause
+  // already in its held stamp, would put every later seam a whole pause early, off the look's end and the score clock.
+  // Several seams due on this one beat (a plain run's scenes shorter than its beat) are applied in order: the last
+  // restored owns the beat, as the look restored them. _landDur: the loop re-reads the beat for this beat's advance (a
+  // seam may set the tempo); _seamBeat / _seamAt: the gotos this beat lands re-seat the walk without flushVoices and the
+  // ring's damp waits for the beat — the beats queued before this one are the previous scene's last, this one is the new
+  // scene's first, nothing is to be cut; cleared in a finally, or a throw inside consumeRequests would leave every later
+  // hand's jump unflushed. A dead run's seam is dropped.
+  try{ for(let _g=0; _g<32; _g++){ const _fs=window._formSeam; if(!_fs) break;
+    if(_fs.alive && !_fs.alive()){ window._formSeam=null; break; }
+    if(Date.now()+(time-ctx.currentTime)*1000 < _fs.at()+(_qrHeldMs()-_fs.held())-1) break;
+    window._formSeam=null; state._seamBeat=true; state._seamAt=time; state._landDur=true; _fs.apply(time); } }catch(e){}
+  try{ consumeRequests(); } finally { state._seamBeat=false; }
   if(_beatQ0>state.visQueue.length) _beatQ0=state.visQueue.length;   // (08.09) a navigation wipe shrank the queue under us — re-floor the stamp window, or the jump beat's frames never get the perceived-onset stamp
   // the hall takes one step of its own walk each beat — its index is the walk's, so
   // the breath is deterministic and identical in the mirror
@@ -8669,12 +8697,13 @@ function _scheduleOneBeatBody(time){
       // конца простым ордером и остановиться, сделать запись») ONE PASS: the
       // number has been shown — the piece rests on its own closing beat.
       state._oncePass=false;
-      setTimeout(function(){
-        try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}
-        try{ var _vO=document.getElementById('tb-rec-vid');
-          if(_vO && _vO._duoTint) _vO.click(); }catch(e){}   // a running DUET take ends with the pass (plain takes stop via the transport watcher)
-        try{ setStatus('the number has been shown — at rest', false); }catch(e){}
-      }, 60);
+      // (04.11) THE REST IS A BEAT, NOT A CUT: pauseAudio 60 ms after this slot was QUEUED landed up to a lookahead before the
+      // closing beats had sounded, and its flushVoices killed the held voices and the bus — the pass lost its last beats to
+      // the flush (and the loop had already queued pause-before and the prelude again). The end gate is aimed at this slot
+      // (no beat after it, on both halves: the gate is mailed), the tail rings out, and the tail watch rests the transport
+      // and the duet take once the output is silent (plain takes stop via the transport watcher).
+      try{ if(window._qrEndArm) window._qrEndArm(Date.now()+(time-ctx.currentTime)*1000, 'the number has been shown');
+        else setTimeout(function(){ try{ if(state.running && !state.paused) pauseAudio(); }catch(e){} }, 60); }catch(e){}   // the old rest only if the duet layer, which owns the gate, is not up (never in practice)
       s.phase='pause-before'; s.rIdx=0;   // (07.08) parked at THIS number's own door — resume restates p, never slides to the next prime
       return true;
     }
@@ -8794,6 +8823,15 @@ function schedulerTick(){
   try{ if(document.hidden && SCHEDULE_AHEAD<1.25) SCHEDULE_AHEAD=1.25; }catch(e){}   // (03.09) hidden from birth (an iframe in a pocketed page) never saw the visibilitychange that raises the margin
   if(!state.running||state.paused) return;
   if(ctx.state!=='running'){ try{ ctx.resume(); }catch(e){} }   // wake a context the OS/tab suspended, don't pile beats onto a frozen clock
+  // (04.11) THE END GATE (author 30.10: «звук не просто угас, а закончился»): a form's end is the last beat it wrote, not a
+  // fader. Once the gate is closed this tick queues nothing — no beat, no groove hit, no stall re-base — while the clock and
+  // the picture run on and the held sustains and the hall ring out on their own envelopes; the tail watch (_qrEndArm, in the
+  // duet layer) pauses the transport once they are silent. nextBeatTime is kept at «now» so the overflow guard below (its
+  // flushVoices would kill the drones) and the scheduler guardian stay quiet. After the wake above, not before it: a context
+  // the OS suspends inside the tail must still be resumed here, the only place that does, or the watch waits on a frozen
+  // clock. Opened by any start, by ▶ after a pause inside the tail (pauseAudio) and by every door that takes the stage
+  // (a form, ▶ once, a seek, the session, the walk — _qrEndOpen).
+  try{ var _egC=window._qrEndGate; if(_egC && _egC.closed){ if(nextBeatTime<ctx.currentTime+0.05) nextBeatTime=ctx.currentTime+0.05; _stallT0=0; return; } }catch(e){}
   let dur=beatDur();   // (27.10) let: an announced ×k landing inside this tick may set the new room's tempo (state._landDur) — re-read in the loop
   // OVERFLOW GUARD. If the scheduler fell far behind real time — main-thread jank,
   // a throttled/backgrounded tab, GC, or simply a very high bpm — do NOT try to
@@ -8812,10 +8850,15 @@ function schedulerTick(){
   let _guard=0;
   while(nextBeatTime<ctx.currentTime+SCHEDULE_AHEAD){
     if(state.holdSchedAt!=null && nextBeatTime>=state.holdSchedAt-1e-6) break;   // frozen until the quantized switch
+    try{ var _eg=window._qrEndGate;   // (04.11) the end gate: a beat that would START at or after the plan's end is never queued — the lookahead cannot cross the end, and under the written score the last slot cannot repeat (_palScoreApply clamps j to the last slot past the end)
+      if(_eg && (_eg.closed || nextBeatTime>=_eg.at-Math.min(0.012,dur*0.25))){   // 12 ms, never more than a quarter beat: `at` (aimed at a look) and the score's own grid (mapped at a tick) translate one wall instant into the audio clock at two different moments, and ctx.currentTime moves in render quanta (~2.7 ms) — a 1 ms margin would let the end slot (= the last slot repeated) through on ε-jitter, on either half alone; 12 ms is below the shortest slot (50 ms) and the shortest beat (60 ms at 999 bpm). An end already in the past closes at once
+        if(!_eg.closed){ _eg.closed=true; _eg.lastEnd=nextBeatTime; try{ _fl('end-gate','closed after beat '+_eg.n+' — '+(_eg.why||'')+' · the tail rings out by itself'); }catch(e2){} }
+        break; } }catch(e){}
     if(++_guard>64){ nextBeatTime=ctx.currentTime+SCHEDULE_AHEAD; break; }        // hard per-tick cap — never burst-schedule the audio graph into overload
     const ok=scheduleOneBeat(nextBeatTime);
     if(state._landDur){ state._landDur=false; dur=beatDur(); }   // (27.10) ×k: an announced landing across q-ness set the new room's tempo inside this beat — its advance, and the beats still to schedule in this tick, take the new beat (at ×1 the flag is never set)
     if(!ok) break;
+    try{ if(window._qrEndGate) window._qrEndGate.n++; }catch(e){}   // (04.11) the beats queued under an armed end gate — the number the gate closes after (the montage editor's in/out will speak in these)
     const s=synthState;
     if(s && s._palGridNext!=null && state._palScore && state._palScore.on){
       nextBeatTime=s._palGridNext; s._palGridPlanned=s._palGridNext; s._palGridNext=null;    // (20.08) score mode: the beat lands ON the shared wall grid, both halves alike
@@ -8827,7 +8870,7 @@ function schedulerTick(){
   // timestamp — the duet layer broadcasts it so both engines share one beat grid.
   try{ window._gridInfo={ wall: Date.now()+(nextBeatTime-ctx.currentTime)*1000, bpm: state.bpm, at: Date.now() }; }catch(e){}   // (28.10) at: the tick that wrote it — her 'grid' lock reads the grid's freshness from this stamp, not from |wall−now|, which on a live grid lies in [SA, SA+her beat) and grows with her beat (k of his under ×k)
   // the groove floor keeps pumping through holds and quantized scene switches
-  if(typeof groove!=='undefined'){ window._gvFromGroove=true; try{ groove.tick(ctx.currentTime+SCHEDULE_AHEAD); }catch(e){} window._gvFromGroove=false; }   // (08.09) the flag the score's audibility gate reads — _emitLayer keeps the LAST scene voice's name and cannot tell the groove apart
+  if(typeof groove!=='undefined'){ window._gvFromGroove=true; try{ var _egG=window._qrEndGate; groove.tick(_egG?Math.min(ctx.currentTime+SCHEDULE_AHEAD,_egG.at):ctx.currentTime+SCHEDULE_AHEAD); }catch(e){} window._gvFromGroove=false; }   // (08.09) the flag the score's audibility gate reads — _emitLayer keeps the LAST scene voice's name and cannot tell the groove apart — (04.11) the groove floor stops at the end gate too: no hit past the plan's last beat
   // tempo-dosed wet sends (see _wetDoseK): re-aim the per-note send gains when the
   // dose moves — tempo changed, or the storm breaker engaged/released its duck
   if(performance.now()-_wetDoseAt>700){
@@ -8913,6 +8956,8 @@ function startAudio(){
   const begin=()=>{
     if(state.running) return;
     state.running=true; state.paused=false;
+    try{ window._qrEndGate=null; }catch(e){}   // (04.11) a new start opens the end gate
+    try{ var _pd=window._qrEndPend; window._qrEndPend=null; if(_pd && _pd.wall>Date.now() && window._qrEndArm) setTimeout(function(){ try{ window._qrEndArm(_pd.wall,_pd.why,true); }catch(e){} },0); }catch(e){}   // (04.11) a half still booting when the other half's end was mailed answered «silent» at once, then started ungated by the xport retry and was cut by the mailed rest; the aim waits here and is armed as this half starts, while its instant is still ahead (round-6 review)
     try{ window._hadSound=true; }catch(e){}   // (06.08) the resting-stage plates live only BEFORE the first sound
     resetSynth();
     nextBeatTime=ctx.currentTime+0.08;  // re-base after the context has actually woken
@@ -8997,6 +9042,13 @@ function pauseAudio(){
     if(state.paused) state._heldAt=_tg;
     else { if(state._heldAt) state._heldMs=(state._heldMs||0)+Math.max(0,_tg-state._heldAt); state._heldAt=0;
       if(window._formLook) window._formLook(); } }catch(e){}
+  // (04.11) THE END GATE AND THE TRANSPORT. ❚❚ keeps the gate: the run's look sleeps with the transport and its tail watch
+  // stands down (_qrEndArm). ▶ slides an OPEN gate by the pause, as the plan slides — the first tick after ▶ must not queue
+  // past an end the run has not yet re-aimed (its look is a setTimeout away, the scheduler tick 10 ms) — in audio-clock
+  // time from state._pauseAt, exact whether the context ran through the pause or froze; and OPENS a CLOSED one: a hand's ▶
+  // inside a tail takes the stage back, as ▶ after the old rest did. The wire carries the toggle, so the other half does the same.
+  try{ var _egP=window._qrEndGate; if(_egP && !state.paused){ if(_egP.closed){ window._qrEndGate=null; try{ if(window._qrFreeSyncLater) window._qrFreeSyncLater(); }catch(e){} } else if(state._pauseAt>0) _egP.at+=Math.max(0,ctx.currentTime-state._pauseAt); } }catch(e){}   // (04.11) ▶ after the rest also keeps a deferred return to free (_mkFreeSync)
+  try{ if(!state.paused){ var _pdP=window._qrEndPend; window._qrEndPend=null; if(_pdP && _pdP.wall>Date.now() && window._qrEndArm) setTimeout(function(){ try{ window._qrEndArm(_pdP.wall,_pdP.why,true); }catch(e){} },0); } }catch(e){}   // (04.11) a mailed end that found this half paused is armed on ▶ while its instant is still ahead (round-6 review)
   if(state.paused){ try{ state._pauseAt=ctx.currentTime; }catch(e){} flushVoices();   // (08.09) the score freezes at this instant instead of vanishing
     try{ if(typeof learner!=='undefined'&&learner.saveNow) learner.saveNow(); }catch(e){}   // playback ended — flush all learned memory
     try{ const _k=window.__qrKA; if(_k && !_k.paused) _k.pause(); }catch(e){} }   // (26.10) nothing plays while paused: iOS then sends the next stem squeeze as 'play', and an AirPod taken out changes nothing
@@ -9005,6 +9057,10 @@ function pauseAudio(){
   setStatus(state.paused?'paused':'running',!state.paused);
 }
 function _qrHeldMs(){ return (state._heldMs||0)+((state.paused && state._heldAt)?Math.max(0,Date.now()-state._heldAt):0); }   // (30.10) the held clock up to now — see pauseAudio
+function _qrFormLead(){   // (04.11) THE LEAD COVERS THE LOOKAHEAD: the ms from a form's start to its downbeat t0 (the face's ✚ start, pal's crab, the pupil's ride). At a fixed 700 ms a strained (0.9 s), touch (up to 1.2 s) or hidden (1.25 s) scheduler had already queued the beats past t0 when the run was armed — under the score the first slots never sounded (_palScoreApply's j>0 on the first queued beat) and the live walk played over the downbeat. The margin is this window's lookahead now plus a few ticks; paired, her frame's margin is 1.25 s hidden from birth whatever this one's — 1.6 s. Mac at rest, alone: 700 ms as before
+  var _sa=(typeof SCHEDULE_AHEAD==='number')?SCHEDULE_AHEAD:0.2;
+  return Math.max(700, Math.round(_sa*1000)+300, (state.duo&&state.duo.on&&state.duo.peer)?1600:0);
+}
 
 // ==========================================================
 //  EXPORT WAV via OfflineAudioContext
@@ -11826,11 +11882,12 @@ const _GV_ORDER=['kick','bass','snare','tom','hatC','hatO','zap','click','cymbal
 const _GV_COLS={kick:'rgba(238,110,160,0.9)',bass:'rgba(238,110,160,0.66)',snare:'rgba(255,196,90,0.9)',tom:'rgba(255,196,90,0.62)',hatC:'rgba(110,200,255,0.85)',hatO:'rgba(110,200,255,0.55)',zap:'rgba(150,240,120,0.8)',click:'rgba(200,210,225,0.7)',cymbal:'rgba(255,255,255,0.75)'};
 // (08.09) the honest score inked every groove hit without asking whether the lane
 // could be heard: the groove master at zero, or a lane at zero, still marked. Scene
-// voices (kick·, hat·, diag, chord, omega, glue) set _emitLayer and are not gated —
+// voices (kick·, hat·, chord, omega, glue) set _emitLayer and are not gated (04.11: diag IS, below — it alone is scheduled past its fader) —
 // their faders are their own; the groove never touches _emitLayer and is gated by its
 // master × lane level, the same product its sink hears.
 function _gvAudible(lane){
-  try{ if(!window._gvFromGroove) return true;   // only the groove is gated; scene voices own their faders
+  try{ if(lane==='diag') return ((vget('diag')||0)>0.003);   // (04.11) the bell is the one scene voice scheduled whatever its fader says (8636: «audibility controlled by its volume + solo» — the sink alone decides, through LVOL.diag = vget), so its mark came with the constant vol 1 while the fader stood at 0 or solo left it out: a silent bell drew the score's largest dot on every a=b beat, live and in the mirror's replay (21482) alike. The mark now reads the same fader × solo gate its sound does, at the honest score's own threshold (textbook critics 30.10)
+    if(!window._gvFromGroove) return true;   // only the groove is gated; scene voices own their faders
     const g=(typeof state!=='undefined')&&state.groove; if(!g||!g.lanes) return true;
     const ln=g.lanes[lane==='cymbal'?'crash':lane]; if(!ln) return true;
     const lv=(ln.lvl!=null)?ln.lvl:0.8;
@@ -13386,6 +13443,7 @@ document.getElementById('p-num').addEventListener('change',e=>{
   e.target.value=p;
   try{ if(state._landArmed){ var _ann=(state.reqP!=null)?(state.reqP|0):((state._landPend&&state._landPend.p)|0); if(_ann!==(p|0) && !state._landAt){ state._landArmed=false; state._landTok=false; state._landPend=null; try{ if(window._duoLandCancel) window._duoLandCancel(); }catch(_e2){} } } }catch(_e){}   // (20.10) like an arrow: a typed prime re-opens the conductor's announcement · (30.10) under ×k, while his notice is held (_landAt), re-announced for the same instant there instead (consumeRequests), as an arrow
   state.reqP=p; state.reqSkip=true;
+  try{ if(window._qrEndGate && window._qrEndGate.closed){ if(window._qrEndOpen) window._qrEndOpen('a typed prime'); else window._qrEndGate=null; } }catch(e){}   // (04.11) a typed p inside a form's tail opens the end gate, like a stepped one — on both halves
   try{ if(state.reqGoto && state.reqGoto.seam && (state.reqGoto.p|0)!==(p|0)) state.reqGoto.p=p; }catch(_e){}   // (20.10) a typed p outranks a form seam's armed goto, like an arrow
   if(!state.running){ state.p=p; state.vizP=p; }
   // If the prelude is NOT in the playback set, land directly in main (r=1)
@@ -13846,6 +13904,7 @@ function stepPrime(dir){
   const np=(dir>0)?nextPrime(cur):prevPrime(cur);
   try{ if(state._landArmed){ var _ann=(state.reqP!=null)?(state.reqP|0):((state._landPend&&state._landPend.p)|0); if(_ann!==(np|0) && !state._landAt){ state._landArmed=false; state._landTok=false; state._landPend=null; try{ if(window._duoLandCancel) window._duoLandCancel(); }catch(_e2){} } } }catch(_e){}   // (20.10) the conductor's notice beat is announcing ANOTHER prime (every seam re-lands its p with notice): a press re-opens the announcement so both halves still land on one beat — kept, np landed unannounced, or his own pend for the old p took it back · (30.10) under ×k, while his notice is held (_landAt) the press is not withdrawn here: consumeRequests re-announces it for the SAME instant — she may already have landed, and a fresh k-beat notice left her on the withdrawn prime against his old one
   state.reqP=np; state.reqSkip=true;          // live jump via the existing engine path
+  try{ if(window._qrEndGate && window._qrEndGate.closed){ if(window._qrEndOpen) window._qrEndOpen('a stepped prime'); else window._qrEndGate=null; } }catch(e){}   // (04.11) a hand's seek inside a form's TAIL (the gate closed) opens the end gate on both halves: the stepped prime is heard, not held for the rest; an open gate (the form still being written) is left to the run — nulled, it would leave the end unguarded until the run's next look
   try{ if(state.reqGoto && state.reqGoto.seam && (state.reqGoto.p|0)!==(np|0)) state.reqGoto.p=np; }catch(_e){}   // (20.10) a form seam within the last beat left its goto armed on the scene's p; landing right after reqP in the same beat it took the press back — the seam keeps its door, the prime is the hand's
   try{ if(typeof apPin==='function') apPin('prime'); }catch(e){}   // (16.10, author: «меняю p стрелками — соскакивает назад») a stepped prime is the hand's, like a typed one: the form's next scene must not take it back
   if(!state.running){ state.p=np; state.vizP=np; }  // when stopped: pick the start prime (and preview it)
@@ -15155,19 +15214,19 @@ state.activity=null;
           try{ if(typeof learner!=='undefined' && learner.forgetPrayerPrimes) learner.forgetPrayerPrimes(); }catch(e){}
           var _back=_preActP||61;
           try{ const _c0=scenes.capture()||{}; scenes.restore(Object.assign({},_c0,{p:_back}),{}); }catch(e){}   // land NOW — a queued reqP lost the race to the next generated scene
-          try{ state.reqP=_back; }catch(e){}
+          try{ state.reqP=_back; if(!state.running || state.paused){ state.p=_back; state.vizP=_back; } }catch(e){}   // (05.11) measured: with the transport held (■ then a genre) reqP waits for a beat that never comes, and ✚'s reset kept the room as the live p — the number lands now, as stepPrime lands a prime while stopped; reqP stays for the synth's re-base on ▶
           try{ if(typeof _fl==='function') _fl('activity','the prayer room is released — back to p='+_back); }catch(e){}
         }
         _preActP=null;
         return;
       }
       const _leavingMed=(state.activity==='meditate' && act!=='meditate');
-      if(!_preActP){ try{ _preActP=state.p|0; }catch(e){} }   // remember the number the genre found you on
+      if(!_preActP){ try{ var _pp0=state.p|0; _preActP=(_pp0>=5000 && !(state.apPins&&state.apPins.has('prime')))?0:_pp0; }catch(e){} }   // remember the number the genre found you on — (04.11) not a prayer room still live (unpinned ≥ 5000: a scene or a score that carried the genre through restore) — «back to p=20593» handed the room itself back; 0 is falsy, the next press captures afresh and the toggle-off falls back to 61
       if(_leavingMed){
         try{ if(typeof learner!=='undefined' && learner.forgetPrayerPrimes) learner.forgetPrayerPrimes(); }catch(e){}
         var _bk2=_preActP||61;
         try{ const _c1=scenes.capture()||{}; scenes.restore(Object.assign({},_c1,{p:_bk2}),{}); }catch(e){}
-        try{ state.reqP=_bk2; }catch(e){}
+        try{ state.reqP=_bk2; if(!state.running || state.paused){ state.p=_bk2; state.vizP=_bk2; } }catch(e){}   // (05.11) as the toggle-off door: the return lands now while the transport is held (measured 05.11: p stayed the room through ✚)
       }   // one prayer room does not follow you into the next frame
       state.activity=act; paint();
       // (17.08 author: «между жанрами должно проходить сбрасывание параметров —
@@ -15182,7 +15241,7 @@ state.activity=null;
                 ascent:  {pLo:3, pHi:31,   homeP:5,  bLo:54,bHi:104} };
         var g=G[act]; if(!g) return;
         var P=state.apPins;
-        if(!(P&&P.has('prime'))){ var p0=state.p|0; if(p0<g.pLo||p0>g.pHi) state.reqP=g.homeP; }
+        if(!(P&&P.has('prime'))){ var p0=(_leavingMed && state.reqP!=null)?(state.reqP|0):(state.p|0); if(p0<g.pLo||p0>g.pHi) state.reqP=g.homeP; }   // (04.11) leaving the prayer, the walls judge the return armed just above (reqP=_bk2) — read from state.p, still the room while the transport runs, they always grounded to homeP and never to the number the door had just returned; every other switch reads state.p as before
         if(!(P&&P.has('bpm'))){ var b0=state.bpm|0;
           if(b0<g.bLo||b0>g.bHi){ state.bpm=Math.max(g.bLo,Math.min(g.bHi,b0||((g.bLo+g.bHi)>>1)));
             var e1=document.getElementById('bpm'),e2=document.getElementById('bpm-num');
@@ -15287,7 +15346,9 @@ function buildSceneParamEditor(st, opts){
     selField('direction','dir',[{v:1,t:'forward'},{v:-1,t:'reverse'}]);
     numField('freq min','minFreq',20,2000,1,false);
     numField('freq max','maxFreq',40,8000,1,false);
-    selField('pitch map','harmMode',[{v:0,t:'LOG-EQ'},{v:1,t:'RATIONAL k/n\u00b2'}]);
+    // (04.11) mirror #harm-mode instead of a stale hand list: value 1 is the LADDER and 2 is k/n² (freqForIndex),
+    // the old list called 1 «k/n²» and had no 2, so k/n² scenes showed an empty select and could not be re-chosen.
+    mirror('pitch map','harmMode','harm-mode',true);
     selField('motion','motion',[{v:'linear',t:'linear'},{v:'prepost',t:'pre/post converge'},{v:'self',t:'self converge'}]);
     mirror('graph type','typeId','cfg-type',false);
     mirror('chord length','durIdx','cfg-dur',true);
@@ -15403,7 +15464,7 @@ const scenes = (()=>{
     // [29.07] a new scene ends the previous scene's LONG voices: tie-held chord tones,
     // glue edges and rule-held drones were scheduled at absolute times and used to sail
     // across the boundary into the new scene — the continuing wail. Gentle release.
-    if(state.running && typeof killLongSustains==='function' && !(state.activity==='meditate' && typeof synthState!=='undefined' && synthState && s && (s.p|0)===(synthState.p|0))) try{ killLongSustains('scene change',0.25); }catch(e){}   // (14.10) a prayer's seam in the same room keeps its drone — measured: a 2–3 s hole in the centre sustain at every seam
+    if(state.running && !(window._qrEndGate && window._qrEndGate.closed) && typeof killLongSustains==='function' && !(state.activity==='meditate' && typeof synthState!=='undefined' && synthState && s && (s.p|0)===(synthState.p|0))) try{ killLongSustains('scene change',0.25,(opts&&opts.at)||0); }catch(e){}   // (04.11) at a form seam the release lands on the seam's beat (opts.at from the runs' _seam), not at the queueing   // (04.11) not under a CLOSED end gate: a scene restored while the tail rings (the palindrome's end returns the mode and the baton re-mirrors the scene onto her; a hand's scene load) is not a seam — nothing new will sound until a door opens the gate, and every door opens it BEFORE its first restore — so the held drones keep their own release   // (14.10) a prayer's seam in the same room keeps its drone — measured: a 2–3 s hole in the centre sustain at every seam
     // flight log: while playing, every applied scene is recorded — so a later
     // dropout can be matched to WHAT was sounding (big p? groove? tempo?)
     if(state.running && typeof _fl==='function') try{ _fl('scene','p'+s.p+' · '+s.bpm+'bpm · '+(s.motion||'')+(s.groove&&s.groove.on?' · groove':'')); }catch(e){}
@@ -15470,11 +15531,11 @@ const scenes = (()=>{
       if(typeof refreshSoloUI==='function') refreshSoloUI();
     }
     // reverb sends
-    if(s.send){ for(const k in s.send){ state.send[k]=s.send[k]; const sl=document.getElementById('rev-'+k); if(sl) sl.value=s.send[k]; if(LSEND[k]&&ctx) LSEND[k].gain.setTargetAtTime(s.send[k],ctx.currentTime,0.02); } }
+    if(s.send){ for(const k in s.send){ state.send[k]=s.send[k]; const sl=document.getElementById('rev-'+k); if(sl) sl.value=s.send[k]; if(LSEND[k]&&ctx) LSEND[k].gain.setTargetAtTime(s.send[k],Math.max(ctx.currentTime,(opts&&opts.at)||0),0.02); } }   // (04.11) at a form seam the send lands on the seam's beat (opts.at from the runs' _seam)
     if(s.voiceInst){ state.voiceInst={...s.voiceInst}; if(typeof VOL_LAYERS!=='undefined') VOL_LAYERS.forEach(k=>{ const e=document.getElementById('inst-'+k); if(e) e.value=(state.voiceInst[k]||'auto'); }); }
     if(state.bright){ const src=s.bright||null; for(const k in state.bright){ const v=(src&&src[k]!=null)?src[k]:(s.modDepth!=null?s.modDepth:state.bright[k]); state.bright[k]=v; const e=document.getElementById('br-'+k); if(e) e.value=String(v); } }
     // per-voice pan + vibrato (new) — apply to state + live pan node, refresh the switchable fader
-    if(s.pan){ for(const k in s.pan){ if(!state.pan)state.pan={}; state.pan[k]=s.pan[k]; if(LPAN[k]&&ctx) LPAN[k].pan.setTargetAtTime(s.pan[k],ctx.currentTime,0.03); } }
+    if(s.pan){ for(const k in s.pan){ if(!state.pan)state.pan={}; state.pan[k]=s.pan[k]; if(LPAN[k]&&ctx) LPAN[k].pan.setTargetAtTime(s.pan[k],Math.max(ctx.currentTime,(opts&&opts.at)||0),0.03); } }   // (04.11) at a form seam the pan lands on the seam's beat
     if(s.vib){ for(const k in s.vib){ if(!state.vib)state.vib={}; state.vib[k]=s.vib[k]; } }
     // ---- FULL-STATE restore [28.07]: mirror of the capture() additions ----
     if(s.rules){ if(!state.rules) state.rules={};
@@ -15522,7 +15583,7 @@ const scenes = (()=>{
     if(ctx&&qrBus&&qrBus.applyFX) qrBus.applyFX();
     if(ctx&&qrBus&&qrBus.tuneFloors) try{ qrBus.tuneFloors(); }catch(e){}
     // push restored volumes onto the live nodes, and re-wire the post-fader sends
-    refreshLVol();
+    refreshLVol((opts&&opts.at)||0);   // (04.11) at a form seam the faders, wet sends, bodies and the master land on the seam's beat, with the long voices' release above
     VOL_LAYERS.forEach(k=>{ if(!LVOL[k]||!LSEND[k]) return; try{ LVOL[k].disconnect(LSEND[k]); }catch(e){} if(!state.sendPreFader && !TRAJ_LAYERS.has(k)){ try{ LVOL[k].connect(LSEND[k]); }catch(e){} } });
     // goncharova
     cfg.chordDir=s.chordDir||1;
@@ -16066,6 +16127,7 @@ const composer = (()=>{
     if(!items.length){ _status('nothing to play'); return; }
     if(!opts.noClear) stop();
     _playOpts=opts; playing=true;
+    try{ if(window._qrEndOpen) window._qrEndOpen('the session'); else window._qrEndGate=null; }catch(e){}   // (04.11) a session's ▶ is a start: it opens a face form's end gate (its tail still ringing) on both halves — with the transport running it toggles nothing below, and gated it would restore its scenes into silence
     state._strictSession=!!document.getElementById('sess-strict')?.checked;   // montage tracks its primes (applied scenes can't override — the flag outranks their rules)
     const pb=document.getElementById('sess-play'); if(pb){ pb.classList.add('active'); pb.textContent='■ stop'; }
     if(!state.running){ try{startAudio();}catch(e){} }
@@ -17301,7 +17363,7 @@ const learner = (()=>{
               tender:{tMin:0.15,tMax:0.35}, desire:{tMin:0.40,tMax:0.62},
               passion:{tMin:0.70,tMax:0.92}, afterglow:{tMin:0.08,tMax:0.22}}
   };
-  let _actPhase=1, _actMedP=null;    // workout interval phase (1=work, 0=recovery) · meditation's fixed room
+  let _actPhase=1, _actMedP=null, _actPreMedP=null, _actDeadMedP=null;    // workout interval phase (1=work, 0=recovery) · meditation's fixed room · (04.11) the prime the hand had before the room · the room that died (resetActivity, or a genre carried away by a scene) while its number may still be the live p
   let _actBeatN=0;                   // beat-rebuild counter: the kit re-arranges itself as scenes pass
   let _lyricPhase=0, _lyricLeft=2;   // lyric arousal arc: 0 tender → 1 desire → 2 passion → 3 afterglow
   try{ window._lyricArcReset=function(){ _lyricPhase=0; _lyricLeft=2+Math.floor(Math.random()*2); try{ window._lyrPassN=0; }catch(e){} }; }catch(e){}   // (21.08) a form is a piece: its arc is born in tenderness, not wherever the last cycle died
@@ -17366,6 +17428,11 @@ const learner = (()=>{
       // once and kept, so it must be a world that HAS a circle; without one the
       // prayer would be omega-mute for its whole length.
       if(!_actMedP){ let _mp=(base.p>=5000 && isPrime(base.p)) ? base.p : nextPrime(20000+Math.floor(Math.random()*80000));
+        // (04.11) remember where the hand was BEFORE the room, to return there when the room dies (author: «после медитации
+        // в других жанрах остаются большие P»). A big p of the hand's own (typed or stepped → 'prime' pinned) is its own
+        // return; a big p that is a previous room still live (unpinned, ≥ 5000) is not — the earlier memory stays.
+        if((base.p|0)<5000 || apPinned('prime')) _actPreMedP=base.p|0;
+        _actDeadMedP=null;
         try{ const _g=(a,b)=>{ while(b){ const t=a%b; a=b; b=t; } return a; };
              const _sings=(q)=>{ let m=q-1; while(m%2===0) m/=2; if(m<3) return false;
                let r=2%m; for(let k=1;k<=210;k++){ if(k>=2 && _g(((r-1)%m+m)%m,m)>1) return true; r=(r*2)%m; } return false; };
@@ -17845,6 +17912,27 @@ const learner = (()=>{
   let _lastIntended=null;      // the tension the previous scene MEANT to have
   let _lastReflection=null;    // {heard, intended, err} of the finished scene
   let _autoTickFn=null, _autoFireAt=0, _autoExtended=false;   // autopilot re-scheduling handles
+  // (04.11) ❚❚ HOLDS THE CHAIN AS IT HOLDS THE BEAT. The next scene was armed on the bare wall clock, so a pause under the
+  // autopilot changed nothing for it: scenes went on being applied in silence by the wall clock, the Session and the model
+  // were fed with scenes nobody heard (the lesson weighted by the silent seconds), and ▶ resumed on a stranger. Every arm
+  // of the next tick now waits out the hand's pause and keeps the scene's remaining hold, sliding the ear's two marks
+  // (_autoFireAt, _ear.holdStart) by the transport's own held time (_qrHeldMs, 30.10), as the face's written forms do.
+  // Every reader slides first — the waiter's looks, _reflectMid, ♥ (loveThis) and the earState view — because the waiter
+  // sleeps until the scene's fire instant: a slide at its looks alone left a ♥ inside the pause, or just after ▶, weighing
+  // the silent seconds. ■ is a pause since 05.08 (running never returns to false), so it holds the chain the same way;
+  // before the first start the chain waits at the door (_hadSound) and arms nothing; ■ stop autopilot disarms the helper,
+  // so with the autopilot off every slide is a no-op. (Found by the textbook critics 30.10.)
+  let _autoH0=-1, _autoSlid=0;   // the held clock at the last arm (−1: not armed), and how much of its growth the marks already carry
+  const _autoHeld=()=>(typeof _qrHeldMs==='function')?_qrHeldMs():0;
+  function _autoSlide(){ if(_autoH0<0) return; const d=Math.max(0,_autoHeld()-_autoH0)-_autoSlid; if(d>0){ _autoSlid+=d; _autoFireAt+=d; _ear.holdStart+=d; } }
+  function _autoArm(ms){
+    _autoH0=_autoHeld(); _autoSlid=0; _autoFireAt=performance.now()+ms;
+    const w=()=>{ if(!autoOn || !_autoTickFn) return; _autoSlide();
+      const held=state.running && state.paused, r=_autoFireAt-performance.now();
+      if(held || r>1){ autoTimer=setTimeout(w, held?250:r); return; }   // paused: look again in 250 ms; else wait out the rest of the hold
+      _autoTickFn(); };
+    autoTimer=setTimeout(w,ms);
+  }
   const _ear={ tHat:0.5, loud:0, act:0, bright:0, flux:0, _accum:0, _acN:0, _n0:0, _prevSpec:null, _td:null, _fd:null, holdStart:0 };
   function _earTick(){
     if(!(state.running && !state.paused && typeof ctx!=='undefined' && ctx && ctx.state==='running' && typeof _outMeter!=='undefined' && _outMeter)) return;
@@ -17893,6 +17981,7 @@ const learner = (()=>{
   // MANIFESTS the intent — let it breathe once. Only the autopilot's own scenes.
   function _reflectMid(){
     if(!autoOn || !state.running || state.paused || !_autoTickFn || _lastIntended==null) return;
+    _autoSlide();   // (04.11) after ▶ the marks carry the pause before remain and el are read
     const el=(performance.now()-_ear.holdStart)/1000;
     if(el<4 || _ear._acN<6) return;                     // give the scene time to speak first
     const err=_ear.tHat-_lastIntended;
@@ -17901,12 +17990,12 @@ const learner = (()=>{
       // the prayer is exempt until its fragment has played out: the ear judges a
       // scene by its tension, and the whole point of the form is that the tension
       // does not resolve until the circle answers
-      clearTimeout(autoTimer); autoTimer=setTimeout(_autoTickFn,1200); _autoFireAt=performance.now()+1200;
+      clearTimeout(autoTimer); _autoArm(1200);   // (04.11) through the held clock too — a raw timer here fired through a pause
       _earLine(err>0?'sounding tenser than the intent — leaving early':'sounding cooler than the intent — leaving early');
     } else if(Math.abs(err)<0.08 && remain>0 && remain<2.5 && !_autoExtended && el<70){
       _autoExtended=true;
       const ext=Math.min(8,_sceneHoldFor(lastState)*0.4)*1000;
-      clearTimeout(autoTimer); autoTimer=setTimeout(_autoTickFn,remain*1000+ext); _autoFireAt+=ext;
+      clearTimeout(autoTimer); _autoArm(remain*1000+ext);   // (04.11) = _autoFireAt+ext, through the held clock
       _earLine('the intent sings — letting the scene breathe');
     }
   }
@@ -17944,6 +18033,7 @@ const learner = (()=>{
   function loveThis(){
     let s; try{ s=current(); }catch(e){ return; }
     if(!s || !s.p) return;
+    _autoSlide();   // (04.11) under a paused autopilot the dwell mark carries the pause before the heart weighs it (a no-op with the autopilot off)
     const held=Math.max(1,Math.min(60,(performance.now()-_ear.holdStart)/1000));
     const PHI=(1+Math.sqrt(5))/2, w=PHI*PHI*held;
     _learnState(s,w);
@@ -17973,6 +18063,21 @@ const learner = (()=>{
   }
   function generate(base){
     base=base||current(); const risk=_risk(), density=_density(), temp=0.55+risk*1.45;
+    // (04.11) THE ROOM DIED, ITS NUMBER STAYED (author: «после медитации в других жанрах остаются большие P»): the genre doors
+    // arm a return (reqP) that lands only on a beat — a parked prayer is paused, and the door's own autopilot tick generates at
+    // once — so the next generate still reads the room as base.p and walks from it (the 4999 pool cap leaves it where it is;
+    // workout's corridor admits 100000; the scene's restore then re-arms reqP over the armed home). The room also dies here when
+    // a scene or a score carried the genre away without a door (restore sets state.activity — her window's genre arrives only
+    // so). Not under a pinned prime (the hand's own), never in meditate. Any unpinned p ≥ 5000 after a dead room is the room or
+    // its ×k pair neighbour (_qrBuildPlan moves a plan's primes to _pairPrimeNear — a 4k+1 room never admits ×2), never the
+    // hand's. Home = the prime before the room, else the heaviest learned prime under the rooms, else 61 (the doors' own
+    // fallback). state.p itself is not touched — the scene lands it as always; with no dead room this is byte-for-byte the old generate.
+    if(_actMedP && state.activity!=='meditate'){ _actDeadMedP=_actMedP; _actMedP=null; }
+    if(_actDeadMedP && state.activity!=='meditate' && (base.p|0)>=5000 && !apPinned('prime')){
+      let _hp=_actPreMedP|0;
+      if(!(_hp>=3)){ try{ const _L=(model.features.p||[]).filter(x=>num(x.v)>=3&&num(x.v)<5000); if(_L.length) _hp=num(_L.reduce((a,b)=>num(b.w,1)>num(a.w,1)?b:a).v); }catch(e){} }
+      base=Object.assign({},base,{p:(_hp>=3)?_hp:61});
+    }
     const keepP=!!document.getElementById('ai-keep-p')?.checked;
     if(state.activity==='workout'){
       if(_woVict){ _woVict=false; _woRound=0; _actPhase=0; }                  // after the lap of honour: a fresh session
@@ -18521,6 +18626,7 @@ const learner = (()=>{
     const _wasLive=!!(state.running && !state.paused && window._hadSound);
     const baseBpm=Math.max(24,Math.min(240,state.bpm||60));
     const plan=state.primeArch?_formPlanPrime(T,baseBpm):_formPlan(T,baseBpm);
+    try{ if(window._qrEndOpen) window._qrEndOpen('the cockpit form'); else window._qrEndGate=null; }catch(e){}   // (04.11) a new form opens a closed end gate (a face form's tail still ringing), on both halves: the schedulers must queue again
     formOn=true; _formBtn(true);
     if(!state.running){ try{startAudio();}catch(e){} }
     else if(state.paused){ try{pauseAudio();}catch(e){} }
@@ -18634,12 +18740,11 @@ const learner = (()=>{
         // silently and the autopilot froze on the current scene forever
         try{ applyNext(!!document.getElementById('ai-auto-record')?.checked); }
         catch(e){ try{ if(typeof _fl==='function') _fl('autopilot-error',String(e&&e.message||e)); }catch(_){} }
-        const hold=_sceneHoldFor(lastState)*1000; autoTimer=setTimeout(tick,hold);
-        _autoFireAt=performance.now()+hold; };            // the ear's mid-scene re-evaluation may move this
+        const hold=_sceneHoldFor(lastState)*1000; _autoArm(hold); };   // (04.11) armed through the held clock: ❚❚ holds the chain, ▶ gives the scene the rest of its hold — the ear's mid-scene re-evaluation may still move this
       _autoTickFn=tick;
       tick();
     } else {
-      if(autoTimer){ clearTimeout(autoTimer); autoTimer=null; }
+      if(autoTimer){ clearTimeout(autoTimer); autoTimer=null; } _autoH0=-1;   // (04.11) disarmed: every _autoSlide is a no-op until the next arm
       if(typeof liveDrift!=='undefined') liveDrift.stop();
       if(document.getElementById('ai-beat')?.checked && state.groove && !state.groove.autoMode && groove && groove.applyConfig){ try{ groove.applyConfig({arch:'off'},{auto:true}); }catch(e){} }   // retract a beat the autopilot itself brought in
       // pins PERSIST across stop — grabbed controls stay the player's until "↩ return control"
@@ -18789,15 +18894,15 @@ const learner = (()=>{
           reassertFade:()=>{ if(_fadeRunner) _setMaster(_fadeRunner.cur); },   // (05.08 audit) _fadeRunner is closure-local — the duo block reasserts fades through this door
           mkMemory:()=>({moments:_mkModel?(_mkModel.moments||0):0, dur:_mkModel?(_mkModel.dur||0):0, divergence:+_mkDivergence().toFixed(2), features:_mkModel?_mkModel.features:null}),
           clMemory:()=>({moments:_clModel?(_clModel.moments||0):0, dur:_clModel?(_clModel.dur||0):0, features:_clModel?_clModel.features:null, lastTouch:_clLastTouch}),   // [29.07] Claude's memory, read-only
-          earState:()=>({tHat:_ear.tHat, samples:_ear._acN, reflBias:_reflBias, earCal:_earCal, lastIntended:_lastIntended, lastReflection:_lastReflection,
-                         heldSec:+Math.max(0,(performance.now()-_ear.holdStart)/1000).toFixed(2),   // (12.09) the heart's weight, made visible: loveThis multiplies phi-squared by this, clamped to [1,60]
+          earState:()=>(_autoSlide(),{tHat:_ear.tHat, samples:_ear._acN, reflBias:_reflBias, earCal:_earCal, lastIntended:_lastIntended, lastReflection:_lastReflection,
+                         heldSec:+Math.max(0,(performance.now()-_ear.holdStart)/1000).toFixed(2),   // (12.09) the heart's weight, made visible: loveThis multiplies phi-squared by this, clamped to [1,60] · (04.11) slid first, as ♥ is
                          nextHeartW:+(2.618*Math.max(1,Math.min(60,(performance.now()-_ear.holdStart)/1000))).toFixed(2)}),
           forgetPrayerPrimes:()=>{ try{
-            var fp=_model && _model.features && _model.features.p;
+            var fp=model && model.features && model.features.p;   // (04.11) `_model` was declared nowhere: the ReferenceError died in the catch below and the prayer rooms were never forgotten (the learner's model is `model`) — pick('p') handed them to the next genre
             if(fp && fp.length){ var keep=fp.filter(function(x){ return num(x.v,0)<5000; });
-              if(keep.length) _model.features.p=keep; }
+              if(keep.length) model.features.p=keep; }
           }catch(e){} },
-          resetActivity:()=>{ _actMedP=null; _actPhase=1; _actBeatN=0; _lyricPhase=0; _lyricLeft=2+Math.floor(Math.random()*2);
+          resetActivity:()=>{ if(_actMedP) _actDeadMedP=_actMedP;   /* (04.11) the room dies here, its number may still be the live p — generate() returns from it */ _actMedP=null; _actPhase=1; _actBeatN=0; _lyricPhase=0; _lyricLeft=2+Math.floor(Math.random()*2);
             _chorePomp=false; _focusStep=-1; _focusLen=5+Math.floor(Math.random()*3); _focusTheme=null; _focusPal=null;
             _prayStep=0; _woRound=0; _woVict=false; _woLastKit=-1; },   // fresh room / clocks on every frame start   // read-only view of the outer ear (UI/MIDI/debug)
           __test:{pickGrooveArch:_pickGrooveArch, formPlan:_formPlan, formPlanPrime:_formPlanPrime,
@@ -19224,6 +19329,7 @@ startRenderLoop();
     once.textContent='▶ once';
     once.title='show the CURRENT number once — from the beginning, natural order, forward: prelude → main → postlude, exactly p² beats, then rest. Arm ● video first to film the pass; the take stops and saves with the rest. In retro the other half mirrors it.';
     once.addEventListener('click',()=>{ try{
+      try{ if(window._qrEndOpen) window._qrEndOpen('▶ once'); else window._qrEndGate=null; }catch(e){}   // (04.11) the pass opens a closed end gate (a tail still ringing) on BOTH halves, before its restore below — that restore's seam release of the old drones runs as it always did, and her scheduler queues again
       state.reorderR=0; state.reorderPP=0; state.reorderA=0;                 // simple order — the number itself
       try{ if(typeof setDirection==='function') setDirection(false); }catch(e){}
       try{ if(typeof learner!=='undefined' && learner.isAutoOn && learner.isAutoOn()) learner.toggleAuto(); }catch(e){}   // the pass is the engine bare
@@ -19480,14 +19586,27 @@ startRenderLoop();
 
     const bookBtn=document.createElement('button'); bookBtn.className='tb-btn'; bookBtn.id='tb-likes';
     bookBtn.textContent='\u21ea likes';
-    bookBtn.title='the book of yeses — every \u2665 you ever pressed, kept across sessions. Click: save it as a scenes file (re-importable, playable as a session). Hold 1.5 s: clear the book.';
+    bookBtn.title='the book of yeses — every \u2665 you ever pressed, kept across sessions. Click: save it as a scenes file (re-importable, playable as a session). Hold 1.5 s: the button turns red for 4 s — hold it again while it is red to erase the book; a short press, or waiting, keeps it.';
     var _bookCount=function(){ try{ return (JSON.parse(localStorage.getItem('qr_likes')||'[]')||[]).length; }catch(e){ return 0; } };
-    var _bookPaint=function(){ try{ var n=_bookCount(); bookBtn.textContent='\u21ea likes'+(n?(' '+n):''); bookBtn.classList.toggle('active', n>0); }catch(e){} };
+    var _bookPaint=function(){ try{ if(_bookArm) return;   /* (04.11) armed: the red word stays until the window closes or a press answers */ var n=_bookCount(); bookBtn.textContent='\u21ea likes'+(n?(' '+n):''); bookBtn.classList.toggle('active', n>0); }catch(e){} };
     setInterval(_bookPaint, 1500); setTimeout(_bookPaint, 400);
-    var _bookHold=null;
-    bookBtn.addEventListener('pointerdown',function(){ _bookHold=setTimeout(function(){ _bookHold='done';
+    var _bookHold=null, _bookArm=null;   // (04.11) _bookArm = the 4 s window in which a second hold may erase; null = not armed
+    // (04.11, textbook critics 30.10) ONE hold used to erase the book of yeses at once — up to 400 ♥ with their scenes, the only copy of
+    // the likes that never reached api/like (offline, or over its 46 kB) — and _fl is the flight log, not a word to the player. Now the
+    // first hold only ARMS: the button turns red «hold again to erase» for 4 s; a second full hold begun while it is red erases; a short
+    // press, the pointer leaving, or the 4 s passing keeps the book. The ♥ handler above, the stem and api/like are untouched.
+    var _bookDisarm=function(){ try{ if(_bookArm){ clearTimeout(_bookArm); _bookArm=null; } bookBtn.classList.remove('arm'); _bookPaint(); }catch(e){} };
+    bookBtn.addEventListener('pointerdown',function(){
+      if(_bookHold && _bookHold!=='done') return;   // (04.11) a second pointer while a hold is pending (two fingers) must not start a second timer: it would fire right after the first and turn «arm» into «erase» inside one gesture
+      if(_bookArm){ try{ clearTimeout(_bookArm); _bookArm=setTimeout(_bookDisarm,4000); }catch(e){} }   // (04.11) a hold BEGUN while red gets its full 1.5 s: the window restarts with the press (it is judged only at the hold's end; begun after 2.5 s it would re-arm, not erase)
+      _bookHold=setTimeout(function(){ _bookHold='done';
+      if(!_bookArm){ try{ _bookArm=setTimeout(_bookDisarm,4000); bookBtn.classList.add('arm'); bookBtn.textContent='hold again to erase'; }catch(e){} return; }
+      _bookDisarm();
       try{ localStorage.removeItem('qr_likes'); _bookPaint(); if(typeof _fl==='function') _fl('likes','the book is cleared'); }catch(e){} },1500); });
+    ['pointerleave','pointercancel'].forEach(function(ev){ bookBtn.addEventListener(ev,function(){   // (04.11) a mouse that slid off (pointerleave), or a touch pan that began here (pointercancel — a touch has implicit capture), has not held the button
+      if(_bookHold && _bookHold!=='done'){ clearTimeout(_bookHold); _bookHold=null; } }); });
     bookBtn.addEventListener('pointerup',function(){ if(_bookHold==='done'){ _bookHold=null; return; } if(_bookHold){ clearTimeout(_bookHold); _bookHold=null; }
+      if(_bookArm){ _bookDisarm(); return; }   // (04.11) a short press while armed = no: the book stays, and no file is offered in the middle of that question
       try{
         var bk=[]; try{ bk=JSON.parse(localStorage.getItem('qr_likes')||'[]')||[]; }catch(e){}
         if(!bk.length){ if(typeof _fl==='function') _fl('likes','the book is empty \u2014 press \u2665 when something sounds right'); return; }
@@ -19725,7 +19844,7 @@ startRenderLoop();
   window._qrResetForForm=function(){ try{
     var b=window._qrBootScene; if(!b) return false;
     var s=Object.assign({}, b); delete s.duo; delete s.solo;
-    s.p=state.p; s.r=state.r; s.bpm=state.bpm; s.activity=state.activity||null; if(state.mood!=null) s.mood=state.mood;
+    s.p=(state.reqP!=null && (state.reqP|0)>=3)?(state.reqP|0):state.p; s.r=state.r; s.bpm=state.bpm; s.activity=state.activity||null; if(state.mood!=null) s.mood=state.mood;   // (05.11) a prime still on its way (reqP — the genre door's return from a prayer room, a typed p) is the one ✚ keeps, not the number the held synth still shows
     // (30.10) a solo the hand chose (pinned 'solo') survives ✚ — it vanished without a trace (the audit, solo (г)). Read before
     // the pins are handed back and pinned again after, so the duet's role mask still stands down for it. An unpinned solo goes.
     var _soloKeep=null; try{ if(typeof apPinned==='function' && apPinned('solo') && state.solo) _soloKeep=[...state.solo]; }catch(e){}
@@ -20568,9 +20687,11 @@ startRenderLoop();
     // the hand pressed ■. Only the claim is released here; the transport is left where it is.
     try{ if(_palActive && _palLate && _palLate.gen===_palGen){ _palLate=null; window._formOn=false; window._formArc=null;
       if(window._qrFormEvT){ window._qrFormEvT.forEach(clearTimeout); window._qrFormEvT=null; window._masterHeld=false; } } }catch(e){}
+    try{ var _egS=window._qrEndGate; if(_palActive && _egS && !_egS.closed && _egS.wall-Date.now()>350) _qrEndOpen('the score stands down', true); }catch(e){}   // (04.11) a scored run torn down BEFORE its end («■ stop score», a mode turned by hand, her pal-stop, the autopilot's _duoPalStop) takes its end gate and tail watch with it — the gate, aimed from the first look, would otherwise close the scheduler at the former plan's end and rest the transport later; a run torn down AT its end keeps the gate: the other half's natural-end 'mode' mail can reach this half a look before its own _fin, and that end is real (closed on the beat by then — the lookahead closes it before the wall end — or within 350 ms). Locally: each half runs its own _palStopLocal from the mail
     _palActive=false; _palRev=false; _palFull=true; try{ window._palFullRun=true; }catch(e){} try{ state._palScore=null; }catch(e){} _paint(); }
   var _palGen=0;   // (20.08) run token: a stale step() timer from a superseded crab must DIE, not hijack the new one (a throttled tab delivered old timers into a fresh run — k jumped mid-scene)
   function _palRun(seq, t0, isRev, score, opts){
+    try{ _qrEndOpen('a plan', true); }catch(e){}   // (04.11) a plan (mailed or the face's) opens this half's end gate — the previous form's tail — and takes its watch down; locally only: the face that started it opened and mailed already (_qrFormStart)
     _palActive=true; _palRev=!!isRev; var i=0;
     _palFull=!(opts&&opts.parts); try{ window._palFullRun=_palFull; }catch(e){}   // (24.09) parts under the score: halves stay, breath stays anti-phase
     var myGen=++_palGen;
@@ -20616,7 +20737,12 @@ startRenderLoop();
           try{ if(state._palScore) state._palScore.wall0+=_sl; }catch(e){}   // (20.08 review C3) the score clock pauses WITH the plan — both windows slide alike
           try{ if(window._formArc) window._formArc.t0+=_sl; }catch(e){} }   // (30.10) the form's clock too — the face's «m:ss left» and the stage ribbon ran on through the pause (her half has no arc)
         if(!state.running || state.paused){ _palTimer=setTimeout(step,300); return; }   // (05.08g) the crab WAITS with the transport — the whole schedule slides, wall time eats nothing; the pair pauses together (shared transport), so both windows slide alike
-        var _due=_base; for(var q0=0;q0<i;q0++) _due+=Math.max(1000,(seq[q0].dur||10)*1000);
+        var _due=_base, _endW=_base; for(var q0=0;q0<seq.length;q0++){ var _dq=Math.max(1000,(seq[q0].dur||10)*1000); if(q0<i) _due+=_dq; _endW+=_dq; }
+        _qrEndArm(_endW, 'played to its end · and mirrored');   // (04.11) as _qrPlainRun: each half aims its own gate at the shared end (same t0, same durations) from its first look; the answering half's gate closes its scheduler and its watch reports its tail, the baton's half rests both
+        if(i<seq.length){   // (04.11) the seam rides the beat: the scheduler applies seq[i] at the first beat it owns (_seam, armed by _arm below) — the look keeps the clocks sliding, aims the gate and waits for the end
+          if(Date.now()<_endW-1){ _palTimer=setTimeout(step,300); return; }
+          try{ if(window._formSeam && window._formSeam.apply===_seam) window._formSeam=null; }catch(e){} i=seq.length;   // the plan is over and seq[i] still owns no beat (a scoreless crab's last scene shorter than the beat; under the score every segment's first slot is a beat): a scene sounds only through the beats it owns — not applied, the end follows below
+        }
         if(_due-Date.now()>1){ _palTimer=setTimeout(step, Math.min(300,_due-Date.now())); return; }
       }
       if(!_palActive || i>=seq.length){
@@ -20626,6 +20752,8 @@ startRenderLoop();
         if(_fin && state.duo.mode==='pal'){ state.duo.mode=_prePalMode||'parts'; send({t:'mode',mode:state.duo.mode}); }   // the plan ended on its own — the family returns to the previous mode
         if(_fin) _qrFormPark('played to its end · and mirrored');   // (17.08) the finished form stops ITSELF — no after-play
         _mkFreeSync(); _paint(); return; }
+    }
+    function _seam(_at){   // (04.11) the seam body, verbatim from the look — run by _scheduleOneBeatBody when the beat at '_at' (audio time) is queued, before consumeRequests and the score's slot: the scene's voice and its requests land on THIS beat, the one the score also puts first in the new segment
       var it=seq[i];
       try{
         var st=Object.assign({},it.state);
@@ -20639,7 +20767,7 @@ startRenderLoop();
         var _mk2=(opts&&opts.parts&&!_isLead())?(state.duo.mult|0):1, _q2=null;
         try{ _q2=(_mk2>1)?_multPrime(st.p|0,_mk2):null;
           if(_q2){ st.p=_q2; if(st.r) st.r=Math.max(1,Math.min(_q2-1,Math.ceil((st.r|0)/_mk2))); st.bpm=Math.max(5,Math.min(999,(st.bpm||state.bpm)/_mk2)); } }catch(e){ _q2=null; }
-        scenes.restore(st,{});
+        scenes.restore(st,{at:_at});   // (04.11) the previous scene's long voices, the faders, sends and pans land at the beat, not at the queueing
         try{ state._lyrPhase=st._lyrPhase||null;
           if(st._lyrPhase && window._duoMailBH && !document.body.classList.contains('mk-embedded')) window._duoMailBH({act:'lyric', stage:st._lyrPhase, ts:Date.now()});
           if(st._lyrPhase && window._duoSpaceSet) window._duoSpaceSet({tender:0.75,desire:0.45,passion:0.08,afterglow:0.15}[st._lyrPhase] ?? 0.5);
@@ -20670,15 +20798,18 @@ startRenderLoop();
           }
         }
       }catch(e){}
-      if(i===0){ _palPos0=null; setTimeout(function(){ try{ _palPos0={p:state.vizP|0, r:state.vizR|0}; }catch(e){} },1200); }   // (07.08) remember where MY walk begins — the other side must END here
-      i++;
-      var _next=_base; for(var q=0;q<i;q++) _next+=Math.max(1000,(seq[q].dur||10)*1000);
-      _palTimer=setTimeout(step, Math.max(0,Math.min(300,_next-Date.now())));   // (30.10) looked at every 300 ms — see the top of step
+      if(i===0){ _palPos0=null; var _ld=0; try{ _ld=Math.max(0,Math.round(((_at||0)-ctx.currentTime)*1000)); }catch(e){} setTimeout(function(){ try{ _palPos0={p:state.vizP|0, r:state.vizR|0}; }catch(e){} },1200+_ld); }   // (04.11) 1.2 s after the seam beat SOUNDS, not after it is queued: the seam body now runs a lookahead early (up to 1.25 s hidden), and the closure read (pal-end, 07.08) would land before the crab's first beat   // (07.08) remember where MY walk begins — the other side must END here
+      i++; _arm();   // (04.11) the next seam goes to the scheduler at once — a short scene's first beat may be queued before the look comes round
+    }
+    function _arm(){   // (04.11) hand the next seam to the scheduler — see _qrPlainRun's _arm (at() and held() are read live, so a beat and the look may come in either order after ▶); alive: this crab still owns the stage (_palGen, _palActive — a newer run, pal-stop or a mode change drops the seam unapplied)
+      if(i>=seq.length){ try{ if(window._formSeam && window._formSeam.apply===_seam) window._formSeam=null; }catch(e){} return; }   // the end is the look's (e01's gate takes it)
+      window._formSeam={at:function(){ var d=_base; for(var q=0;q<i;q++) d+=Math.max(1000,(seq[q].dur||10)*1000); return d; }, held:function(){ return (step._lh!=null)?step._lh:_qrHeldMs(); }, alive:function(){ return _palGen===myGen && _palActive; }, apply:_seam};
     }
     // (30.10) ▶ LOOKS AT ONCE (pauseAudio calls this): the pause's tail lands on _base, wall0 and _formArc before the next
     // beat reads the score clock — left to the next 300 ms look, each half's first beats after ▶ sat on a grid short by its
     // own look phase. A re-armed timer, not a call: the transport's task stays light. A dead or ended run ignores it.
     window._formLook=function(){ if(_palGen===myGen && _palActive && _palTimer){ clearTimeout(_palTimer); _palTimer=setTimeout(step,0); } };
+    _arm();   // (04.11) the first seam (a late half's: the scene already running, i fast-forwarded above) is armed now, inside the lead — the beat at t0 must find it when it is queued
     var _wait=_base-Date.now();
     if(_wait>30) _palTimer=setTimeout(step,_wait); else step();
   }
@@ -20770,7 +20901,7 @@ startRenderLoop();
     // transport, and both windows enter together when ▶ finally sounds.
     plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur); });   // (05.08i) each step's reach — kept as the scoreless fallback
     var _score=(typeof _palScoreGen==='function')?_palScoreGen(plan):null;   // (20.08) the walk, written down once for both halves
-    var _t0=Date.now()+700;   // the shared downbeat: both windows enter the crab together
+    var _t0=Date.now()+_qrFormLead();   // the shared downbeat: both windows enter the crab together — (04.11) the lead covers the lookahead on a running transport (armed silently, the plan slides to ▶ as before)
     send({t:'pal', plan:plan, t0:_t0, score:_score});
     _palRun(plan.slice(), _t0, false, _score);   // (05.08i fix: the sender used to skip its own t0 — a constant 700ms skew in every crab)
     _paint();
@@ -20808,7 +20939,7 @@ startRenderLoop();
       }
       plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur); });
       var _score2=(typeof _palScoreGen==='function')?_palScoreGen(plan):null;
-      var _t0=Date.now()+700;
+      var _t0=Date.now()+_qrFormLead();   // (04.11) the lead covers the lookahead
       send({t:'pal', plan:plan, t0:_t0, score:_score2});
       _palRun(plan.slice(), _t0, false, _score2);
       _paint();
@@ -20934,53 +21065,119 @@ startRenderLoop();
     plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur); });
     return plan;
   }
-  var _parkT=null, _parkRel=null;   // (16.10) the fermata's timer and its release, reachable from the hand's stop and from the next form
+  var _parkT=null;   // (16.10) the fermata's timer, reachable from the hand's stop and from the next form — (04.11) now the tail watch's interval (no release any more: nothing on the master moves)
+  // (04.11) THE END GATE — the author (30.10): «нужно осознать форму, чтобы звук не просто угас, а закончился … хвост чаши и
+  // зала: пока есть хвост, это угасает, но ещё не угас». The end of a form is the last beat it wrote. The run aims the gate
+  // (window._qrEndGate: at = the plan's end on this window's audio clock) from its FIRST look — the end is known from the
+  // start, so no lookahead can cross it, however short the last scene — and re-aims it at every look (it slides with a
+  // pause); the scheduler closes it ON the first beat that would start at or after it (schedulerTick) and queues nothing
+  // more. Nothing on the master moves. A drone the last beat still holds (sustainHold: up to 300 s; the prayer's hold) takes
+  // its OWN release at that last beat's end — the bow lifts where the walk stops, over the exhale its envelope was written
+  // with (rel, from scheduleSustainVoice), never the 60 ms kill of a flush; the hall then rings out. The transport pauses —
+  // through the wrapped pauseAudio, both halves — only when this window's output (_outMeter) has been under −74 dBFS RMS for
+  // 600 ms AND the other half has said the same of its own tail ({t:'end-gate', silent:true}), or 20 s after the last queued
+  // beat's end for a stuck tail (a wall-clock backstop covers a rebuilt audio context). The baton's half rests the pair; the
+  // other half watches its own tail and only reports. wall: the plan's end on the wall clock (0 = keep the gate as it is,
+  // only make sure the watch runs); fromWire: a mailed end is noted, never applied over this half's own run, never mailed back.
+  function _qrEndArm(wall, why, fromWire){
+    try{
+      if(!(typeof ctx!=='undefined' && ctx && state.running)) return;
+      var g=window._qrEndGate;
+      if(wall>0){
+        if(g && g.closed) return;   // closed on the beat already — a late look cannot move it
+        var at=ctx.currentTime+(wall-Date.now())/1000;
+        var own=!!(_plainTimer||_palActive);   // this half runs the plan itself: its own looks aim the gate; a mailed end is only noted, never applied over them
+        if(!g) g=window._qrEndGate={at:at, wall:wall, closed:false, lastEnd:0, n:0, why:why||'', _sentWall:0, peerSilent:false, _said:false, _rel:false};
+        else if(!fromWire || !own){ g.at=at; g.wall=wall; }
+        if(!fromWire && Math.abs(g._sentWall-wall)>40 && state.duo && state.duo.on && state.duo.peer){ g._sentWall=wall; send({t:'end-gate', wall:wall, why:why||''}); }   // the other half closes its own scheduler on the same wall instant — mailed once per aim and once more when the end slid (a pause); _sentWall records only this half's own mail, so two halves whose ends differ by more than 40 ms never mail each other at every look
+      }
+      if(_parkT || !window._qrEndGate) return;
+      var quietSince=0, buf=null, wasClosed=false;   // wasClosed: the gate closed on the beat while this watch was up — only then is a pause the form's rest; a ❚❚ inside the last scene is not
+      var point=function(){ setTimeout(function(){ try{ var ff=document.getElementById('form-film'); if(ff && ff.checked) return;   // the ⏺ form-film hook keeps its own stop
+        var v=document.getElementById('tb-rec-vid'); if(v && v._duoTint) v.click(); }catch(e){} }, 600); };   // (04.11) the DUET take only (its own flag, as the park's point tested it): a plain take is stopped by the transport watcher and its glyph repaints only in onstop — clicking on the glyph disarmed a plain take whose long 9:16 Blob was still being written (round-6 review)   // (29.08) the form's point is the FILM's point too: a running DUET take ends with the rest (a plain take was stopped by the transport watcher 150 ms after the pause and shows no ■ by now; a take already stopped shows none either)
+      _parkT=setInterval(function(){
+        try{
+          var g2=window._qrEndGate;
+          if(!g2 || !state.running || state.paused){   // the pause landed (the watch's own, the wire's or the hand's), or a door opened the gate
+            clearInterval(_parkT); _parkT=null;
+            if(wasClosed && state.running && state.paused) point();   // only the END's rest lands the point: the watch is up from the first look, and a hand's ❚❚ before the close is a pause inside the form, not its end — on ▶ the form plays on and the take with it
+            return; }
+          if(!g2.closed){ quietSince=0; return; }   // the form is still being written
+          wasClosed=true;
+          var now=ctx.currentTime, end=g2.lastEnd;
+          if(now<end){ quietSince=0; return; }   // the last queued beat has not ended yet
+          if(!g2._rel){ g2._rel=true;   // the bow lifts where the walk stopped: every drone still held past the last beat's end takes its OWN release from here (rel — the exhale scheduleSustainVoice wrote for it), on this half's own voices; a drone already releasing is left alone
+            try{ var _nn=0; for(var q=0;q<_LONG_SUS.length;q++){ var v=_LONG_SUS[q]; if(!v || !v.env || !(v.until>now+(v.rel||0.25))) continue;
+                var rl=v.rel||0.25; v.env.gain.cancelScheduledValues(now); v.env.gain.setTargetAtTime(1e-4, now, rl/5);   // from its value at this instant (no read of .value: WebKit may report the last SET value), reaching the envelope's own −80 dB floor about where its written release would — the idiom of killLongSustains, at the drone's own length instead of a 60 ms flush
+                try{ v.osc.stop(now+rl*1.6+0.03); }catch(e2){} v.until=now+rl; if(now+rl>_nn) _nn=now+rl; }
+              if(_nn){ try{ if(state.activeSus) for(var q2=0;q2<state.activeSus.length;q2++){ var su=state.activeSus[q2]; if((su.t1-su.t0)>3 && su.t1>_nn) su.t1=_nn; } }catch(e3){}
+                try{ if(state.ppSus && (state.ppSus.t1-state.ppSus.t0)>3 && state.ppSus.t1>_nn) state.ppSus.t1=_nn; }catch(e3){}   // the drone's picture ends with its sound (as killLongSustains draws it)
+                try{ if(typeof _fl==='function') _fl('form','the held drones release at the last beat — their own exhale, not a cut'); }catch(e3){} } }catch(e){}
+          }
+          var silent=true;
+          if(_outMeter){ if(!buf) buf=new Float32Array(_outMeter.fftSize); _outMeter.getFloatTimeDomainData(buf);
+            var sq=0; for(var k=0;k<buf.length;k++) sq+=buf[k]*buf[k]; silent=Math.sqrt(sq/buf.length)<2e-4; }   // RMS under −74 dBFS: the bowl and the hall have reached silence
+          var wn=performance.now(); if(silent){ if(!quietSince) quietSince=wn; } else quietSince=0;
+          var mine=!!(quietSince && wn-quietSince>=600), cap=(now>end+20) || (g2.wall>0 && Date.now()>g2.wall+25000);   // the cap also on the wall clock: a rebuilt audio context starts its clock over and `now` would never reach `end`
+          var paired=!!(state.duo && state.duo.on && state.duo.peer), lead=!paired || _isLead();   // read every tick: a peer that left mid-tail leaves this half to decide for itself
+          if(paired && !lead){ if(mine && !g2._said){ g2._said=true; send({t:'end-gate', silent:true}); } return; }   // the answering half only reports its own tail; the baton's half rests both — her longer tail (×k, her register) is never cut by the mailed pause's flush
+          var both=mine && (!paired || g2.peerSilent);
+          if(both || cap){
+            window._qrEndGate=null;   // the next tick clears this watch and lands the point
+            try{ if(typeof _fl==='function') _fl('form','the tail '+(both?('has reached silence'+(paired?' on both halves':'')):'is held — 20 s cap')+' — '+(g2.why||'')+' · the transport rests'); }catch(e){}
+            try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}   // both halves: the wrapped pauseAudio carries the rest across the wire
+            try{ setStatus((g2.why||'the form ended')+' — at rest', false); }catch(e){}
+            try{ _paint(); }catch(e){}
+          }
+        }catch(e){}
+      },100);
+    }catch(e){}
+  }
+  window._qrEndArm=_qrEndArm;   // the cockpit's ▶ once (scheduleOneBeat, outside this closure) ends through the same gate
+  // (04.11) THE DOORS: whatever takes the stage during a tail opens the gate here, on BOTH halves — a new form, ▶ once, the
+  // cockpit's form, the session's ▶, a hand's seek inside the tail, the autopilot's walk, the hand's ■. Local, then mailed
+  // as {t:'end-gate', wall:0} (fromWire: a mailed open is not mailed back; a plan arriving by mail and a score standing
+  // down open locally only — the half that started it opened and mailed already). The transport's own toggles travel the
+  // wire as 'xport' and treat the gate in pauseAudio.
+  function _qrEndOpen(why, fromWire){
+    try{ window._qrEndGate=null; if(_parkT){ clearInterval(_parkT); _parkT=null; }
+      if(!fromWire && state.duo && state.duo.on && state.duo.peer) send({t:'end-gate', wall:0, why:why||''}); }catch(e){}
+    try{ if(window._qrFreeSyncLater) window._qrFreeSyncLater(); }catch(e){}   // (04.11) a deferred return to free (a pal's natural end inside a tail) is kept now that the stage is free
+  }
+  window._qrEndOpen=_qrEndOpen;
   function _qrFormPark(why){
     // (17.08 author: «доигравшая форма должна остановиться сама — не нужно потом
     // продолжать что-то играть») the end of a form is SILENCE, on both halves: the
     // wrapped pauseAudio carries the rest across the wire.
     // (21.08 author: «финал звучит не как финал») — a form that PLAYED to its end
-    // now dies away like a fermata release (~3 s, both windows), then rests; only
-    // the hand's stop is instant.
+    // died away like a fermata release (~3 s, both windows), then rested.
+    // (04.11 author 30.10: «звук не просто угас, а закончился») the fermata is gone: it was a fader on the master, its pause
+    // came from a wall timer while the closing beats were still in the lookahead, and the pause's flushVoices cut the held
+    // drones. The end is the end gate (_qrEndArm, aimed by the run from its first look at the plan's last beat); here a form
+    // that played to its end only gives back its claim. Only the hand's stop is instant.
     try{ window._formOn=false; window._formArc=null; }catch(e){}
     try{ if(window._qrFormEvT){ window._qrFormEvT.forEach(clearTimeout); window._qrFormEvT=null; window._masterHeld=false; } }catch(e){}   // (28.08) a stopped prayer takes its pending entries and arpeggios with it — and lets go of the node
-    var grace=(why && why.indexOf('stopped')>=0)?0:3.2;
-    if(grace>0 && typeof ctx!=='undefined' && ctx && masterGain && state.running && !state.paused && !_parkT){
-      try{
-        var g=masterGain.gain, v=(state.vol&&state.vol.master)||g.value||0.5;
-        window._masterHeld=true;                      // (08.09) the fermata owns the node until the lever comes home
-        window._parkHold=true;                        // (16.10) named, so the NEXT form can take the lever back from the fermata
-        _parkRel=function(){ try{ g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(v, ctx.currentTime, 0.25); }catch(e){} window._masterHeld=false; window._parkHold=false; };   // (16.10) the release, named: the lever comes back as a ramp, never a jump
-        g.cancelScheduledValues(ctx.currentTime);
-        g.setTargetAtTime(0.0001, ctx.currentTime, grace/3.5);
-        try{ send({t:'fade', secs:grace}); }catch(e){}
-        _parkT=setTimeout(function(){
-          _parkT=null;
-          try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}
-          // (29.08 author: «последний аккорд не должен выскочить отдельным ударом при
-          // возвращении фейдеров») the lever comes back for the next piece — but only
-          // after the pause has taken hold and the tail has died under the closed
-          // fader, and as a ramp, never a jump.
-          setTimeout(function(){ var f=_parkRel; _parkRel=null; if(f) f(); }, 900);
-        }, grace*1000);
-      }catch(e){ try{ if(state.running && !state.paused) pauseAudio(); }catch(e2){} }
-    } else {
-      try{ if(grace===0 && _parkT){ clearTimeout(_parkT); _parkT=null; if(_parkRel) setTimeout(function(){ var f=_parkRel; _parkRel=null; if(f) f(); }, 900); } }catch(e){}   // (16.10) the hand's stop takes the pending fermata timer with it (its delayed pause must not land on a restarted transport); no new ramp here — the existing release still runs, 900 ms under the closed fader
+    var byHand=!!(why && why.indexOf('stopped')>=0);
+    if(byHand){
+      try{ _qrEndOpen('stopped by hand'); }catch(e){}   // (16.10) the hand's stop takes the pending watch with it (its delayed pause must not land on a restarted transport) — (04.11) and opens the gate on both halves: her mailed gate would otherwise close her scheduler at the old plan's end after the next ▶ (❚❚ keeps gates — pauseAudio)
       try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}
+    } else {
+      try{ _qrEndArm(0, why); }catch(e){}   // the run aimed the gate from its first look; the watch, up since then, waits for the beat-closed gate and the silent tail. No gate here means a door took the stage during the form — nothing rests it (a pause would land on the new owner, and on the other half)
     }
     try{ if(typeof _fl==='function') _fl('form','the form ended — '+(why||'')+' · the silence after it belongs to it'); }catch(e){}
     // (29.08, watched together: a 0:20 form came back an 84 s file) the form's
     // point is the FILM's point too — the take promised to end where the form
     // ends. The ⏺ form-film hook and the palindrome's tape-done keep their own
     // stops (form-film is guarded away here; a take already stopped shows no ■).
+    // (04.11) a form that played to its end lands its point from the tail watch, once the tail is silent; the hand's stop here.
     try{
       var _ffchk=document.getElementById('form-film');
-      if(!(_ffchk && _ffchk.checked)){
+      if(byHand && !(_ffchk && _ffchk.checked)){
         setTimeout(function(){
           try{ var v=document.getElementById('tb-rec-vid');
             if(v && (v.textContent||'').indexOf('■')>=0) v.click();
           }catch(e){}
-        }, (grace>0?grace:0)*1000+600);   // the fermata breathes, then the point lands
+        }, 600);   // the point lands
       }
     }catch(e){}
     try{ _paint(); }catch(e){}
@@ -21003,15 +21200,22 @@ startRenderLoop();
       var _h=_qrHeldMs(), _hd=(step._lh!=null)?_h-step._lh:0; step._lh=_h; var _sl=state.running?_hd:_dt;
       if(_sl>0){ _base+=_sl; try{ if(window._formArc) window._formArc.t0+=_sl; }catch(e){} }
       if(!state.running || state.paused){ _plainTimer=setTimeout(step,300); return; }   // the score waits with the transport — (30.10) and so does the form's clock
-      var _due=_base; for(var q0=0;q0<i;q0++) _due+=Math.max(1000,(seq[q0].dur||10)*1000);
+      var _due=_base, _endW=_base; for(var q0=0;q0<seq.length;q0++){ var _dq=Math.max(1000,(seq[q0].dur||10)*1000); if(q0<i) _due+=_dq; _endW+=_dq; }
+      _qrEndArm(_endW, 'played to its end');   // (04.11) the end gate, aimed at the plan's end from the FIRST look — the end is known from the start, so no lookahead can cross it however short the last scene (her hidden frame queues 1.25 s ahead; a last scene is as short as 1 s) — and re-aimed at every look, so it slides with a pause; the scheduler closes it ON the last beat
+      if(i<seq.length){   // (04.11) the seam rides the beat: the scheduler applies seq[i] at the first beat it owns (_seam, armed by _arm below) — the look only keeps the clock sliding, aims the gate and waits for the end
+        if(Date.now()<_endW-1){ _plainTimer=setTimeout(step,300); return; }
+        try{ if(window._formSeam && window._formSeam.apply===_seam) window._formSeam=null; }catch(e){} i=seq.length;   // the plan is over and seq[i] still owns no beat (a last scene shorter than the beat — the gate closed before one came): a scene sounds only through the beats it owns, and a restore now would move the tail's faders — not applied, parked below
+      }
       if(_due-Date.now()>1){ _plainTimer=setTimeout(step, Math.min(300,_due-Date.now())); return; }
-      if(i>=seq.length){ _plainTimer=null; _qrFormPark('played to its end'); return; }
+      _plainTimer=null; _qrFormPark('played to its end'); return;   // the end stays on the look's clock — e01's gate (_qrEndArm above) closed the scheduler on the plan's last beat, the park only gives back the claim
+    }
+    function _seam(_at){   // (04.11) the seam body, verbatim from the look — run by _scheduleOneBeatBody when the beat at '_at' (audio time) is queued, before consumeRequests: p, section, tempo, cfg and the gotos land on THIS beat
       var it=seq[i];
       try{
         var st=Object.assign({},it.state);
         if(st.duo) delete st.duo; if(st.solo) delete st.solo;
         try{ if(typeof apStripPinned==='function') apStripPinned(st, scenes.capture()); }catch(e){}   // (14.10) the pins hold at every seam
-        scenes.restore(st,{});
+        scenes.restore(st,{at:_at});   // (04.11) the previous scene's long voices, the faders, sends and pans land at the beat, not at the queueing
         try{ state._lyrPhase=st._lyrPhase||null;
           if(st._lyrPhase && window._duoMailBH && !document.body.classList.contains('mk-embedded')) window._duoMailBH({act:'lyric', stage:st._lyrPhase, ts:Date.now()});
           if(st._lyrPhase && window._duoSpaceSet) window._duoSpaceSet({tender:0.75,desire:0.45,passion:0.08,afterglow:0.15}[st._lyrPhase] ?? 0.5);   // the arc walks them through the room: across -> approaching -> skin -> the room dissolves
@@ -21027,11 +21231,14 @@ startRenderLoop();
         if(state.activity==='meditate' && typeof synthState!=='undefined' && synthState && (st.p|0)===(synthState.p|0)){ if(!_handP){ state.reqP=null; state.reqSkip=false; } state.reqGotoMain=null; }   // (14.10) a prayer in the same room walks on through the seam — no corner, no restart of the run-up; (20.10) a hand's pending prime still lands, exactly as between seams
         else state.reqGoto={p:(_handP||st.p), sec:first, rPos:'first', seam:true};   // (20.10) seam:true — the one goto a later press may retarget (stepPrime, typed p); mirror, plan, session, scrub gotos keep their owners
       }catch(e){}
-      i++;
-      var _next=_base; for(var q=0;q<i;q++) _next+=Math.max(1000,(seq[q].dur||10)*1000);
-      _plainTimer=setTimeout(step, Math.max(0,Math.min(300,_next-Date.now())));   // (30.10) looked at every 300 ms — the due test at the top of step keeps each seam on its own instant
+      i++; _arm();   // (04.11) the next seam goes to the scheduler at once — a short scene's first beat may be queued before the look comes round
+    }
+    function _arm(){   // (04.11) hand the next seam to the scheduler. at(): the seam's wall instant on this run's clock, read live — _base as the look has slid it; held(): the held clock the look last folded into _base (step._lh; before the first look, the clock now) — _scheduleOneBeatBody adds what the transport has held since, so the instant is right whether a beat or the look comes first after ▶; alive: this run still owns the stage (a stop, a yield or a newer run drops it unapplied); apply: the seam body
+      if(i>=seq.length){ try{ if(window._formSeam && window._formSeam.apply===_seam) window._formSeam=null; }catch(e){} return; }   // the end is the look's (e01's gate takes it)
+      window._formSeam={at:function(){ var d=_base; for(var q=0;q<i;q++) d+=Math.max(1000,(seq[q].dur||10)*1000); return d; }, held:function(){ return (step._lh!=null)?step._lh:_qrHeldMs(); }, alive:function(){ return _plainTimer!==null; }, apply:_seam};
     }
     window._formLook=function(){ if(_plainTimer){ clearTimeout(_plainTimer); _plainTimer=setTimeout(step,0); } };   // (30.10) ▶ looks at once — see _palRun's; one plain run at a time, and the newest run's door is the one set
+    _arm();   // (04.11) the first seam is armed now, inside the lead — the beat at t0 must find it when it is queued, a lookahead ahead
     var _wait=_base-Date.now();
     if(_wait>30) _plainTimer=setTimeout(step,_wait); else step();
   }
@@ -21103,7 +21310,8 @@ startRenderLoop();
   };
   window._qrFormStart=function(){
     var Fp=window._qrFormPlan; if(!Fp || !Fp.plan || !Fp.plan.length) return false;
-    try{ if(_parkT){ clearTimeout(_parkT); _parkT=null; } _parkRel=null; if(window._parkHold){ window._parkHold=false; window._masterHeld=false; if(typeof masterGain!=='undefined'&&masterGain&&ctx){ masterGain.gain.cancelScheduledValues(ctx.currentTime); masterGain.gain.setTargetAtTime(Math.max(0.05,state.vol.master||0.72), ctx.currentTime, 0.2); } } }catch(e){}   // (16.10) forms back to back: the previous form's fermata must not pause or darken this one
+    var _wasClosed=false; try{ _wasClosed=!!(window._qrEndGate && window._qrEndGate.closed); }catch(e){}   // (04.11) a start inside a tail (round-6 review): see the re-base after t0
+    try{ _qrEndOpen('the next form'); }catch(e){}   // (16.10) forms back to back: the previous form's pending rest must not land on this one — (04.11) its tail watch goes and its gate opens, on both halves (in retro / free she has no run of her own and her gate came by mail); there is no fermata fader to ramp back any more
     try{ _qrSafePush(Fp); }catch(e){}   // the form that actually SOUNDS is never evicted by composing tries
     try{ if(_plainTimer){ clearTimeout(_plainTimer); _plainTimer=null; } }catch(e){}   // (30.10) ONE RUNNER ACROSS RUNNER TYPES: a plain run still sounding (◆ retro/free, then ⚭ or ⟲ picked mid-form and ∴ «start the form») went on under the score's _palRun — both restored scenes, both slid _formArc through a pause, and its end parked the new form. Cleared before this form claims _formOn and its arc
     try{ if(typeof learner!=='undefined' && learner.isAutoOn && learner.isAutoOn()) learner.toggleAuto(); }catch(e){}
@@ -21113,8 +21321,10 @@ startRenderLoop();
     try{ var _DP=window._demoPins||[]; if(_wasDemo || _DP.length){ window._demoPins=_DP;
       var _vi=_DP.indexOf('vols'); if(_vi>=0){ if(typeof apUnpin==='function') apUnpin('vols'); _DP.splice(_vi,1); }
       if(!(state.apPins&&state.apPins.has('vol.kick'))){ if(typeof apPin==='function') apPin('vol.kick'); if(_DP.indexOf('vol.kick')<0) _DP.push('vol.kick'); } } }catch(e){}   // (14.10) the form keeps its own voices, the kick stays at zero, master/freq/prime/bpm/groove stay pinned — only the demonstration's own pins are touched
+    try{ if(state.running && state.paused) _wasClosed=true; }catch(e){}   // (05.11) measured: a start after the REST (the transport paused by the tail watch, or by the hand) re-walked the ended scene for one beat before the new form's first seam, as a start inside the tail did — the same re-base below
     try{ if(!state.running) startAudio(); else if(state.paused) pauseAudio(); }catch(e){}
-    var t0=Date.now()+700;
+    var t0=Date.now()+_qrFormLead();   // (04.11) the lead covers the lookahead (700 ms alone on a Mac at rest, as before)
+    if(_wasClosed){ try{ var _nb=ctx.currentTime+(t0-Date.now())/1000+0.01; if(nextBeatTime<_nb) nextBeatTime=_nb; if(state.duo && state.duo.on && state.duo.peer) send({t:'end-gate', wall:0, why:'the next form', lead:t0}); }catch(e){} }   // (04.11) a form started inside the previous form's tail: with the gate open the very next tick queued the ENDED scene from where it stood, at full faders, for the whole lead (0.7–1.6 s), and the first seam then killed those re-started drones — a burst of the old scene after its own tail. The scheduler waits for the downbeat (10 ms past it: a beat starting before the seam's instant would still be the old scene's — measured 05.11); the other half is told the same lead (round-6 review)
     try{ if(typeof masterGain!=='undefined' && masterGain && ctx && masterGain.gain.value<0.02)
       masterGain.gain.setTargetAtTime(Math.max(0.05,state.vol.master||0.72), ctx.currentTime, 0.2); }catch(e){}   // an interrupted prayer must not darken the next form — (16.10) for every form: the darkness is gone (15.10), so a form with events is no exception
     try{ window._formArc={t0:performance.now()+(t0-Date.now()), T:Fp.T*1000}; window._formOn=true; }catch(e){}
@@ -21188,6 +21398,7 @@ startRenderLoop();
   // with no park: the transport stays where it is, for whoever took the stage. A mailed score gives back its own in
   // _palStopLocal (through _duoPalStop).
   window._qrScoreYield=function(){
+    try{ _qrEndOpen('the stage is taken'); }catch(e){}   // (04.11) the walk or the autopilot takes the stage — from a tail, or from a run standing down inside its last scene: the gate opens on both halves and its watch goes. «The transport stays where it is, for whoever took the stage» means it SOUNDS: a closed gate would leave the new owner queuing nothing until a hand's toggle (and her half, gated by mail for a plain run, silent under his improvising — no pal-stop goes out after _fin), an open one aimed at the former plan's end would close the schedulers and rest the transport under the walk
     try{ if(_plainTimer){ clearTimeout(_plainTimer); _plainTimer=null; window._formOn=false; window._formArc=null;
       if(window._qrFormEvT){ window._qrFormEvT.forEach(clearTimeout); window._qrFormEvT=null; window._masterHeld=false; } } }catch(e){}
     try{ _duoPalStop(); }catch(e){}
@@ -21695,6 +21906,8 @@ startRenderLoop();
   // learner autopilot; leaving free stops it (the mirror takes over again).
   function _mkFreeSync(){
     if(_isLead()) return;
+    try{ if(window._qrEndGate && window._qrEndGate.closed){ window._freeSyncPend=true; _paint(); return; } }catch(e){}   // (04.11) the family's return to free at a pal's NATURAL END (its _fin mails the pre-pal mode) must not take the stage inside the tail: toggleAuto → _qrScoreYield opened BOTH gates and the ended scene walked again on his half while her improviser restored scenes over her drones (round-6 review). The wish waits (_freeSyncPend) and is kept by _qrFreeSyncLater — when a door opens the gate, or the hand's ▶ after the rest
+    window._freeSyncPend=false;
     try{
       if(typeof learner!=='undefined' && learner.isAutoOn){
         var want=(state.duo.mode==='free');
@@ -21703,9 +21916,11 @@ startRenderLoop();
     }catch(e){}
     _paint();
   }
+  window._qrFreeSyncLater=function(){ if(window._freeSyncPend){ window._freeSyncPend=false; try{ _mkFreeSync(); }catch(e){} } };   // (04.11) the deferred return to free (see _mkFreeSync)
   var _applying=false;
   function applyRemoteScene(snap){
     if(!state.duo.on || _isLead() || !snap) return;
+    try{ if(window._qrEndGate && window._qrEndGate.closed) return; }catch(e){}   // (04.11) a tail belongs to the form: at a pal's natural end the leader's 'mode' echo re-mirrored his coda into her ringing tail — her faders, sends, pans, hall, master and tempo jumped mid-tail (the closed-gate guard in _restoreInner covers only the drone kill). The mirror stands down while this window's gate is closed; the heartbeat's scene request heals it after the next door (round-6 review)
     if(state.duo.mode==='free') return;   // «сама»: Markova is independent — the mirror stands down entirely
     if(_palLive()) return;                 // a palindrome is running — its own scheduler owns the scenes
     if(_applying){ if(applyRemoteScene._at && Date.now()-applyRemoteScene._at>3000){ _applying=false; } else return; }
@@ -21835,7 +22050,7 @@ startRenderLoop();
       if(m.mode!=='pal' && _palActive && _palFull) _palStopLocal();   // one family: a mode change ends the palindrome everywhere · (24.09) a parts form under the score is not a palindrome — it ends with its form
       if(m.mode==='free'||m.mode==='pal'){ state._landPend=null; state._landTok=false; state._landArmed=false; }   // (16.08) the announced landing belongs to parts/retro only
       if(!_isLead()){ _needMirrorJump=(m.mode==='retro'); if(!_palLive()){ _mkFreeSync(); if(m.mode==='free' && _freeRatio) _applyRatioBpm(); } }   // (30.10) entering free applies the kept ratio now — the 'ratio' handler no longer applies it outside free, and the 'grid' handler's apply waits up to 1 s and runs only while she plays
-      if(_isLead() && !m.bundle && m.mode!=='free' && m.mode!=='pal') broadcastScene(true);   // adopt the follower's choice and re-mirror with it at once · (27.10) not for a ⚭ bundle's mode: its half for this window is still in flight (setscene follows), and this forced echo mirrored the scene this window was about to leave over the half she had just restored — his new half crosses by the key-gated poll, as when the bundle is restored here
+      if(_isLead() && !m.bundle && m.mode!=='free' && m.mode!=='pal' && !(window._qrEndGate && window._qrEndGate.closed)) broadcastScene(true);   // (04.11) not inside a tail: the pal's natural-end echo would mirror the coda into her ringing tail (round-6 review)   // adopt the follower's choice and re-mirror with it at once · (27.10) not for a ⚭ bundle's mode: its half for this window is still in flight (setscene follows), and this forced echo mirrored the scene this window was about to leave over the half she had just restored — his new half crosses by the key-gated poll, as when the bundle is restored here
     } }
     else if(m.t==='hr'){ // the beloved's heart arrives; this window answers with ITS OWN gears
       try{
@@ -21902,7 +22117,12 @@ startRenderLoop();
         if(ctx&&qrBus&&qrBus.tuneFloors){ try{ qrBus.tuneFloors(); }catch(e){} }
       }catch(e){}
     }
-    else if(m.t==='fade'){ try{ if(typeof ctx!=='undefined' && ctx && masterGain){ var _fg=masterGain.gain, _fv=(state.vol&&state.vol.master)||_fg.value||0.5; _fg.cancelScheduledValues(ctx.currentTime); _fg.setTargetAtTime(0.0001, ctx.currentTime, (+m.secs||3.2)/3.5); setTimeout(function(){ try{ _fg.cancelScheduledValues(ctx.currentTime); _fg.setTargetAtTime(_fv, ctx.currentTime, 0.25); }catch(e){} }, ((+m.secs||3.2)+1.6)*1000); } }catch(e){} }   // her half dies away with his — the wrapped pause rests both, and her lever returns as a ramp well after it
+    else if(m.t==='end-gate'){ try{   // (04.11) the end gate on the wire. The 'fade' of 21.08 (a fader on this master, then a ramp back) is gone — nothing on the master moves at an end
+      if(m.silent){ if(window._qrEndGate) window._qrEndGate.peerSilent=true; }   // the other half's tail has reached silence — the baton's half may rest the pair once its own has
+      else if(+m.wall>0){ if(state.running && !state.paused) _qrEndArm(+m.wall, m.why||'', true); else if(+m.wall>Date.now()+200) window._qrEndPend={wall:+m.wall, why:m.why||''}; else send({t:'end-gate', silent:true}); }   // the other half's form reaches its last beat: this scheduler closes on the same wall instant and the tail rings out here too; a half not yet running (booting, or paused) keeps the aim for its start / ▶ while the instant is ahead (round-6 review); a half at rest past it has no tail to wait for
+      else { var _wasC=!!(window._qrEndGate && window._qrEndGate.closed); _qrEndOpen(m.why||'', true);   // a door on the other half (a new form, ▶ once, a seek, the walk, the hand's ■) opened its gate: this half's opens too
+        try{ if(_wasC && +m.lead>Date.now() && typeof ctx!=='undefined' && ctx){ var _nbW=ctx.currentTime+(+m.lead-Date.now())/1000+0.01; if(nextBeatTime<_nbW) nextBeatTime=_nbW; } }catch(e){} }   // (04.11) a form started on the other half inside this half's tail: the ended scene is not walked again for the lead — the first queued beat is the new form's own (round-6 review)
+    }catch(e){} }
     else if(m.t==='sdist'){ try{ window._spaceHandAt=Date.now(); if(window._duoSpaceSet) window._duoSpaceSet(+m.v, true); if(window._duoSpaceUI) window._duoSpaceUI(+m.v); }catch(e){} }   // one hand, both windows
     else if(m.t==='bh'){ try{ if(m.o && m.o.act){ window._breathHint=m.o;
       try{ state._lyrPhase=m.o.stage||null; }catch(_){}
@@ -24294,7 +24514,7 @@ body.face-manual #controls { padding-bottom: 64px; }   /* (30.10) the fixed «�
         var _st=!window._formOn && _faceStale(), FW={pal:'⟲ palindrome',parts:'⚭ parts',retro:'⇄ retro',free:'✦ free'};   // (30.10) not while a form sounds: the line then tells what plays
         var fw=FW[_st?Fp.form:(_mN||Fp.form)]||'';   // (30.10) the form start will play (parts, retro and free share one plan: the lit one); a stale score names the one it was composed for
         n.textContent='the Markovs composed it: '+(Fp.activity?Fp.activity+' · ':'')+Fp.plan.length+' scenes · '+t+(fw?' · '+fw:'')+   // (30.10) and the genre every scene carries
-          (Fp.events?' · prayer: he enters before the meeting; the arpeggio answers there and at φ':'')+
+          (Fp.events?' · prayer: one room · run-up, hold, air at the centre and the thirds, round again · the harp on the run-up to the centre and at the golden section of the cycle · the arpeggio answers at the meeting and at φ · both halves from the first beat':'')+   // (04.11) the «he enters…» clause was the 28.08 dramaturgy, gone since 15.10 (_qrBuildPlan: _ev has no entry point, nobody waits; _qrFormStart: both halves play from the first beat, only the two answers remain) — the line now names what _actShape(meditate), _prayerForm / _prayerScoreFill and the two answers do. «one room», not «one 4k+1 room»: the improviser picks a 4k+1 prime (_actMedP), but under ×k the pair move in _qrBuildPlan (_pairPrimeNear, which ignores p mod 4) lands an odd k on a 4k+3 prime about half the time (replicated over 400 rooms: ×3 180, ×5 210; even k never), and a session plan (composer.count()>1) keeps its scenes' own primes
           (_st?' — the face now shows '+GEN[sel.genre][1]+' · '+mmss()+(FW[_mN]?' · '+FW[_mN]:'')+(_faceStaleK()?' · ×'+window._qrDuo.multNow()+' (its primes were not paired for it)':'')+': ✚ recompose composes it, then start plays it'   // (30.10) see _faceStale — the length is part of what the face shows · and the ×k its primes were not paired for (_faceStaleK)
             :_pal?' — start plays it forward here, and back note-for-note on the other half':' — start plays it; it ends in silence, by itself');   // (30.10) a constant line: true before start and while the form plays (one-hand start composes, notes, then plays)
       } else {
@@ -24773,7 +24993,7 @@ const _MUSRARA = /musrara/.test((typeof location!=='undefined' && location.hash 
     // the line waits for the note's own audio time, however far ahead it was scheduled
     var atAudio=function(t,fn){ var dms=0; try{ if(typeof ctx!=='undefined'&&ctx&&t>0) dms=Math.max(0,(t-ctx.currentTime)*1000); }catch(e){} setTimeout(fn,Math.min(dms,60000)); };
     var live=function(){ try{ return !!(state.running&&!state.paused&&(window._demoOn||window._demoFormOn)); }catch(e){ return false; } };
-    try{ var _g0=_gvNote; _gvNote=function(lane,t,v,f,q){ try{ var L=String(lane).replace(/·/g,''); if(VOICE_TEXT[L]&&live()&&entrance(L,t)) atAudio(t,function(){ voice(L,VOICE_TEXT[L],0,t); }); }catch(e){} return _g0.apply(this,arguments); }; }catch(e){}
+    try{ var _g0=_gvNote; _gvNote=function(lane,t,v,f,q){ try{ var L=String(lane).replace(/·/g,''); if(VOICE_TEXT[L]&&live()&&_gvAudible(lane)&&entrance(L,t)) atAudio(t,function(){ voice(L,VOICE_TEXT[L],0,t); }); }catch(e){} return _g0.apply(this,arguments); }; }catch(e){}   // (04.11) a voice is named only when it becomes audible, as this block promises: the muted bell (fader 0 or soloed out) passed through here before the score's gate and was still announced — the same reading the mark now takes, asked before the entrance clock is touched
     try{ var _t0=_tapeNote; _tapeNote=function(k,args,durX){ try{
       var L=k; if(k==='sus'){ try{ L=(typeof _emitLayer!=='undefined'&&_emitLayer&&VOICE_TEXT[_emitLayer])?_emitLayer:'sustain'; }catch(e2){ L='sustain'; } }   // scheduleSustainVoice serves sustain, susA and susB alike; _emitLayer says which
       if(VOICE_TEXT[L]&&live()){ var t=(args&&args[0])||0, du=+((args&&args[1])||durX||0); if(entrance(L,t,du)) atAudio(t,function(){ voice(L,VOICE_TEXT[L],0,t); }); } }catch(e){} return _t0.apply(this,arguments); }; }catch(e){}

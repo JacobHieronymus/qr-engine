@@ -11,3 +11,15 @@ how often she stepped a prime of her own, and how many errors either page threw.
 
 `duet-harness.js` is the in-page part (it drives only the engine's own controls); `run-headless.ts` is the server and the
 Chrome driver; `suite-xk.json` lists the scenarios. A full run takes about 20 minutes.
+
+## The form's end (05.11)
+
+`run-form.sh` plays the face's written form (✚, then start) to its own end, with both halves spied: every queued beat with its
+audio instant, every kill of a held drone, every move of the master's gain, the output level, the transport's pause. The verdict
+says whether a fader moved the master at the end, whether a drone was cut before the tail reached silence, whether the pause came
+at silence and how long after it, whether any beat was queued after the plan's last, whether a scene's first beat came early or
+late against its due instant, and whether Markova rested at the same instant. One scenario checks the prime the genres are left
+with after a meditation; one restarts the form inside its tail.
+
+    ./tests/run-form.sh                          # six scenarios, ~4 minutes
+    ./tests/run-form.sh some-copy.html label
