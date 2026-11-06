@@ -30,3 +30,14 @@ with after a meditation; one restarts the form inside its tail.
 in order, with each stage's tempo, master and prime, the Goncharova configurations and omega harps that sounded in it, whether
 the climax event fired (the complete configuration with the harp at the meeting of a and b, then a beat held), and how the form
 ended. About four minutes.
+
+## The genres' profiles (06.11)
+
+`suite-profile.json` (run it through `run-headless.ts` like the others) composes a 2:00 form in each genre and reports it
+scene by scene: the scene's role in the genre's dramaturgy (the proof's thesis · lemma · qed · coda; the workout's warm ·
+work · rest · sprint · cool; the ascent's rungs and its top; the chores' plate bounces and the click), its prime, tempo,
+master, groove and section, and what sounded in it — beats, Goncharova chords, omega harps, the mean output level, and the
+genre's own events (`gev`: a bell on a line's entry, a chord on a scene's entry or on its last beat, the click). `herGev`
+counts the events Markova's window fired: it should stay 0 — the events belong to Markov's window, which carries the shared bed.
+
+    deno run -A tests/run-headless.ts 2907QR_Engine_8.html tests/suite-profile.json tests/results-profile.json   # ~15 minutes

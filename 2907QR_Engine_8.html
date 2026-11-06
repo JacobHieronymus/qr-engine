@@ -3066,7 +3066,7 @@ try{ if(typeof Mp4Muxer!=="undefined"){ window.Mp4Muxer = Mp4Muxer; } }catch(e){
 // was just shipped, the tab is stale») became a standing false alarm. The tab said «Musrara Presentation», the lock screen
 // «QR Engine», the field's plate «The Markovs». Raising QR_BUILD is the FIRST LINE OF EVERY SHIPMENT — the dock's stamp and
 // its title, the #td-label title, the tab (document.title) and the Media Session artist read these two.
-const QR_BUILD='05.11', QR_NAME='The Markovs';
+const QR_BUILD='06.11', QR_NAME='The Markovs';
 try{ document.title=QR_NAME+' \u00b7 '+QR_BUILD; }catch(e){}
 
 // ---------- Math ----------
@@ -4108,10 +4108,14 @@ function buildQRChain(ac, finalNode, p){
       // +15.9 dB straight into the limiter. Now it is honestly a pad, headroomTarget
       // finally moves it (pp…ff, a knob that until today did nothing at any legal
       // value), and only a genuinely extreme load pulls further down.
-      const h=(typeof estimateMixHeadroom==='function') ? estimateMixHeadroom(state) : {trim:1,load:0,dyn:1};
+      let h=(typeof estimateMixHeadroom==='function') ? estimateMixHeadroom(state) : {trim:1,load:0,dyn:1};
+      const _liveB=(typeof ctx!=='undefined' && ac===ctx);   // (06.11) the genres' pending dynamics belong to the live bus only (never an export's offline one)
+      try{ const q=_liveB?(state._dynQ||[]):[]; let c=false; while(q.length && now>=q[0].at-0.002){ state.headroomTarget=q.shift().v; c=true; } if(c && typeof estimateMixHeadroom==='function') h=estimateMixHeadroom(state); }catch(e){}   // (06.11) a genre's dynamics whose seam has come
       const PAD=0.32, EXTREME=8;   // (16.09) 0.16 → 0.32, +6 dB on everything, at the author's request: over a laptop and a Zoom share the instrument was barely audible. Measured at 0.32 with the master at 1.0: peak −17.4 dBFS, limiter cutting 0 dB — the master's ceiling was raised to 2.0 instead of padding further, so the hand decides. The limiter at −1.5 dB remains the only protection, as designed on 08.09.
       const hg=PAD*(h.dyn||1)*((state.autoHeadroom===false)?1:Math.min(1, EXTREME/Math.max(EXTREME, h.load||0)));
+      try{ if(headroom._pendAt>now && !(_liveB && state._dynQ && state._dynQ.length)){ headroom.gain.cancelScheduledValues(now); headroom._pendAt=0; } }catch(e){}   // a pending seam that will not come (stop, park, a release)
       if(headroom.gain.setTargetAtTime) headroom.gain.setTargetAtTime(hg,now,0.02); else headroom.gain.value=hg;
+      try{ const q=_liveB?(state._dynQ||[]):[]; if(q.length && headroom.gain.setTargetAtTime){ const _ld=(state.autoHeadroom===false)?1:Math.min(1, EXTREME/Math.max(EXTREME, h.load||0)); for(const e of q){ headroom.gain.setTargetAtTime(PAD*Math.max(0.55,Math.min(1.45,+e.v||1))*_ld, e.at, 0.02); } headroom._pendAt=q[q.length-1].at; } }catch(e){}   // (06.11) …and those still ahead: on the audio clock, each at its seam's beat
       // A SAFETY LIMITER, NOT A PROGRAMME COMPRESSOR. It ran at −12 dB / 12:1 on every
       // scene (the defaults live in state, so applyFX's gentler fallbacks never fired)
       // and pressed 6–8 dB one hundred per cent of the time: nine scenes of utterly
@@ -5075,6 +5079,7 @@ function _rebuildAudioContext(){
   try{ if(ctx) ctx.close(); }catch(e){}
   try{ if(window.__qrKA){ window.__qrKA.pause(); } }catch(e){}
   window.__qrKA=null; window.__qrKACtx=null;   // MediaElementSource is per-context; rebuild gets a fresh one
+  try{ const q=state._dynQ; if(q && q.length){ state.headroomTarget=q[q.length-1].v; state._dynQ=[]; } }catch(e){}   // (06.11) a genre's dynamics on their way belong to the old clock: the new one starts with them
   ctx=null; masterGain=null; voiceBus=null; qrBus=null;
   try{ initAudio(); }catch(e){ return false; }
   // (12.09) The rebuild above paused and nulled the keep-alive. Since the Media Session
@@ -7010,7 +7015,7 @@ function _pairPrimeNear(p,k){ p=p|0; k=k|0; if(k<2) return null; if(_multPrime(p
     if(isPrime(u) && _multPrime(u,k)) return u; if(w>=3 && isPrime(w) && _multPrime(w,k)) return w; } return null; }
 function _multOptions(p){ var out=[], L=(p|0)-1; for(var k=2;k<=L;k++){ if(L%k===0){ var q=_multPrime(p,k); if(q) out.push({k:k,q:q}); } } return out; }
 function _palScoreApply(s,SC,time,dur){
-  try{
+  try{ SC._lf=0;   // (06.11) set below: the time from this beat to its segment's end on the score's own grid (the genres' last-beat events)
     // THE SCORE CLOCK (20.08, second cut): the first cut trusted the per-window
     // step timers to stamp k/t0c — a throttled window cascaded its steps in one
     // burst and the mirror spent the form on its LAST segment. Now every beat
@@ -7044,6 +7049,8 @@ function _palScoreApply(s,SC,time,dur){
         var _eb=document.getElementById('bpm'), _ebn=document.getElementById('bpm-num'); if(_eb)_eb.value=state.bpm; if(_ebn)_ebn.value=state.bpm;
         dur=beatDur(); } }catch(e){}   // (27.10) dur was captured at the call site BEFORE this rescale; the prayer harp below paces _omegaSing/_omegaEcho by dur/_kApplied with the NEW k, so on this one beat its whole pass ran k times too fast (knob on) or too slow (knob off). The parameter is local to this call; the beat body re-reads its own beat after. The drone is unaffected (its beat is bound after this call). ×1 never enters this branch
       SC._kApplied=K; }
+    SC._slotSec=K*span/seg.n;   // (06.11) this half's beat under the score: the genres' pause counts it, the same on both halves
+    SC._lf=(seg.n-j)*span/seg.n;   // (06.11) …and what is left of the segment from this beat (measured: on the wall clock the score's beats wander ±10 ms around the beat, and a last beat was missed)
     SC._gi=SC.rev ? (seg.off+seg.n-1-j) : (seg.off+j);   // (20.10) the slot's place in the score — under ×k _prayerScoreBeat reads the slots this beat covers
     var sl=SC.slots[SC._gi];
     if(!sl) return;
@@ -8223,6 +8230,10 @@ function _scheduleOneBeatBody(time){
   const _SCR=(state._palScore && state._palScore.on) ? state._palScore : null;
   if(_SCR) _palScoreApply(synthState,_SCR,time,beatDur());
   const s=synthState, p=s.p, dur=beatDur();
+  try{ if((state._evStart||state._evEnd||state._evPause||state._gevRest) && _genreEvents(s,p,time,(_SCR&&_SCR._slotSec>0)?_SCR._slotSec:dur)==='rest'){ s._slotSec=null; if(_SCR && s.aFresh) _SCR._row=''; if(_SCR && cfg.chordQueue.length && cfg.chordQueue[0].ev){ const _ei=cfg.chordQueue.shift(), _eq=cfg.quads[_ei.qi]; if(_eq && vget('chord')>0) cfgChordAt(time,_eq,1,dur,_ei.hit,_ei.pos,null); }
+    if(!_SCR && window._gevQ && window._gevQ.length){ const _n0=cfg.chordQueue.length; _gevDrain(s,p,time,dur); if(cfg.chordQueue.length>_n0 && cfg.chordQueue[cfg.chordQueue.length-1].ev){ const _ti=cfg.chordQueue.pop(), _tq=cfg.quads[_ti.qi]; if(_tq && vget('chord')>0) cfgChordAt(time,_tq,1,dur,_ti.hit,_ti.pos,null); } }   // (review r4) a leading Markova's closing chord that arrived late sounds on the first beat of the pause, which stays a rest for the walk
+    emitVisual(time,'pause',p,0,0,0,0); return true; } }catch(e){}   // (06.11) the genres' events — before the dwell below, so an event chord sounds on THIS beat; a pause beat (after the QED, on the summit) sounds nothing on any half. Under the score the beat is the score's own slot (both halves count the same pause), and a rest on a fresh row's entry hands the row's build to the next beat (review r2: the crab's mirrored pause swallowed it and her walk read a stale row)
+  try{ if(window._gevQ && window._gevQ.length) _gevDrain(s,p,time,dur); }catch(e){}   // (06.11) a leading Markova's events, sounded on Markov's own beat once his landing is done
   if(s._fi && s.phase!=='main' && !_SCR && !(window._duoGuard&&window._duoGuard.pal)) s._fi=null;   // (30.10) a freedom window lives on main's zero row only — it opens there and closed only at its own end or at main's next sounding row — so one still set on any other phase is stale: a landing, a goto or sim into another section, an advance, a section switched off, next-prime or the retro answer's pause-after park left it behind, and it rode into the next room. The new main's zero row then resumed it with the OLD prime's count (61 → 31 under ◀ «F»: 50 beats for p−1 = 30, up to 1597 in meditate — the p² identity off by the difference), the breath stood frozen at its u, the 'grid' sender withheld bi/bl, his beacon carried a stale fi, and the retro answer's 'pos' gate (!_sp._fi) dropped every beacon — no door, no ±1, no mirrored hold — through the new prime's sections, and in her park the door never came. One line here, after consumeRequests, before any phase body, covers every way out of main; a goto straight into main's zero row is cleared in the reqGoto handler. The crab's half (live pal, the written score) keeps its own clock, byte-identical
 
   // ---------- Goncharova chord dwell ----------
@@ -8261,7 +8272,8 @@ function _scheduleOneBeatBody(time){
     const quad=cfg.quads[item.qi];
     const vol=vget('chord');
     const lenBeats=Math.max(0.25, cfgDurBeats());
-    const slotSec=lenBeats*dur;
+    let slotSec=lenBeats*dur;
+    if(item.ev){ try{ const lf=_sceneLeftSec(time); if(lf!=null && lf>0){ const nR=(state._evPause && !state._evRev)?Math.max(1,Math.ceil(_EV_PAUSE_SEC/Math.max(0.02,dur))):0; const _cut=lf-nR*dur; slotSec=Math.min(slotSec, (_cut<=dur+_EV_TOL)?dur:_cut); } if(item.capW>0){ const wN=Date.now()+(time-ctx.currentTime)*1000; slotSec=Math.min(slotSec, Math.max(dur, (item.capW-wN)/1000)); } }catch(e){} }   // (06.11, review r2) a genre's event chord rings its whole length but holds the walk only up to its scene's pause — a 7-beat dwell pushed the coda 4 beats late
     // ---- tie repeats: hold common tones / shared glue edges across a run ----
     // A "run" is a contiguous sequence of chord slots (no melody in between).
     // At each step we look ahead through the remaining queue to find, for every
@@ -13429,7 +13441,7 @@ state.headroomTarget=1.0;  // musical dynamics: 0.70≈piano, 1.00=reference, 1.
       mkChk('limiter bypass', ()=>state.fxCompBypass, b=>{ state.fxCompBypass=b; fxApply(); }, 'removes clip protection');
       mkChk('auto headroom', ()=>state.autoHeadroom, b=>{ state.autoHeadroom=b; fxApply(); }, 'prime-aware anti-overload trim');
       mkRow('headroom · dynamics', 0.55, 1.45, 0.01,
-        ()=>state.headroomTarget, v=>{ state.headroomTarget=v; fxApply(); },
+        ()=>state.headroomTarget, v=>{ try{ _dynCommitDue(); }catch(e){} state.headroomTarget=v; fxApply(); },
         v=> headroomDynName(v)+' '+v.toFixed(2));
     }
   }catch(e){}
@@ -14485,6 +14497,162 @@ function cfgQueueForNote(noteVal, pos){
   return take;
 }
 
+// (06.11, the author: «согласен делай» — every genre its own dramaturgy, chords as EVENTS, never a background) GENRE EVENTS.
+// A scene may carry two stamps: _evStart — 'chord' (a configuration on the scene's first sounding beat: the fanfare, a rung of
+// the ascent) or 'bell' (the clock's stroke at the entry of a line of the proof); _evEnd — 'chord' (on the scene's LAST beat:
+// the proof's QED, the end of a round, the summit) or 'click' (the plate settling). Each fires ONCE per scene (re-armed at
+// the seam by _sceneStamps), on Markov's window only — in parts the shared bed (chord, diag) is his whoever holds the baton,
+// and elsewhere the other half would double it (under ×k in another world). An event chord is one quadruple, pushed past the dose and the triggers: under the score it overlays its beat; on a
+// plain run it takes the beat's slot, so the walk rests under it — the pause after the QED and on the summit.
+function cfgRichType(p){
+  p=p|0; if(!(p>=5) || p%4!==1 || !isPrime(p)) return null;
+  const order=['complete','diamond','cycle','paw','star','path4','triangle','matching','path3','one_edge'];
+  for(const t of order){ if(cfgHasQuads(p,t)) return t; }
+  return null;
+}
+// seconds from this beat's instant to the scene's end: the form's next seam (read live, as the seam itself reads it), the
+// autopilot's next scene, or the plan's end (the last scene has no seam after it); null when nobody knows
+let _slSrc='';   // (06.11, review r4) which clock _sceneLeftSec read: 'gate' is the audio clock itself (the gate's own margin), the others are wall instants (±20 ms)
+function _sceneLeftSec(time){
+  _slSrc='';
+  try{
+    const wNow=Date.now()+(time-ctx.currentTime)*1000;
+    const fs=window._formSeam;
+    if(fs && (!fs.alive || fs.alive())){ _slSrc='seam'; return (fs.at()+(_qrHeldMs()-fs.held())-wNow)/1000; }
+    if(typeof window._ckNextWall==='function'){ const w=window._ckNextWall(); if(w>0) return (w-wNow)/1000; }   // the ◆ cockpit form's next step
+    if(window._sessNextWall>0 && typeof composer!=='undefined' && composer.isPlaying && composer.isPlaying()) return (window._sessNextWall-wNow)/1000;   // a Session step
+    if(typeof window._autoNextWall==='function'){ const w=window._autoNextWall(); if(w>0) return (w-wNow)/1000; }
+    const g=window._qrEndGate; if(g && !g.closed && g.at>0){ _slSrc='gate'; return g.at-time; }
+  }catch(e){}
+  return null;
+}
+function _evChord(s,p,time,big){
+  try{
+    if(!(p%4===1 && isPrime(p))){ try{ if(typeof _fl==='function') _fl('genre', 'no configuration exists at p='+p+' (4k+3) — the event chord is silent'); }catch(e){} return false; }
+    if(cfg.p!==p || !cfg.quads.length){ if(p<=3000) cfgRefresh(); else return false; }   // a big world is built by the 400 ms watcher, never inside the tick (review 06.11: a rebuild at p≈50000 stalls it) — the entry retries for a few beats
+    if(cfg.p!==p || !cfg.quads.length || !cfg.index) return false;
+    const r=((state.r|0)||1)%p, v=((r*r)%p)||1;   // r² is a residue: it always sits in the index
+    let list=cfg.index.get(v)||[]; if(!list.length) list=cfg.index.get(1)||[];
+    let qi=-1; for(const q of list){ if(!cfg.played.has(q)){ qi=q; break; } }
+    if(qi<0 && list.length) qi=list[(s.rIdx|0)%list.length];
+    if(qi<0) qi=0;
+    cfg.chordQueue.push({qi, hit:v, pos:0, ev:1}); cfg.played.add(qi);
+    try{ if(typeof _fl==='function') _fl('genre', (state.activity||'')+' · '+(big?'the closing chord':'a chord on the entry')+' at p='+p+' ('+cfg.typeId+')'); }catch(e){}
+    return true;
+  }catch(e){ return false; }
+}
+function _evBell(p,time,dur,hi){
+  try{
+    const f=hi ? Math.min(state.maxFreq||1250, 1250) : freqForIndex(1,p);
+    const pg=panGains(1,p); _emitLayer='diag'; _emitDir=1;
+    scheduleDiagBell(time, hi?0.035:Math.min(dur*3,2.5), f, hi?0.55:0.8, pg[0], pg[1]);
+    return true;
+  }catch(e){ return false; }
+}
+// returns 'rest' when this beat is part of the pause (the caller sounds nothing on it)
+const _EV_PAUSE_SEC=1.2;   // «и пауза»: about a second and a fifth after the QED and on the summit, whatever the tempo
+const _EV_TOL=0.03;        // a plain run's last beat: the wall and the audio clocks disagree by up to ±20 ms between two readings (measured 05.11)
+function _genreEvents(s,p,time,dur){
+  const ph=s.phase; if(!(ph==='prelude'||ph==='main'||ph==='postlude'||ph==='dual')) return null;
+  const wB=()=>Date.now()+(time-ctx.currentTime)*1000;   // this beat's wall instant
+  // the leading half's pause, mailed as wall instants to a mirroring half (retro, scoreless parts), which has no stamps of its
+  // own: every beat whose sound would reach into it rests — except, on Markov's window, the beat that carries a leading
+  // Markova's queued chord (review r3: the stamps gate above this used to return first, and the mailed pause never ran)
+  if(state._gevRest){ const w=wB(), G=state._gevRest; if(w>=G.until) state._gevRest=null; else { const Q=window._gevQ, due=!!(Q && Q.length && Q[0].w<G.from && Q[0].w<=w+dur*500); if(w>=G.from-20 || (!due && w+dur*1000>G.from+20)) return 'rest'; } }
+  if(!(state._evStart||state._evEnd||state._evPause)) return null;
+  // the scene's world has not landed yet: a landing announced beats ahead (the duet, ×k) keeps the old world for those beats, so the
+  // entry waits (review 06.11: the entry chord sounded in the old world). Waits on the landing itself, not on p — a prime pinned by
+  // the hand may never sound the scene's own p.
+  const landing=!!(state._landArmed || state.reqP!=null || state._landPend);
+  // ONE window sounds the events: Markov's, which carries the shared bed (chord, diag) in parts and whose scenes Markova mirrors in
+  // retro. In «сама» (free) she improvises scenes of her own, and in the crab (pal) she reads the score backwards with the full
+  // ensemble: there her own events sound, mirrored (_sceneStamps rev). When the baton is hers in parts or retro outside a scored
+  // run, her window chooses the moment and mails the event to Markov's, which sounds it in its own world. The pause is kept by
+  // every half (under the score each half counts it; a mirroring half gets it by mail).
+  let snd=true, mail=false;
+  try{ if(state.duo && state.duo.on && state.duo.peer){ const her=(window._qrRole==='markova') || document.body.classList.contains('mk-embedded'); const m=state.duo.mode;
+    if(her && m!=='free' && m!=='pal'){ snd=false; mail=((state.duo.lead||'markov')==='markova' && (m==='parts'||m==='retro') && !(state._palScore && state._palScore.on) && typeof window._duoMailGev==='function'); } } }catch(e){}   // a scored run plays the plan on both halves: Markov's window fires its own (review r2: a mail doubled every event)
+  const SCx=state._palScore, onScore=!!(SCx && SCx.on);
+  let left; const L=()=>{ if(left===undefined) left=(onScore && SCx._lf>0) ? SCx._lf : _sceneLeftSec(time); return left; };   // under the score: exact, on its own grid
+  const tol=()=> onScore ? 0.005 : ((_slSrc==='gate') ? Math.min(0.012,dur*0.25) : _EV_TOL);   // the gate closes on the first beat ≥ at − min(12 ms, ¼ beat): its last beat is exactly the one within that margin (review r4: 30 ms made a click fire a beat early)
+  const rev=!!state._evRev, pz=!!state._evPause, nR=Math.max(1, Math.ceil(_EV_PAUSE_SEC/Math.max(0.02,dur)));
+  const K=(onScore && SCx._kApplied>1)?(SCx._kApplied|0):1;   // ×k under the score: this half's beat is K of the leader's — the pause is counted on HIS beat
+  const fire=(k,big)=>{
+    if(!snd){ if(mail){ try{ const lf=L(), cap=(lf!=null && lf>0)?(wB()+Math.max(dur, lf-((pz && !rev)?nR*dur:0))*1000):0; window._duoMailGev({k:k, big:!!big, w:wB(), cap:cap}); }catch(e){} } return true; }
+    if(k==='bell') return _evBell(p,time,dur,false); if(k==='click') return _evBell(p,time,dur,true);
+    if(k==='chord'){ if(!(p%4===1)) return _evBell(p,time,dur,false); return _evChord(s,p,time,big); }   // a world that cannot hold the configuration (4k+3: the walk moved on within a fast round, or the answering half's pair world) marks the event with the bell
+    return true; };
+  if(!landing && pz && rev && (s._evRN|0)<nR){ s._evRN=(s._evRN|0)+1; return 'rest'; }   // the crab's mirror of «the chord, then the pause»: the pause, then the chord
+  if(state._evStart && !s._evS && !landing){
+    const ok=fire(state._evStart, rev);
+    if(ok!==false || (s._evSN=(s._evSN|0)+1)>8) s._evS=true;
+  }
+  if(pz && !rev && K>1){   // the answering half under ×k: rest every beat whose sound would reach into his pause
+    const dL=dur/K, nRL=Math.max(1,Math.ceil(_EV_PAUSE_SEC/dL)), W0=dL*nRL, lf=L();
+    if(state._evEnd && !s._evE && lf!=null && lf<=W0+dur+tol() && lf>-dur){ s._evE=true; fire(state._evEnd, true); }
+    if(lf!=null && lf>-dur && lf-dur<W0-0.02) return 'rest';
+    return null;
+  }
+  if(state._evEnd && !s._evE){
+    const lf=L(), at=(pz && !rev)?(nR+1):1;   // with a pause the closing chord comes nR beats before the end, and those beats are the pause
+    if(lf!=null && lf<=dur*at+tol() && lf>-dur){ s._evE=true; fire(state._evEnd, true);
+      if(pz && !rev){ try{ const m=state.duo&&state.duo.on&&state.duo.peer?state.duo.mode:null; if((m==='retro'||m==='parts') && !onScore && typeof window._duoMailGev==='function'){ const w0=wB(); window._duoMailGev({k:'rest', from:w0+dur*1000, until:w0+lf*1000}); } }catch(e){} }   // a mirroring half has no stamps: the pause is mailed as wall instants (review r2)
+    }
+  }
+  if(pz && !rev && s._evE){ const lf=L(); if(lf!=null && lf<=dur*nR+tol() && lf>-dur) return 'rest'; }
+  return null;
+}
+// a leading Markova's events (parts, retro, outside a scored run), queued on Markov's window by the {t:'gev'} handler and sounded
+// here, on his own beat at or after the instant she chose, once his landing is done — so the chord enters the queue after the
+// landing's wipe and sounds in his world. An entry past its life (a withdrawn landing) still marks its moment with the bell.
+function _gevDrain(s,p,time,dur){
+  const Q=window._gevQ; if(!Q || !Q.length) return;
+  const nowW=Date.now(), wNow=nowW+(time-ctx.currentTime)*1000;
+  while(Q.length && Q[0].until<nowW){ const e=Q.shift(); try{ _evBell(p,time,dur,e.k==='click'); }catch(_){} }
+  if(!Q.length) return;
+  const ph=s.phase; if(!(ph==='prelude'||ph==='main'||ph==='postlude'||ph==='dual')) return;
+  if(state._landArmed || state.reqP!=null || state._landPend) return;
+  const e=Q[0]; if(wNow < e.w - dur*500) return;
+  Q.shift();
+  if(e.k==='chord'){ if(!(p%4===1 && isPrime(p)) || !_evChord(s,p,time,!!e.big)) _evBell(p,time,dur,false);
+    else if(e.cap>0){ const it=cfg.chordQueue[cfg.chordQueue.length-1]; if(it && it.ev) it.capW=e.cap; } }   // her scene's end (and pause) bounds the chord's dwell here too
+  else if(e.k==='bell') _evBell(p,time,dur,false);
+  else if(e.k==='click') _evBell(p,time,dur,true);
+}
+// (06.11, review r4) commit the genres' dynamics whose seam has come, before anything writes headroomTarget directly
+function _dynCommitDue(){ try{ const q=state._dynQ; if(!q || !q.length || typeof ctx==='undefined' || !ctx) return; const now=ctx.currentTime; while(q.length && now>=q[0].at-0.002) state.headroomTarget=q.shift().v; }catch(e){} }
+// the stamps a scene carries to the beat it owns — the form's seams, the autopilot, the ◆ form, the Session and the duet's mirror
+// all call this after their restore. o.rev: this window reads the scene backwards (the crab's second half) — its entry is the
+// scene's end, so the two events trade places. o.rearm=false: the same scene again (a repeated mirror) — the events stay spent.
+function _sceneStamps(st,o){
+  o=o||{};
+  try{
+    state._lyrPhase=st._lyrPhase||null; state._lyrStage=st._lyrStage||null; state._lyrEvent=st._lyrEvent||null;
+    state._chordDose=(st._chordDose!=null)?st._chordDose:null;
+    let es=st._evStart||null, ee=st._evEnd||null; const rv=!!o.rev; if(rv){ const t=es; es=ee; ee=t; if(es==='bell') es=null; if(ee==='bell') ee=null; }
+    state._evStart=es; state._evEnd=ee; state._evPause=!!st._pause; state._evRev=rv;
+    if(st._bh && st._bh.act){ const o2=Object.assign({},st._bh,{ts:Date.now()}); window._breathHint=o2; }
+    // (06.11) THE GENRE'S DYNAMICS: _dyn is the scene's headroomTarget — the engine's own pp…ff (0.70 … 1.40, a linear gain before
+    // the safety limiter, applyFX), the one lever the limiter does not undo (measured: the master alone gave a rest only 3 dB under
+    // a round). The hand's own value is kept aside on the first stamped scene and comes back with the first unstamped one — a
+    // captured scene carries the stamped value, so without this the next genre would keep the sprint's ff.
+    // At a form's seam (o.at, the seam beat's audio instant, still ahead by the lookahead) the change waits for that beat on the
+    // audio clock (state._dynQ, read by applyFX) — set at once it reached the previous scene's last beats (review r2: the
+    // round's closing chord sounded at the rest's piano).
+    if(!o.keepDyn){
+    const _ct=(typeof ctx!=='undefined' && ctx)?ctx.currentTime:0, _fut=!!(o.at && _ct && o.at>_ct+0.005);
+    const _fx=()=>{ try{ if(_ct && qrBus && qrBus.applyFX) qrBus.applyFX(); }catch(e){} };
+    const _hb=(state._dynHand==null && state._dynQ && state._dynQ.length) ? state._dynQ[state._dynQ.length-1].v : null;   // a hand-back still on its way is the hand (review r3)
+    const _setDyn=(v)=>{ if(_fut){ const q=state._dynQ||(state._dynQ=[]); q.push({v:v, at:o.at}); q.sort((x,y)=>x.at-y.at); } else { state._dynQ=[]; state.headroomTarget=v; } _fx(); };
+    if(st._dyn!=null){ if(state._dynHand==null) state._dynHand=(_hb!=null?_hb:(state.headroomTarget!=null?state.headroomTarget:1.0)); _setDyn(Math.max(0.55,Math.min(1.45,+st._dyn))); }
+    else if(state._dynHand!=null){ const _hv=state._dynHand; state._dynHand=null; _setDyn(_hv); }
+    else if(state._dynQ && state._dynQ.length && !_fut){ state.headroomTarget=state._dynQ[state._dynQ.length-1].v; state._dynQ=[]; _fx(); }   // a release or an unstamped scene commits what was on its way, never drops it
+    }
+    if(o.release) state._gevRest=null;
+    if(o.rearm!==false && typeof synthState!=='undefined' && synthState){ synthState._lyrClimaxAt=0; synthState._lyrN=0; synthState._desN=0; synthState._desChord=false; synthState._evS=false; synthState._evE=false; synthState._evR=false; synthState._evSN=0; synthState._evRN=0; }
+  }catch(e){}
+}
+
 function cfgUpdateUI(infoText){
   const info=document.getElementById('cfg-info'); if(info) info.textContent=infoText||'';
   const pos=document.getElementById('cfg-pos');
@@ -15255,6 +15423,7 @@ state.activity=null;
         if(startedAuto && typeof learner!=='undefined' && learner.isAutoOn && learner.isAutoOn()){ try{ learner.toggleAuto(); }catch(e){} }
         startedAuto=false;
         try{ if(typeof learner!=='undefined' && learner.resetActivity) learner.resetActivity(); }catch(e){}   // the fixed room dies with the prayer
+        try{ if(typeof _sceneStamps==='function') _sceneStamps({},{release:true}); }catch(e){}   // (06.11) the genre's stamps go with it — the lyric's chord dose stayed over the hand's own playing
         if(_wasMed){
           try{ if(typeof learner!=='undefined' && learner.forgetPrayerPrimes) learner.forgetPrayerPrimes(); }catch(e){}
           var _back=_preActP||61;
@@ -15624,6 +15793,7 @@ const scenes = (()=>{
     if(s.modSwap!=null){ state.modSwap=s.modSwap; const mw=document.getElementById('mod-swap'); if(mw) mw.checked=s.modSwap; }
     /* (08.09) fxCompThresh/fxCompRatio/fxCompBypass left OUT: the limiter is protection,
        not music, and every scene saved before today carries −12 dB / 12:1 in it. */
+    try{ if(typeof _dynCommitDue==='function') _dynCommitDue(); }catch(e){}   // (06.11) due dynamics first: the scene's own value then wins
     for(const k of ['tremDepth','vibDepth','floorsDepth','pulseDepth','fxRevSend','fxRevBypass','fxSat','fxSatBypass','autoHeadroom','headroomTarget']){
       if(s[k]!=null) state[k]=s[k];
     }
@@ -16174,6 +16344,7 @@ const composer = (()=>{
   function play(opts){
     opts=opts||{};
     if(!items.length){ _status('nothing to play'); return; }
+    try{ if(typeof learner!=='undefined' && learner.isFormOn && learner.isFormOn()) learner.formStop('the form yields to the session'); }catch(e){}   // (06.11, review r3) a ◆ form's deferred stop must not land on the Session (its release, master and groove)
     if(!opts.noClear) stop();
     _playOpts=opts; playing=true;
     try{ if(window._qrEndOpen) window._qrEndOpen('the session'); else window._qrEndGate=null; }catch(e){}   // (04.11) a session's ▶ is a start: it opens a face form's end gate (its tail still ringing) on both halves — with the transport running it toggles nothing below, and gated it would restore its scenes into silence
@@ -16247,13 +16418,14 @@ const composer = (()=>{
       if(t>=1){ clearInterval(_glideTimer); _glideTimer=null; }
     },90);
   }
+  function _stepStamp(it,ms){ try{ _sceneStamps(it.state||{}); window._sessNextWall=(ms>0)?Date.now()+ms:0; }catch(e){} }   // (06.11) a Session step carries the genres' events, and its end
   function _applyStep(it,ms){
     _stopLanes();
     // a step may ask to play its prime from the prelude (whole-p traversal) instead
     // of the default similar-position morph; honoured by scenes.restore.
     const _restOpt = it.fromStart ? {fromStart:true} : {sim:true};
     if(it.lanes&&it.lanes.length){
-      scenes.restore(it.state,_restOpt);  // discrete params jump; lanes own the continuous ones
+      scenes.restore(it.state,_restOpt); _stepStamp(it,ms);  // discrete params jump; lanes own the continuous ones
       const acc={vol:false,freq:false};
       for(const ln of it.lanes) if(ln&&ln.param) _laneApply(ln.param,_laneVal(ln,0),acc);   // pin t=0 values
       if(acc.vol && typeof refreshLVol==='function') refreshLVol();
@@ -16266,9 +16438,9 @@ const composer = (()=>{
     // and tempo must sound from beat 1 of the prelude, so they always jump. Gliding
     // them would smear the new minFreq/maxFreq across the first ~6 s of the prelude
     // (the "frequencies arrive mid-prelude" bug). Glide stays for sim morphs only.
-    if(!smooth || it.fromStart){ scenes.restore(it.state,_restOpt); return; }
+    if(!smooth || it.fromStart){ scenes.restore(it.state,_restOpt); _stepStamp(it,ms); return; }
     const from=_contSnap();
-    scenes.restore(it.state,_restOpt);                   // discrete params jump
+    scenes.restore(it.state,_restOpt); _stepStamp(it,ms);                   // discrete params jump
     const to=_contSnap();                                  // continuous targets
     // rewind continuous params to where we were, then glide to the targets
     state.bpm=from.bpm; state.minFreq=from.fmin; state.maxFreq=from.fmax;
@@ -16279,6 +16451,7 @@ const composer = (()=>{
   }
   function stop(){
     _stopLanes();
+    try{ if(playing){ _sceneStamps({},{release:true}); window._sessNextWall=0; } }catch(e){}   // (06.11, review r2) a Session that was playing gives back its genre's stamps (only then: clear() and recording call stop() too)
     state._strictSession=false;   // live playing gets the anchor rule back
     if(_glideTimer){ clearInterval(_glideTimer); _glideTimer=null; }
     playing=false; _clearAdv(); timers.forEach(clearTimeout); timers=[]; curIdx=-1;
@@ -16968,7 +17141,7 @@ const learner = (()=>{
   function _sceneHoldFor(s){
     const A=_actCfg();
     if(A){
-      if(state.activity==='workout') return _woVict?24:(_actPhase?40:20);   // the interval IS the scene; the victory lap is brief and warm
+      if(state.activity==='workout') return ({warm:24, work:40, rest:20, sprint:30, cool:30})[_woPh]||30;   // the interval IS the scene (06.11: warm-up · work · rest · sprint · cool-down)
       if(A.hold) return Math.max(_prayerSpanSec(), A.hold[0]+Math.random()*(A.hold[1]-A.hold[0]));
     }
     if(s && s._primeLifeDur!=null) return clamp(num(s._primeLifeDur, _hold()),0.3,240);
@@ -17398,7 +17571,7 @@ const learner = (()=>{
     meditate:{bpmMin:54,bpmMax:66,tMin:0.05,tMax:0.20,
               fLo:[45,60],fHi:[480,680],master:[0.70,0.90],hold:[110,150],groove:'off',revSend:0.58,morph:0.8},   // (21.08, «сейчас сухо звучит») a prayer is a room, and a room is heard in its tail
     workout: {pMin:29,pMax:100000,bpmMin:360,bpmMax:999,ordA:[1,8],ordR:[1,8],
-              fLo:[60,90],fHi:[2200,3200],master:[0.50,0.62],groove:'interval',
+              fLo:[60,90],fHi:[2200,3200],master:[0.28,0.66],groove:'interval',   // (06.11) master opened down: the rest is quiet (measured: a flat 0.50 in every scene, the rounds inaudible)
               work:{tMin:0.60,tMax:0.85,arch:'peak'},rest:{tMin:0.35,tMax:0.50,arch:'floor'}},
     chores:  {pMin:29,pMax:999,bpmMin:240,bpmMax:999,tMin:0.20,tMax:0.50,ordR:[0,4,6],
               fLo:[95,130],fHi:[1200,1600],master:[0.34,0.45],hold:[30,60],groove:'chores'},
@@ -17429,11 +17602,47 @@ const learner = (()=>{
   let _focusStep=-1,_focusLen=6,_focusTheme=null,_focusPal=null;   // focus-as-proof: thesis → lemmas → conclusion
   let _prayStep=0;                   // meditate-as-prayer: invocation → litany (elevating) → amen, a cycle of seven
   let _woRound=0,_woVict=false,_woLastKit=-1;   // workout: progressive rounds, victory lap, kit anti-repeat
+  let _woStep=-1,_woPh='work',_woN=8,_woBpm=0;   // (06.11) workout as a session: warm-up · rounds of work/rest · the sprint · cool-down (_woStep: the autopilot's place in it; _woBpm: the round a rest follows)
+  let _focusBpm=0;                   // (06.11) the proof's clock: one tempo from thesis to conclusion
+  let _ascM=null;                    // (06.11) the ascent's mountain: its rungs and their tempi, laid at the foot
+  let _chorePompN=0;                 // (06.11) fanfares in this form (one is owed)
+  let _chorePlate=null;              // (06.11) the plate: its world and its tempo, kept by every bounce
+  // (06.11, the author: «согласен делай») THE GENRE'S FORM ARC — as the lyric's five stages: when ✚ composes a form, each genre
+  // knows which scene of the plan it is shaping (i of k: 0 the opening = the plan's prelude, k−1 the close = its postlude, the
+  // rest main) and lays its own dramaturgy over them. Off outside the composition: the autopilot runs the genre's own cycle.
+  let _gArc=null;
+  try{ window._genreArcReset=function(k,T){ k=k|0; _gArc=(k>=3)?{k:k, T:+T||0, i:-1}:null; _woStep=-1; _focusStep=-1; _focusTheme=null; _focusBpm=0; _ascM=null; _chorePomp=false; _chorePompN=0; _chorePlate=null; };
+       window._genreArcEnd=function(){ _gArc=null; _woStep=-1; _focusStep=-1; _focusTheme=null; _focusBpm=0; _ascM=null; _chorePomp=false; }; }catch(e){}
+  // the ascent's ladder: the foot, nextPrime rung by rung, the summit = the first 4k+1 world past the last rung where a
+  // configuration exists (the summit's chord must be able to sound). THE TEMPO IS THE RUNG: bpm = F·(p/p_foot)^γ — a law of the
+  // prime, monotone in it; γ sets the summit at 2.5× the foot whatever the primes' own ratio, never above 999.
+  function _admK(q){ const k=(state.duo && state.duo.on && state.duo.mode!=='free' && (state.duo.mult|0)>1)?(state.duo.mult|0):0; return !k || !!_multPrime(q|0,k); }   // (review r2) only a pair that will sound: the duet on, not «сама» (the knob stays set when the duet closes)   // (06.11) under ×k a world must admit the pair, or _qrBuildPlan moves it (and a 4k+1 chord world lands on 4k+3)
+  function _ascLadder(p0,n,T){
+    let foot=(p0>=997)?3:nextPrime(Math.max(2,p0|0)); { let g=0; while(!_admK(foot) && g++<400) foot=nextPrime(foot); }
+    const F=96+Math.round(Math.random()*36);
+    if(T>0){ const lim=Math.max(5,Math.floor((T/4)*F/60)+1); if(foot>lim){ let q=lim; while(q>3 && !(isPrime(q) && _admK(q))) q--; foot=Math.max(3,q); } }   // the foot's prelude fits a quarter of the form (_qrBuildPlan would cut it there anyway)
+    const R=[foot]; let q=foot;
+    for(let j=1;j<n-1;j++){ q=nextPrime(q); let g=0; while(!_admK(q) && g++<400) q=nextPrime(q); R.push(q); }
+    if(n>=2){ let sm=nextPrime(q), g=0; while(g++<400 && !(sm%4===1 && cfgRichType(sm) && _admK(sm))) sm=nextPrime(sm); R.push(sm); }
+    if(R[R.length-1]>997 && (p0|0)>2) return _ascLadder(2,n,T);   // past 997 the climb begins again at 3 (06.08) — a mountain does not cross it (review 06.11); under ×5 and some others no mountain of pairable rungs fits under 997 at all, and then it crosses once and the next begins at 3
+    const ps=R[R.length-1], ratio=Math.max(1.0001,ps/foot), Rt=Math.min(2.5,999/F);
+    const gam=Math.log(Rt)/Math.log(ratio);   // the summit is always 2.5× the foot: γ widens a short climb and narrows a long one (measured under ×3: the summit leapt 37 → 109 and the plain ratio asked 1015 bpm)
+    return {rungs:R, bpm:R.map(function(v){ return Math.max(40,Math.min(999,Math.round(F*Math.pow(v/foot,gam)))); }), i:-1, F:F};
+  }
+  // the proof's thesis: a world with four-fold configurations (4k+1, a type that exists), so the QED can sound; in a form
+  // small enough that its prelude (the opening statement) fits a quarter of the form at the proof's clock
+  function _focusThesisP(q0,lim){
+    lim=Math.max(13,lim|0); let q=Math.max(13,Math.min(lim,q0|0));
+    for(let v=q; v>=13; v--){ if(v%4===1 && isPrime(v) && cfgRichType(v) && _admK(v)) return v; }
+    for(let v=q+1; v<=Math.max(lim,q+2000); v++){ if(v%4===1 && isPrime(v) && cfgRichType(v) && _admK(v)) return v; }
+    return 13;
+  }
   function _actCfg(){ return state.activity ? _ACT[state.activity] : null; }
   function _actT(A){
     if(state.activity==='workout'){
-      if(_woVict) return {tMin:0.40,tMax:0.58};                            // the lap of honour: warm, not driving
-      const R=_actPhase?A.work:A.rest, b=Math.min(0.10,0.015*_woRound);
+      if(_woPh==='warm') return {tMin:0.30,tMax:0.45};
+      if(_woPh==='cool') return {tMin:0.10,tMax:0.22};
+      const R=(_woPh==='rest')?A.rest:A.work, b=Math.min(0.10,0.015*_woRound);
       return {tMin:Math.min(0.90,R.tMin+b), tMax:Math.min(0.95,R.tMax+b)};  // progressive overload
     }
     if(state.activity==='lyric') return [A.tender,A.desire,A.passion,A.afterglow][_lyricPhase]||A.tender;
@@ -17466,7 +17675,7 @@ const learner = (()=>{
   // re-arranges EVERY scene; the kick is a rare guest
   const _GR_CHORES=[ _grv('broken',0.30,0.14,['click','zap','hatC']),
                      _grv('slow',0.26,0.12,['tom','hatO','clap']),
-                     _grv('breath',0.24,0.16,['bass','hatC','click']),
+                     _grv('breath',0.24,0.16,['zap','hatC','click']),   // (06.11) toy percussion only: the bass left the kit
                      _grv('broken',0.28,0.13,['zap','clap','hatO']) ];
   function _actShape(base,out){
     const A=_actCfg(); if(!A) return out;
@@ -17475,8 +17684,33 @@ const learner = (()=>{
       // (06.08 author: «P по возрастанию») the infinite staircase: every new scene
       // climbs to the NEXT prime; every other freedom stays the improviser's own.
       // Past 997 the climb begins again at 3 — a new ascent, not a ceiling.
+      // (06.11, the author: «согласен» — ступень = сцена, темп растёт со ступенью, на ступенях 4k+1 аккорд-событие, на вершине
+      // пауза и полный аккорд) MOUNTAINS. The climb is laid at the foot (_ascLadder): rungs by nextPrime, the summit the first 4k+1
+      // world past them with a configuration, the tempo a law of the rung. In a form the plan is one mountain — the foot is its
+      // prelude, the summit its last inner scene, the coda the view from the top (the summit's world, its postlude). The
+      // autopilot climbs mountains of six rungs, the next one's foot above the last summit: p never descends. A rung where
+      // four-fold configurations exist sounds one on arrival; the summit sounds the fullest that exists on its last beat — on a
+      // plain run the walk rests under it (the pause). No triggers otherwise: the chords are the climb's events.
       const _pc=(state.p|0)||(base&&base.p)||3;
-      out.p=(_pc>=997)?3:nextPrime(_pc);
+      let j, R;
+      if(_gArc){ if(_gArc.i<=0 || !_ascM) _ascM=_ascLadder(_pc,Math.max(2,_gArc.k-1),_gArc.T); R=_ascM; j=Math.max(0,Math.min(R.rungs.length-1,_gArc.i)); }
+      else { if(!_ascM || _ascM.i>=_ascM.rungs.length-1) _ascM=_ascLadder(_ascM?_ascM.rungs[_ascM.rungs.length-1]:_pc,6,0); R=_ascM; R.i++; j=R.i; }
+      const _view=!!(_gArc && _gArc.i>=_gArc.k-1);   // the coda: standing on the summit
+      const _top=!_view && j===R.rungs.length-1;
+      out.p=R.rungs[j]; out.bpm=R.bpm[j];
+      out.r=Math.max(1,Math.min(out.p-1,out.r|0||1));
+      if(!out.vol) out.vol={};
+      out.trig=[]; out.arp=false; out._evStart=null; out._evEnd=null;
+      const _rt=cfgRichType(out.p);
+      if(_rt && !_view){
+        out.typeId=_rt; out.vol.glue=Math.max(out.vol.glue||0,0.12);
+        if(_top){ out._evEnd='chord'; out._pause=true; out.vol.chord=0.34; out.omArpOrd='square'; }   // the summit: the fullest configuration, then the pause
+        else { out._evStart='chord'; out.vol.chord=Math.max(out.vol.chord||0,0.24); }   // a rung of four-fold worlds: one on arrival
+      }
+      out.vol.master=Math.min(0.62, 0.40+0.20*(j/Math.max(1,R.rungs.length-1)));   // the air thins, the body works: louder as it climbs
+      out._dyn=0.85+0.40*(j/Math.max(1,R.rungs.length-1));                       // piano at the foot, forte at the summit
+      if(_view){ out.vol.master=0.38; out._dyn=0.85; }
+      out._ascRung=j; out._ascTop=_top; if(_view) out._keepP=true;
       return out;
     }
     if(act==='meditate'){
@@ -17564,7 +17798,7 @@ const learner = (()=>{
       // any fast raw tempo pins u to 1 and the mode lives on its own ceiling
       let u=Math.max(0,Math.min(1,((out.bpm||120)-A.bpmMin)/Math.max(span,999-A.bpmMin)));
       const tt=(out._tension!=null)?out._tension:0.4;
-      const heat=(act==='workout') ? (_woVict?0.35:(_actPhase?Math.min(1,0.70+0.03*_woRound):0.2))
+      const heat=(act==='workout') ? (({warm:0.35, rest:0.10, cool:0.05, sprint:1})[_woPh] ?? Math.min(1,0.70+0.03*_woRound))
                : (act==='lyric')   ? [0.12,0.45,0.95,1.0,0.05][_lyricPhase]   // (06.11) five stages: caress · desire · passion · climax · catharsis (the stages set their own tempo after this)
                : Math.max(0,Math.min(1,(tt-0.45)/0.55));
       const gamma=3.2-2.4*heat;                     // calm: γ≈3.2 hugs the floor · hot: γ≈0.8 opens the top
@@ -17588,25 +17822,52 @@ const learner = (()=>{
                    {a:'bell',b:'str',sustain:'flute',prelude:'str',postlude:'flute',diag:'pluck'},
                    {a:'flute',b:'bell',sustain:'reed',prelude:'pluck',postlude:'str',diag:'str'},
                    {a:'str',b:'pluck',sustain:'bell',prelude:'reed',postlude:'bell',diag:'flute'}];
-      const _L=Math.max(3,_focusLen), _st=Math.max(0,_focusStep);
-      if(_st===0 || !_focusTheme){                       // THESIS
+      // (06.11, the author: «согласен» — тезис в мире, где четвёрки есть; колокол на входе каждой строки, как удар часов; ровный
+      // темп как часы, без случайных скачков; вывод — полный аккорд на последней доле перед постлюдией, и пауза) THE PROOF AS A
+      // FORM. Roles: thesis · lemmas · conclusion (QED) — and in a ✚ form the coda: the plan's opening is the thesis (its prelude
+      // is the statement), the last inner scene the conclusion, the postlude the thesis's world once more. One clock for the
+      // whole proof (the corridor's low edge, the burst refused). Triggers off: the one chord is the QED, on the conclusion's
+      // last beat — on a plain run the walk rests under it. Measured before: the thesis landed on 4k+3 worlds (499) where no
+      // configuration exists, and the QED's 'complete' could not sound.
+      let role;
+      if(_gArc){ const i=Math.max(0,_gArc.i), k=_gArc.k; role=(i===0)?'thesis':(i>=k-1)?'coda':(i===k-2)?'qed':'lemma'; }
+      else { const _L=Math.max(3,_focusLen), _st=Math.max(0,_focusStep); role=(_st===0||!_focusTheme)?'thesis':(_st<_L-1)?'lemma':'qed'; }
+      if(role!=='thesis' && !_focusTheme) role='thesis';
+      const _li=_gArc ? Math.max(1,_gArc.i) : Math.max(1,_focusStep);   // the lemma's number
+      if(role==='thesis'){                               // THESIS
+        const _lo=(A.bpmMin||60);
+        if(!_focusBpm) _focusBpm=Math.max(_lo, Math.min((out.bpm|0)||_lo, _lo+36));   // one clock for the session (measured: the autopilot's third proof jumped 61 → 96); a ✚ form starts its own
+        let lim=_gArc ? Math.floor((Math.max(2,_gArc.T/4))*_focusBpm/60)+1 : (A.pMax||500);
+        if(_gArc && lim<13){ const sh=Math.max(2,_gArc.T/4); let b=Math.ceil(720/sh); if(Math.floor(sh*b/60)+1<13) b++; _focusBpm=Math.min(A.bpmMax||500,b); lim=13; }   // a short form: the clock quickens so the thesis world (13 at least) fits its prelude (review 06.11)
+        out.p=_focusThesisP(out.p|0, lim); out.r=Math.max(1,Math.min(out.p-1,(out.r|0)||1));
+        if(_gArc && out.p>lim){ const sh=Math.max(2,_gArc.T/4); let b=Math.ceil((out.p-1)*60/sh); if(Math.floor(sh*b/60)+1<out.p) b++; _focusBpm=Math.min(A.bpmMax||500,b); lim=out.p; }   // (review r2) under ×k the first pairable thesis world may sit above the fit: the whole proof's clock quickens, not the thesis alone
+        out.bpm=_focusBpm;
+        if(!out.vol) out.vol={}; out.vol.prelude=Math.max(out.vol.prelude||0,0.16); out.vol.susA=Math.max(out.vol.susA||0,0.10);   // the statement is heard (measured: the thesis's prelude at −55 dB)
         _focusTheme=JSON.parse(JSON.stringify(out));
         _focusPal=_FPAL[Math.floor(Math.random()*_FPAL.length)];
-      } else if(_st<_L-1){                               // LEMMAS: strict derivations of the thesis
+      } else if(role==='lemma'){                         // LEMMAS: strict derivations of the thesis
         const th=JSON.parse(JSON.stringify(_focusTheme));
-        th.bpm=out.bpm; th.vol=out.vol;                  // live dynamics stay live
-        const _T=((_st-1)%3)+1;
-        if(_T===1){ const q=nextPrime((th.p|0)+1); if(A.pMax==null||q<=A.pMax) th.p=q; }   // lemma: transposition — one prime up
+        th.vol=out.vol;                                  // live dynamics stay live; the clock does not
+        const _T=((_li-1)%3)+1;
+        if(_T===1){ let q=nextPrime((th.p|0)+1), g=0; while(!_admK(q) && g++<300) q=nextPrime(q); if(A.pMax==null||q<=A.pMax) th.p=q; }   // lemma: transposition — one prime up (under ×k: one that admits the pair)
         else if(_T===2){ th.dir=-(th.dir||1); }                                            // lemma: inversion — the walk reversed
         else { th.durIdx=Math.min(30,(th.durIdx||18)+4); th.reorderA=4; }                  // lemma: augmentation — longer values, the line arches
         out=th;
-      } else {                                           // CONCLUSION
+      } else {                                           // CONCLUSION (and the form's coda: the thesis's world once more)
         const qed=JSON.parse(JSON.stringify(_focusTheme));
-        qed.bpm=out.bpm; qed.vol=out.vol;                // the theorem returns HOME: the thesis prime, proven
-        qed.trig=['a','b']; qed.typeId='complete';       // and it sounds as a full chord — quod erat demonstrandum
-        if(qed.vol) qed.vol.master=A.master[1];          // stated with confidence
-        out=qed; _focusTheme=null;
+        qed.vol=out.vol; if(!qed.vol) qed.vol={};
+        if(role==='qed'){                                // the theorem returns HOME, and sounds as the fullest chord its world has
+          qed.typeId=cfgRichType(qed.p)||'complete'; qed.vol.chord=0.30; qed.vol.glue=Math.max(qed.vol.glue||0,0.12);
+          qed.vol.master=A.master[1]; qed._evEnd='chord'; qed._dyn=1.15;
+          if(!_gArc) _focusTheme=null;
+        } else { qed.vol.master=A.master[0]; qed.vol.postlude=Math.max(qed.vol.postlude||0,0.14); qed.vol.susB=Math.max(qed.vol.susB||0,0.10); }
+        out=qed;
       }
+      out.bpm=_focusBpm||out.bpm;
+      out.trig=[]; out._evStart='bell'; if(role!=='qed') out._evEnd=null;   // the clock's stroke at the entry of every line
+      if(!out.vol) out.vol={}; out.vol.diag=Math.max(out.vol.diag||0,0.16);
+      out._focusRole=role; out._clock=true; if(role==='thesis'||role==='coda') out._keepP=true;
+      if(role==='qed') out._pause=true;   // «вывод — полный аккорд на последней доле перед постлюдией, и пауза»
       out.voiceInst=Object.assign({},out.voiceInst||{},_focusPal||_FPAL[0]);
     }
     if(act==='lyric'){
@@ -17785,21 +18046,53 @@ const learner = (()=>{
       if(Math.random()<0.4) out.modSwap=!out.modSwap;
       // IRONY DOUBLED (author 29.07: «можно ещё ироничнее»)
       if(!out.vol) out.vol={};
-      if(_chorePomp){
+      // (06.11, the author: «согласен» — юмор оставить, одна фанфара-аккорд на сцену вместо стены, игрушечные ударные; финал —
+      // «тарелка»: сцены короче и тише, как отскоки, последний — щелчок) Measured before: 75–113 chords in one pomp scene. Now
+      // no triggers at all: the fanfare is ONE configuration on its entry. In a ✚ form the plate falls at the end: the last
+      // inner scenes are its bounces (each ×0.6 shorter, quieter, quicker), the close a tiny world that ends on one tick.
+      out.trig=[]; out.arp=false; out._evStart=null; out._evEnd=null;
+      out.vol.kick=0;   // (06.11, review) toy percussion only: the walk's own bass drum (a 38 Hz boom on every residue b) left too
+      let _pl=0, _clk=false, _force=false;
+      if(_gArc){ const i=Math.max(0,_gArc.i), k=_gArc.k, m=k-2, B=(m>=6)?3:((m>=3)?2:((m>=2)?1:0));   // the comedy keeps at least two scenes (a fanfare and its deflation) before the plate falls
+        if(i>=k-1) _clk=true;
+        else if(B>0 && i>=k-1-B) _pl=i-(k-1-B)+1;
+        else if(i>=1 && _chorePompN===0 && !_chorePomp && i>=Math.max(1,Math.floor((k-1-B)/2))) _force=true; }   // one fanfare is owed to every form
+      if(_clk){
+        // THE CLICK — the plate has settled: a tiny world (six beats), quick, quiet, one tick on the very last beat
+        out.p=7; out.r=Math.max(1,Math.min(6,(out.r|0)||1)); out.bpm=240+Math.round(Math.random()*60);
+        out.groove={arch:'off',intensity:0}; out.vol.master=0.20;
+        out.vol.diag=Math.max(out.vol.diag||0,0.30); out.vol.kick=0; out.vol.hat=0; out.sustainOn=false; out.vol.sustain=0.04;
+        out.voiceInst=Object.assign({},out.voiceInst||{},{a:'pluck',b:'bell'}); out.attackMorph=0;
+        out._evEnd='click'; out._click=true; out._dyn=0.75; _chorePomp=false;
+      } else if(_pl>0){
+        // THE PLATE — the fall (a crash and a clap), then the bounces: each shorter, quieter, quicker
+        // one plate: the fall picks its world and its tempo, every bounce keeps the world and quickens from there
+        if(_pl===1 || !_chorePlate) _chorePlate={p:out.p|0, r:out.r|0, bpm:Math.max(200,Math.min(420,out.bpm||240))};
+        else { out.p=_chorePlate.p; out.r=_chorePlate.r; }
+        out._plate=_pl; out._durW=Math.pow(0.6,_pl); out.vol.master=0.44*Math.pow(0.8,_pl); out._dyn=Math.max(0.70, 1.0-0.10*_pl);   // below the genre's floor: 0.35 · 0.28 · 0.23 (review: the floor held the later bounces at one level)
+        out.bpm=Math.min(999,Math.round(_chorePlate.bpm*Math.pow(1.22,_pl-1)));
+        out.groove=(_pl===1) ? _grv('broken',0.32,0.10,['clap','zap','click','crash'],5,7) : _grv('slow',Math.max(0.12,0.26-0.06*_pl),0.08,['click'],5,7);
+        if(_pl===1){ out.groove.zeroCrash=false; if(out.groove.lanes.crash) out.groove.lanes.crash.lvl=0.40; }
+        out.voiceInst=Object.assign({},out.voiceInst||{},{a:'pluck',b:'bell'}); out.attackMorph=0; out.durIdx=Math.min(out.durIdx||12,10);
+        _chorePomp=false;
+      } else if(_chorePomp){
         // the morning after grandeur: instant deflation — subito piano, a lone
         // click counting the seconds, as if nothing at all had happened
         _chorePomp=false;
-        out.vol.master=A.master[0];
+        out.vol.master=A.master[0]; out._dyn=0.72;                            // subito piano
         out.groove=_grv('slow',0.18,0.20,['click'],5);
-        out.trig=[]; out.attackMorph=Math.max(out.attackMorph||0,0.4);
+        out.attackMorph=Math.max(out.attackMorph||0,0.4);
         out.voiceInst=Object.assign({},out.voiceInst||{},{a:'pluck',b:'bell'});
-      } else if(Math.random()<0.22){
+      } else if(_force || Math.random()<(_gArc?0.35:0.22)){
         // MOCK-HEROIC: a brass fanfare over the laundry, delivered with a perfectly
         // straight face — and the NEXT scene will pretend it never happened
-        _chorePomp=true;
+        // (06.11) the fanfare is ONE chord, on the scene's entry (the world moves to 4k+1 for it — the end of generate)
+        _chorePomp=true; _chorePompN++;
         out.voiceInst=Object.assign({},out.voiceInst||{},{a:'brass',b:'brass',sustain:'str',chord:'brass'});
         out.vol.master=A.master[1];
-        out.trig=['a','b']; out.typeId='complete'; out.attackMorph=0;
+        out.typeId='complete'; out.attackMorph=0;
+        out._evStart='chord'; out.vol.chord=0.32; out.vol.glue=Math.max(out.vol.glue||0,0.14);
+        out.bpm=76+Math.round(Math.random()*24); out._dyn=1.30;              // maestoso: broad and forte (measured: a fanfare at 813 bpm)
         if(out.groove.lanes&&out.groove.lanes.crash){ out.groove.lanes.crash.on=true; out.groove.zeroCrash=false; }
       } else if(Math.random()<0.20){
         // the dropped plate: one comic stumble — everything arrives just late
@@ -17808,46 +18101,69 @@ const learner = (()=>{
         if(out.groove.lanes&&out.groove.lanes.crash){ out.groove.lanes.crash.on=true; out.groove.lanes.crash.lvl=0.35; out.groove.zeroCrash=false; }
         out.postOffsetBeats=0.21;
       }
-      if(Math.random()<0.25){
+      if(!_pl && !_clk && Math.random()<0.25){
         // deadpan registral gap: the contrabass gravely answers the teaspoon
         out.minFreq=Math.round(55+Math.random()*15); out.maxFreq=Math.round(1900+Math.random()*600);
       }
     }
     else if(A.groove==='interval'){
-      // A SESSION, not a loop (author 29.07: «чтобы не надоедали и мотивировали»):
-      // 8 rounds of work/recovery with PROGRESSIVE OVERLOAD (each round a step
-      // stronger), no kit repeated twice in a row, every 4th round a surprise,
-      // round 8 a FINAL SPRINT — then one warm victory lap, and a fresh session.
-      if(_woVict){
-        out.groove=_grv('ride',0.50,0.06,['kick','bass','hatC','crash'],17,17); out.groove.zeroCrash=false;   // (review) the last composite metres in the improviser
-        out.trig=['a','b']; out.typeId='complete';
-        out.voiceInst=Object.assign({},out.voiceInst||{},{a:'brass',b:'str',sustain:'str'});
-        if(!out.vol) out.vol={}; out.vol.master=A.master[1];
-        out.shiftAByR=false; out.archAQR=1; out.archAOrd=0;
+      // (06.11, the author: «согласен» — раунды работа/отдых сценами: быстро-громко-ударные / медленно-тихо-дыхание; каждый раунд
+      // плотнее, последний спринт, потом заминка; аккорд один, как удар в конце раунда) A SESSION OF ROUNDS: warm-up · work and
+      // rest · the sprint · cool-down (the phases: generate). Measured before: 360–875 bpm with the master flat at 0.50 in every
+      // scene — the rounds were not heard — and a wall of 439 chords in 31 s. Now the rest is a quarter of the round's tempo and
+      // quiet, every work round faster and denser than the last, and the one chord is the round's end (its last beat).
+      if(!out.vol) out.vol={};
+      out.trig=[]; out.arp=false; out._evStart=null; out._evEnd=null;
+      out.shiftAByR=false; out.archAQR=1; out.archAOrd=0;                      // insistence: the riff holds, the lines climb
+      out._woPh=_woPh;                                                          // the phase rides the scene (the ledger, the montage, the tests read it)
+      const N=Math.max(1,_woN|0), n=Math.max(1,_woRound|0);
+      if(_woPh==='warm'){
+        out.bpm=200+Math.round(Math.random()*40);
+        out.groove=_grv('ride',0.42,0.05,['kick','hatC'],13,13);
+        out.vol.master=0.38; out._dyn=0.90;
+        out._bh={act:'workout', Tlo:3.0, Thi:4.2, depth:0.30, inh:0.40};
+      } else if(_woPh==='rest'){
+        out.bpm=Math.round(Math.max(84,Math.min(132,(_woBpm||420)/4)));     // a quarter of the round it follows
+        out.groove=_grv('floor',0.22,0.06,['bass'],11,11);
+        out.vol.master=0.22; out._dyn=0.70; out.vol.kick=0; out.vol.hat=0;   // piano: the deep breath
+        out.vol.sustain=Math.min(0.10, Math.max(out.vol.sustain||0, 0.06+0.005*n));   // recovery warms round by round — a little: measured, the old bed (0.12+) kept the rest within 1.6 dB of the round
+        out.durIdx=Math.max(out.durIdx||18,22); out.attackMorph=Math.max(out.attackMorph||0,0.5);
+        out._durW=0.5;
+        out._bh={act:'workout', Tlo:4.5, Thi:6.5, depth:0.46, inh:0.42};      // the deep breath
+      } else if(_woPh==='cool'){
+        out.bpm=96+Math.round(Math.random()*16);
+        out.groove={arch:'off',intensity:0};
+        out.vol.master=0.26; out._dyn=0.70; out.vol.kick=0; out.vol.hat=0; out.vol.sustain=Math.max(out.vol.sustain||0,0.16);
+        out.durIdx=Math.max(out.durIdx||18,24); out.attackMorph=Math.max(out.attackMorph||0,0.6);
+        out._bh={act:'workout', Tlo:6.0, Thi:8.0, depth:0.40, inh:0.38};
       } else {
-        const bank=_actPhase?_GR_WORK:_GR_REST;
+        const sprint=(_woPh==='sprint');
+        const bank=_GR_WORK;
         let ki=(_actBeatN>>1)%bank.length;
         if(bank.length>1 && ki===_woLastKit) ki=(ki+1)%bank.length;              // never the same kit twice running
         _woLastKit=ki;
         out.groove=JSON.parse(JSON.stringify(bank[ki]));
         out.groove.meter=_pickMeter('workout'); out.groove.den=_pickDen('workout',out.groove.meter);
-        out.groove.level=Math.min(0.85,(out.groove.level||0.6)+0.02*_woRound);   // progressive overload
-        out.shiftAByR=false; out.archAQR=1; out.archAOrd=0;                      // insistence: the riff holds, the lines climb
-        if(_actPhase && out.p%4!==1){ const q2=nextPrime(out.p); if(q2%4===1 && q2<=A.pMax) out.p=q2; }   // 4k+1 family on the climbs
-        if(_actPhase && _woRound>=8){
+        out.groove.level=Math.min(0.85,0.60+0.03*n);                             // progressive overload
+        out.bpm=sprint ? (840+Math.round(Math.random()*80)) : Math.round(380+300*((N>2)?Math.min(1,(n-1)/(N-2)):0));   // every round faster
+        { const uu=(N>2)?Math.min(1,(n-1)/(N-2)):0;
+          out.vol.master=sprint ? 0.70 : (0.50+0.12*uu);                       // every round louder…
+          out._dyn=sprint ? 1.40 : (1.00+0.25*uu); }                          // …mezzo to forte, the sprint ff
+        out._durW=sprint?0.8:1;
+        out._bh=sprint ? {act:'workout', Tlo:1.0, Thi:1.6, depth:0.34, inh:0.46} : {act:'workout', Tlo:1.6, Thi:2.4, depth:0.30, inh:0.45};
+        if(sprint){
           // FINAL SPRINT: everything on, straight time, the loudest kit allowed
           out.groove.level=0.85; out.groove.meter=17; out.groove.den=17; out.groove.swing=0;   // the sprint counts a prime of prime steps too
           if(out.groove.lanes) for(const k3 in out.groove.lanes) out.groove.lanes[k3].on=true;
-        } else if(_actPhase && _woRound>0 && _woRound%4===0){
+        } else if(n>0 && n%4===0){
           // SURPRISE ROUND — the reason it never gets boring
           const s3=_actBeatN%3;
           if(s3===0){ out.groove.meter=7; out.groove.den=13; }                     // half-time grind: half as many steps over the same fine grid
-          else if(s3===1){ out.groove.level=0.80; out.groove.swing=0; }           // double burst
-          else { out.groove=_grv('floor',0.30,0,['bass'],11,11); }                // the drop: bass and breath only
-        } else if(!_actPhase){
-          if(!out.vol) out.vol={};
-          out.vol.sustain=Math.max(out.vol.sustain||0, 0.10+0.01*_woRound);       // recovery warms round by round
+          else { out.groove.level=0.80; out.groove.swing=0; }                      // double burst
         }
+        out._evEnd='chord'; out.typeId='complete'; out.vol.chord=sprint?0.34:0.28; out.vol.glue=Math.max(out.vol.glue||0,0.12);   // the round's end: one chord (the world moves to 4k+1 for it — the end of generate)
+        if((out.p|0)>2999) out.p=2999;   // (06.11, review) a round's world stays under 3000: past it the chord's quadruples are not built in time (and the sorted scan may hold none of the type)
+        _woBpm=out.bpm;
       }
     }
     else if(A.groove==='lyric'){
@@ -17975,6 +18291,7 @@ const learner = (()=>{
   let _autoH0=-1, _autoSlid=0;   // the held clock at the last arm (−1: not armed), and how much of its growth the marks already carry
   const _autoHeld=()=>(typeof _qrHeldMs==='function')?_qrHeldMs():0;
   function _autoSlide(){ if(_autoH0<0) return; const d=Math.max(0,_autoHeld()-_autoH0)-_autoSlid; if(d>0){ _autoSlid+=d; _autoFireAt+=d; _ear.holdStart+=d; } }
+  try{ window._autoNextWall=function(){ return (autoOn && _autoFireAt>0) ? Date.now()+(_autoFireAt-performance.now()) : 0; }; }catch(e){}   // (06.11) the scene's end on the wall clock, for the genres' last-beat events
   function _autoArm(ms){
     _autoH0=_autoHeld(); _autoSlid=0; _autoFireAt=performance.now()+ms;
     const w=()=>{ if(!autoOn || !_autoTickFn) return; _autoSlide();
@@ -18042,7 +18359,7 @@ const learner = (()=>{
       // does not resolve until the circle answers
       clearTimeout(autoTimer); _autoArm(1200);   // (04.11) through the held clock too — a raw timer here fired through a pause
       _earLine(err>0?'sounding tenser than the intent — leaving early':'sounding cooler than the intent — leaving early');
-    } else if(Math.abs(err)<0.08 && remain>0 && remain<2.5 && !_autoExtended && el<70){
+    } else if(Math.abs(err)<0.08 && remain>0 && remain<2.5 && !_autoExtended && el<70 && !(state._evEnd && synthState && synthState._evE)){   // (06.11) a scene whose closing event (QED, the round's end, the summit) has sounded is over
       _autoExtended=true;
       const ext=Math.min(8,_sceneHoldFor(lastState)*0.4)*1000;
       clearTimeout(autoTimer); _autoArm(remain*1000+ext);   // (04.11) = _autoFireAt+ext, through the held clock
@@ -18129,15 +18446,26 @@ const learner = (()=>{
       base=Object.assign({},base,{p:(_hp>=3)?_hp:61});
     }
     const keepP=!!document.getElementById('ai-keep-p')?.checked;
+    if(_gArc) _gArc.i++;   // (06.11) the form arc: which scene of the plan this one is
     if(state.activity==='workout'){
-      if(_woVict){ _woVict=false; _woRound=0; _actPhase=0; }                  // after the lap of honour: a fresh session
-      else { _actPhase=_actPhase?0:1;
-        if(_actPhase){ _woRound++; if(_woRound>8){ _woVict=true; _actPhase=0; } } }   // 8 rounds, then the victory lap
+      // (06.11) THE SESSION: warm-up · W1 R1 … W7 R7 · the sprint (round 8) · cool-down, then a fresh session (the victory lap
+      // became the cool-down: «последний спринт, потом заминка»). In a ✚ form the plan is the session: its opening the warm-up,
+      // its close the cool-down, the inner scenes work and rest from the first, the last inner scene the sprint.
+      if(_gArc){ const i=Math.max(0,_gArc.i), k=_gArc.k, m=k-2;
+        if(i===0){ _woPh='warm'; _woRound=0; }
+        else if(i>=k-1) _woPh='cool';
+        else { const jj=i-1; let N=0; for(let q=0;q<m;q++) if(q%2===0 || q===m-1) N++; _woN=Math.max(1,N);
+          if(jj===m-1){ _woPh='sprint'; _woRound=_woN; } else if(jj%2===0){ _woPh='work'; _woRound=jj/2+1; } else _woPh='rest'; } }
+      else { _woStep=(_woStep+1)%17; const st=_woStep; _woN=8;
+        if(st===0){ _woPh='warm'; _woRound=0; } else if(st===16) _woPh='cool';
+        else if(st%2===1){ _woRound=(st+1)/2; _woPh=(_woRound>=8)?'sprint':'work'; } else _woPh='rest'; }
+      _actPhase=(_woPh==='work'||_woPh==='sprint')?1:0; _woVict=false;
     }
     if(state.activity==='lyric'){ if(--_lyricLeft<=0){ do{ _lyricPhase=(_lyricPhase+1)%5; _lyricLeft=_lyrCounts[_lyricPhase]|0; if(_lyricPhase===0){ _lyricLeft=_lyrCounts[0]||2; _lyrBase=0; } }while(_lyricLeft<=0); } }   // (05.11) caress → desire → passion → climax → catharsis, then again (a stage with no scenes in this plan is skipped)
     if(state.activity==='meditate') _prayStep++;   // the prayer advances one verse per scene
     if(state.activity==='focus'){ _focusStep++; if(_focusStep>=_focusLen){ _focusStep=0; _focusLen=5+Math.floor(Math.random()*3); } }   // proofs of 5–7 scenes
     let out=JSON.parse(JSON.stringify(base));
+    for(const _k of ['_evStart','_evEnd','_durW','_bh','_click','_clock','_chordDose','_ascRung','_ascTop','_focusRole','_woPh','_dyn','_plate','_pause','_keepP']) delete out[_k];   // (06.11) the plan feeds each scene the previous one as its base — its events, weights and dose are not this scene's
     const tr=_nextFromTransition(base,temp);
     if(tr) Object.assign(out,tr);
     // probabilistic local mutations: low risk = conserve current, high risk = jump through learned corpus.
@@ -18270,7 +18598,7 @@ const learner = (()=>{
         const A=clamp(num(_weighted(_clFeat('axis'),0.7),216),54,864);   // his axis, learned (born at 216 = 2³·3³)
         if(moment){
           // his MOMENT: full tuning — the register becomes the axis-lens of the prime
-          if(!keepP && Math.random()<0.6){                  // the mirror turns: prefer the OPPOSITE prime class
+          if(!keepP && ['ascent','focus','meditate','workout'].indexOf(state.activity)<0 && !out._plate && !out._click && Math.random()<0.6){                  // the mirror turns: prefer the OPPOSITE prime class — (06.11) not where the prime is the genre's law
             const want=(base.p%4===1)?3:1; let q=Math.max(3,Math.round(out.p));
             for(let tries=0;tries<40 && !(isPrime(q)&&q%4===want);tries++) q=nextPrime(q);
             if(isPrime(q)&&q%4===want&&q<=99991) out.p=q;
@@ -18285,7 +18613,7 @@ const learner = (()=>{
         }
         // rational tempo: his step is always a learned simple ratio from the previous tempo
         const _rats=(_clModel.features&&_clModel.features.tempoRatio)||[];
-        if(_rats.length){
+        if(_rats.length && ['ascent','focus','workout'].indexOf(state.activity)<0 && !out._plate && !out._click){   // (06.11) the climb's, the proof's and the rounds' tempi are their laws
           let best=null,bd=Infinity;
           for(const it of _rats){ const k=num(it.v,1); const cand=Math.round(clamp(base.bpm*k,5,999));
             const d=Math.abs(cand-out.bpm)/Math.max(1,Math.sqrt(num(it.w,1))); if(d<bd){bd=d;best=cand;} }
@@ -18325,6 +18653,7 @@ const learner = (()=>{
     // an earlier nudge was simply overwritten (heard live: 311 again and again).
     // A lean, not a law: median distance two primes, never outside the love genre,
     // and the register window follows so the world's voice keeps its span.
+    let _hasCircle=null;   // (06.11, review) declared here: the 4k+1 guarantee below asks it too — as a const inside this try it was out of the guarantee's reach and its circle test never ran
     try{
       // a world is worth seeking if it carries ANY circle the engine will sing —
       // the pair needs 3 | p−1, but circles of three need 7 | p−1 and of four need
@@ -18339,7 +18668,7 @@ const learner = (()=>{
       // Done in modular arithmetic instead: walk 2^k mod m and ask whether 2^k − 1
       // shares a factor with m, where m is the odd part of q−1. Exact at any k.
       const _gcd=(a,b)=>{ while(b){ const t=a%b; a=b; b=t; } return a; };
-      const _hasCircle=(q)=>{
+      _hasCircle=(q)=>{
         let m=q-1; while(m%2===0) m/=2;                 // the odd part: 2^k−1 is odd
         if(m<3) return false;
         let r=2%m;
@@ -18354,7 +18683,7 @@ const learner = (()=>{
       // world must be one that carries a circle. p=40577 carried none even at a cap
       // of 210 (40576 = 2^7·317, and the order of two mod 317 runs past it), so the
       // improviser walked the Markovs somewhere omega cannot speak at all.
-      if(vget('omega')>0.05 && !_hasCircle(out.p) && typeof isPrime==='function'){
+      if(vget('omega')>0.05 && !_hasCircle(out.p) && typeof isPrime==='function' && ['ascent','focus'].indexOf(state.activity)<0){   // (06.11) the climb's rungs and the proof's worlds are their laws
         const p0=out.p;
         let up=p0+1; while(up<=99991 && !(isPrime(up) && _hasCircle(up))) up++;
         let dn=p0-1; while(dn>=5 && !(isPrime(dn) && _hasCircle(dn))) dn--;
@@ -18391,10 +18720,10 @@ const learner = (()=>{
     // the prime after this block and sent a triggering scene back to a 4k+3 world (measured: the climax at p=19, no chord). Where the
     // circle guard applies (omega on) the 4k+1 prime found here must have a circle too.
     try{ const _tr=out.trig; const _trOn=!!(Array.isArray(_tr) ? _tr.some(function(v){ return ['a','b','r','r2','diag','prelude'].indexOf(v)>=0; }) : (typeof _tr==='string' && _tr!=='none' && /(^|\+)(a|b|r|r2|diag|prelude)(\+|$)/.test(_tr)));   // (06.11) a real voice, not 'none' or a stray letter
-      if(_trOn && typeof cfgHasQuads==='function' && typeof isPrime==='function'){
+      if((_trOn || out._evStart==='chord' || out._evEnd==='chord') && typeof cfgHasQuads==='function' && typeof isPrime==='function'){   // (06.11) an event chord (the genres') needs that world too
         const _pinnedP=keepP || (state.apPins && state.apPins.has('prime')) || ['ascent','focus','meditate'].indexOf(state.activity)>=0;   // (06.11, measured) a genre whose PRIME IS ITS LAW keeps it: ascent's climb (nextPrime scene by scene — every inner scene of a 2:00 ascent was pulled back to 17), focus's lemma «one prime up» (29 → 31 pulled back to 29), the prayer's room. There the type falls back where quadruples exist; a 4k+3 rung sounds none
         let q=out.p|0;
-        const _needC=(vget('omega')>0.05 && typeof _hasCircle==='function'); const _okP=(v)=> v%4===1 && isPrime(v) && (!_needC || _hasCircle(v));
+        const _needC=(vget('omega')>0.05 && typeof _hasCircle==='function'); const _okP=(v)=> v%4===1 && isPrime(v) && (!_needC || _hasCircle(v)) && _admK(v);   // (06.11) under ×k the pair too
         if(q%4!==1 && !_pinnedP){ let up=q+1, dn=q-1; while(up<100003 && !_okP(up)) up++; while(dn>=5 && !_okP(dn)) dn--;
           q=(dn>=5 && (q-dn)<=(up-q))?dn:up; out.p=q; out.r=Math.max(1,Math.min(q-1,out.r|0||1)); }
         if(q%4===1){ const _order=['complete','diamond','cycle','paw','star','path4','triangle','matching','path3','one_edge'];
@@ -18420,6 +18749,7 @@ const learner = (()=>{
     const s=generate(before);
     _apProg=true; try{ apStripPinned(s, before); }catch(e){}    // keep the parameters the player has grabbed
     scenes.restore(s,{sim:true});
+    try{ _sceneStamps(s); }catch(e){}   // (06.11) the autopilot's scene carries its stamps too — until now only a form's seam set the lyric's stage and chord dose, so the improvised lyric had neither
     _apProg=false;
     if(typeof liveDrift!=='undefined') liveDrift.capture();
     // ECHO LEAK CLOSED (author 17.07): the model no longer learns its own freshly
@@ -18684,6 +19014,7 @@ const learner = (()=>{
     if(typeof liveDrift!=='undefined'){ liveDrift.suppress(null); liveDrift.stop(); }
     if(state.groove && !state.groove.autoMode && groove && groove.applyConfig){ try{ groove.applyConfig({arch:'off'},{auto:true}); }catch(e){} }   // retract a beat the form itself brought in (the manual ▶ groove contract is untouched)
     if(_formPrevMaster!=null){ _setMaster(_formPrevMaster); _formPrevMaster=null; }
+    try{ _sceneStamps({},{release:true}); }catch(e){}   // (06.11, review r2) the form's genre gives the hand its own dynamics back
     try{ window._formPrevMaster=null; window._formOn=false; }catch(e){}
     try{ saveNow(); }catch(e){}   // a played form is experience — keep it
     if(msg)_status(msg);
@@ -18732,6 +19063,7 @@ const learner = (()=>{
     const h=_formHold={iv:0, held:0, last:performance.now(), rest:false};
     h.iv=setInterval(()=>{ const n=performance.now(); if(state.running && state.paused && !h.rest){ h.held+=n-h.last; try{ if(window._formArc) window._formArc.t0+=n-h.last; }catch(e){} } h.last=n; },250);
     const _play=()=>performance.now()-h.held;   // the form's own time: the wall clock less the hand's pauses
+    let _ckDue=0;
     const _late=(fn,ms,set)=>{ const due=_play()+ms; const w=()=>{ if(!formOn || _formHold!==h) return;
       const held=state.running && state.paused && !h.rest, r=due-_play(); if(held || r>1){ set(setTimeout(w, held?250:r)); return; } fn(); };
       set(setTimeout(w,ms)); };
@@ -18742,6 +19074,7 @@ const learner = (()=>{
       // the tail has reached silence (_qrEndArm's watch). The rest window (rest) then counts from that pause, as it did from
       // the fade's end; Markova rests with him by the same pause, so the old {t:'rest'} mail is not needed.
       let armed=false; try{ if(window._qrEndArm && state.running && !state.paused){ window._qrEndArm(Date.now()+fadeOut, 'the cockpit form', false); armed=!!window._qrEndGate; } }catch(e){}
+      if(armed){ try{ _ckDue=Math.min(_ckDue, _play()+fadeOut); }catch(e){} }   // (06.11, review r2) the last scene ends at the gate: its closing event (QED, round, summit) takes the last beat there
       if(formTimer){ clearTimeout(formTimer); formTimer=null; }   // (05.11, measured) the form's own scene stepping stops here: with formStop deferred to the rest, the next step landed inside the tail (a restore 16 s after the last beat — its drone kill and its master move), so the end is the last scene's
       if(!armed){ try{ if(state.running && !state.paused) pauseAudio(); }catch(e){} }   // no gate (no audio, or already resting): the old instant pause, no fader
       const w2=()=>{ if(!formOn || _formHold!==h) return;
@@ -18777,8 +19110,10 @@ const learner = (()=>{
       const g=generate(before);
       _formCtl=null;
       const applyIt=()=>{
+        if(!formOn || _formHold!==h) return;   // (06.11, review r4) a switch queued before formStop must not re-stamp (and re-restore) a stopped form
         try{ if(typeof apPinned==='function' && apPinned('dir')) g.dir=(state.pDir<0)?-1:1; }catch(e){}   // (20.10) the learner form's seams keep the hand's held ◀▶ too — read live when the quantized switch fires (of the other classes only the timbre ones, next line)
         scenes.restore((typeof _apStripFx==='function')?_apStripFx(Object.assign({},g),state):g,{sim:true});   // (20.10) the ◆ form's seam keeps the hand's sat · tremolo · vibrato · rules — read at the switch, not at generation
+        try{ _sceneStamps(g); }catch(e){}   // (06.11) the ◆ form's scenes carry the genres' events too
         if(_fadeRunner){ _setMaster(_fadeRunner.cur); }            // a fade in flight owns the master
         if(typeof liveDrift!=='undefined') liveDrift.capture();
       };
@@ -18791,6 +19126,7 @@ const learner = (()=>{
         ? `⟁ ${i+1}/${plan.length}${c.part?` · part ${Math.floor(c.part)}`:''} · P=${plan._P} j=${c.j} L=${c.leg>0?'+1':'−1'} ord=${c.ord} · ${c.stage} · t=${c.tension.toFixed(2)} (${g.typeId}) · ${c.dur.toFixed(1)}s · ${g.bpm}BPM · p${g.p}`
         : `◆ form ${i+1}/${plan.length} · ${c.stage}${g._arch?'/'+g._arch:''} · t=${c.tension.toFixed(2)} (${g.typeId}) · ${c.dur.toFixed(1)}s · p${g.p}${g._tempoRatio?` · ×${g._tempoRatio}`:''}`);
       i++;
+      _ckDue=_play()+c.dur*1000; try{ window._ckNextWall=function(){ return (formOn && _formHold===h) ? Date.now()+(_ckDue-_play()) : 0; }; }catch(e){}   // (06.11) the next step's instant, for the last-beat events
       _late(step, c.dur*1000, t=>{ formTimer=t; });   // (30.10) the next seam waits out the hand's pause — the scene sounding when Space fell keeps the rest of its time
     };
     if(_palRide) _palRide=!!window._palNoteRide(T);   // (07.08) the palindrome: phase A = THIS form, taped
@@ -18824,6 +19160,7 @@ const learner = (()=>{
       tick();
     } else {
       if(autoTimer){ clearTimeout(autoTimer); autoTimer=null; } _autoH0=-1;   // (04.11) disarmed: every _autoSlide is a no-op until the next arm
+      try{ _sceneStamps({},{release:true}); }catch(e){}   // (06.11, review) the autopilot's stamps go with it — the lyric's chord dose stayed over whatever played next
       if(typeof liveDrift!=='undefined') liveDrift.stop();
       if(document.getElementById('ai-beat')?.checked && state.groove && !state.groove.autoMode && groove && groove.applyConfig){ try{ groove.applyConfig({arch:'off'},{auto:true}); }catch(e){} }   // retract a beat the autopilot itself brought in
       // pins PERSIST across stop — grabbed controls stay the player's until "↩ return control"
@@ -18869,7 +19206,7 @@ const learner = (()=>{
     pair('ai-risk','ai-risk-val'); pair('ai-density','ai-density-val'); pair('ai-prime-memory','ai-prime-memory-val');
     const hold=document.getElementById('ai-hold'), holdN=document.getElementById('ai-hold-num'); if(hold&&holdN){ hold.addEventListener('input',()=>holdN.value=hold.value); holdN.addEventListener('change',()=>hold.value=holdN.value); }
     document.getElementById('ai-next')?.addEventListener('click',()=>applyNext(false));
-    document.getElementById('ai-add-session')?.addEventListener('click',()=>{ const s=generate(current()); composer.pushSegment(s); composer.setLastDuration(_sceneHoldFor(s)); scenes.restore(s,{sim:true}); _pushRecent(_sig(s)); _status(`generated and appended to Session · ${_sceneHoldFor(s).toFixed(1)}s`); });
+    document.getElementById('ai-add-session')?.addEventListener('click',()=>{ const s=generate(current()); composer.pushSegment(s); composer.setLastDuration(_sceneHoldFor(s)); scenes.restore(s,{sim:true}); try{ _sceneStamps(s); }catch(e){} _pushRecent(_sig(s)); _status(`generated and appended to Session · ${_sceneHoldFor(s).toFixed(1)}s`); });
     document.getElementById('ai-auto')?.addEventListener('click',()=>{ toggleAuto();
       // (05.08 author): the autopilot BUTTON is one of the three legitimate starters
       // (play / play form / autopilot). Genres and mode picks only ARM.
@@ -18983,7 +19320,7 @@ const learner = (()=>{
           }catch(e){} },
           resetActivity:()=>{ if(_actMedP) _actDeadMedP=_actMedP;   /* (04.11) the room dies here, its number may still be the live p — generate() returns from it */ _actMedP=null; _actPhase=1; _actBeatN=0; _lyricPhase=0; _lyricLeft=2+Math.floor(Math.random()*2);
             _chorePomp=false; _focusStep=-1; _focusLen=5+Math.floor(Math.random()*3); _focusTheme=null; _focusPal=null;
-            _prayStep=0; _woRound=0; _woVict=false; _woLastKit=-1; },   // fresh room / clocks on every frame start   // read-only view of the outer ear (UI/MIDI/debug)
+            _prayStep=0; _woRound=0; _woVict=false; _woLastKit=-1; _woStep=-1; _woPh='work'; _woBpm=0; _focusBpm=0; _ascM=null; _chorePompN=0; },   // fresh room / clocks on every frame start   // read-only view of the outer ear (UI/MIDI/debug)
           __test:{pickGrooveArch:_pickGrooveArch, formPlan:_formPlan, formPlanPrime:_formPlanPrime,
                   hear:(t,n)=>{ n=n||12; _ear.tHat=t; _ear._accum=t*n; _ear._acN=n; },   // inject a synthetic "heard" scene for tests
                   reflectMid:_reflectMid}};
@@ -20644,6 +20981,7 @@ startRenderLoop();
   // names who holds the baton, and every musical gate below asks the baton.
   function _isLead(){ return ((state.duo&&state.duo.lead)||'markov')===ROLE; }
   window._qrIsLead=_isLead;   // (20.10) for _dirHand: an answering half must not pin the pair's direction
+  window._qrRole=ROLE;   // (06.11) which half this window is (an iframe or its own tab): the genres' events sound in Markov's
   // (05.08 audit) PAIR TOKEN: every desktop tab now auto-opens a duet, and all tabs
   // share one BroadcastChannel — without a token two open tabs cross-wire into a
   // four-endpoint restore storm. The parent mints a token, the frame inherits it
@@ -20770,6 +21108,7 @@ startRenderLoop();
     // the hand pressed ■. Only the claim is released here; the transport is left where it is.
     try{ if(_palActive && _palLate && _palLate.gen===_palGen){ _palLate=null; window._formOn=false; window._formArc=null;
       if(window._qrFormEvT){ window._qrFormEvT.forEach(clearTimeout); window._qrFormEvT=null; window._masterHeld=false; } } }catch(e){}
+    try{ var _egS=window._qrEndGate; if(_palActive && !(_egS && (_egS.closed || _egS.wall-Date.now()<=350))) _sceneStamps({},{release:true}); }catch(e){}   // (06.11, review r3) a scored run torn down before its end gives back its genre's stamps (one that reached its end keeps them until the end gate's rest)
     try{ var _egS=window._qrEndGate; if(_palActive && _egS && !_egS.closed && _egS.wall-Date.now()>350) _qrEndOpen('the score stands down', true); }catch(e){}   // (04.11) a scored run torn down BEFORE its end («■ stop score», a mode turned by hand, her pal-stop, the autopilot's _duoPalStop) takes its end gate and tail watch with it — the gate, aimed from the first look, would otherwise close the scheduler at the former plan's end and rest the transport later; a run torn down AT its end keeps the gate: the other half's natural-end 'mode' mail can reach this half a look before its own _fin, and that end is real (closed on the beat by then — the lookahead closes it before the wall end — or within 350 ms). Locally: each half runs its own _palStopLocal from the mail
     _palActive=false; _palRev=false; _palFull=true; try{ window._palFullRun=true; }catch(e){} try{ state._palScore=null; }catch(e){} _paint(); }
   var _palGen=0;   // (20.08) run token: a stale step() timer from a superseded crab must DIE, not hijack the new one (a throttled tab delivered old timers into a fresh run — k jumped mid-scene)
@@ -20850,8 +21189,9 @@ startRenderLoop();
         var _mk2=(opts&&opts.parts&&!_isLead())?(state.duo.mult|0):1, _q2=null;
         try{ _q2=(_mk2>1)?_multPrime(st.p|0,_mk2):null;
           if(_q2){ st.p=_q2; if(st.r) st.r=Math.max(1,Math.min(_q2-1,Math.ceil((st.r|0)/_mk2))); st.bpm=Math.max(5,Math.min(999,(st.bpm||state.bpm)/_mk2)); } }catch(e){ _q2=null; }
+        try{ if(st._dyn!=null || state._dynHand!=null) delete st.headroomTarget; }catch(e){}   // (06.11) a genre's dynamics are the stamps' (on the beat), not restore's (at once)
         scenes.restore(st,{at:_at});   // (04.11) the previous scene's long voices, the faders, sends and pans land at the beat, not at the queueing
-        try{ state._lyrPhase=st._lyrPhase||null; state._lyrStage=st._lyrStage||null; state._lyrEvent=st._lyrEvent||null; state._chordDose=(st._chordDose!=null)?st._chordDose:null; if(typeof synthState!=='undefined' && synthState){ synthState._lyrClimaxAt=0; synthState._lyrN=0; synthState._desN=0; synthState._desChord=false; }   // (05.11) the five-stage name, the climax event and the chord dose ride the seam too; the event re-arms per scene
+        try{ _sceneStamps(st,{rev:!!isRev, at:_at});   // (06.11) the crab's backward reading trades the scene's entry and end events; the dynamics land on the seam's beat · (05.11) the five-stage name, the climax event and the chord dose ride the seam too; the event re-arms per scene · (06.11) and the genres' events and breath (_sceneStamps)
           if(st._lyrPhase && window._duoMailBH && !document.body.classList.contains('mk-embedded')) window._duoMailBH({act:'lyric', stage:st._lyrPhase, ts:Date.now()});
           if(st._lyrPhase && window._duoSpaceSet) window._duoSpaceSet({tender:0.75,desire:0.45,passion:0.08,afterglow:0.15}[st._lyrPhase] ?? 0.5);
         }catch(e){}   // (21.08) the stamped phase rides the pal seam too
@@ -21103,6 +21443,7 @@ startRenderLoop();
       }
     }catch(e){ plan.length=0; }
     if(!plan.length){
+      plan._gen=true;   // (06.11) composed here, not a Session: the genres' duration weights apply
       var k=Math.max(3, Math.min(13, Math.round(T/20))); if(!isFinite(k)) k=3;
       var durs=[], sum=0;
       for(i=0;i<k;i++){ var w=0.7+Math.random()*0.6; durs.push(w); sum+=w; }
@@ -21124,9 +21465,13 @@ startRenderLoop();
     // scene by scene (measured 25.09: 61 → 67 → 13 → 19 → 13, the pair lost at every seam).
     // Each scene's prime moves to the nearest that admits k; the improviser's register and
     // everything else in the scene stay. The knob off: nothing here runs.
-    try{ var _pk=(state.duo&&(state.duo.mult|0)>1)?(state.duo.mult|0):0;
+    try{ var _pk=(state.duo && state.duo.on && state.duo.mode!=='free' && (state.duo.mult|0)>1)?(state.duo.mult|0):0;   // (06.11, review r2) the plan pairs only for a pair that will sound — as the genres' worlds do (_admK)
       if(_pk){ var _pairs=[];
+        var _chordy=function(st){ var tr=st.trig; return !!(tr && tr!=='none' && tr.length) || st._evStart==='chord' || st._evEnd==='chord'; };
         for(i=0;i<plan.length;i++){ var _st=plan[i].state, _p0=_st.p|0, _p1=_pairPrimeNear(_p0,_pk);
+          if(_chordy(_st) && !(_p1 && _p1%4===1 && cfgRichType(_p1))){ var _lim=Math.max(200,_p0), _f=null; for(var _d=0; _d<=_lim && !_f; _d++){ var _u=_p0+_d, _w=_p0-_d; if(_u%4===1 && isPrime(_u) && _multPrime(_u,_pk) && cfgRichType(_u)) _f=_u; else if(_w>=5 && _w%4===1 && isPrime(_w) && _multPrime(_w,_pk) && cfgRichType(_w)) _f=_w; }
+            _p1=_f || ((_p0%4===1 && cfgRichType(_p0))?_p0:_p1); }   // (06.11, review) a scene that sounds chords keeps a world where they exist, and its pair — or, with no such pair in reach, its own world (the plain mirror for that scene), never a 4k+3 pair
+          if(_p1 && _chordy(_st) && _p1%4===1 && !cfgHasQuads(_p1,_st.typeId||'complete')){ var _rt0=cfgRichType(_p1); if(_rt0) _st.typeId=_rt0; }
           if(_p1 && _p1!==_p0){ _st.p=_p1; if(_st.r) _st.r=Math.max(1,Math.min(_p1-1,_st.r|0)); }
           _pairs.push((_p1||_p0)+'\u2192'+(_p1?_multPrime(_p1,_pk):'\u2014')); }
         plan._pairs='\u00d7'+_pk+': '+_pairs.join(' '); } }catch(e){}
@@ -21143,7 +21488,8 @@ startRenderLoop();
         Lst.vol.postlude=Math.max(Lst.vol.postlude||0,0.10); }
       Lst.glissA=false; Lst.glissB=false;
       Lst.groove={arch:'off',intensity:0};
-      Lst.bpm=Math.max(40,Math.round((Lst.bpm||60)*0.85));   // ritenuto, composed in
+      if(!Lst._clock && !Lst._click) Lst.bpm=Math.max(40,Math.round((Lst.bpm||60)*0.85));   // ritenuto, composed in — (06.11) not the proof's clock, not the plate's click
+      if(Lst._click){ Lst.sustainOn=false; if(Lst.vol) Lst.vol.sustain=0.04; }   // (06.11) the plate settles on one tick, not on a drone
     }catch(e){}
     // (05.11) THE FORM'S SECTIONS. Measured 05.11 (tests/run-form.sh): every scene of a face form began at the prelude's first
     // station, and with scenes of 8–20 s against preludes of p−1 beats (40 s at p=41, 60 bpm) not one form reached MAIN —
@@ -21157,14 +21503,18 @@ startRenderLoop();
     try{ if(plan.length>=2 && !(plan[0].state && plan[0].state.activity==='meditate')){
       var _fit=function(it, share){
         var st=it.state, bpm=Math.max(5,st.bpm||60), pp=st.p|0, want=Math.max(3, Math.floor(share*bpm/60)+1);   // p−1 ≤ share·bpm/60
-        var tr=st.trig, k1=!!(tr && tr!=='none' && tr.length);
-        if(pp>want){ var q=want; while(q>=5 && !(isPrime(q) && (!k1 || q%4===1))) q--; pp=(q>=5)?q:5; }
+        var tr=st.trig, k1=!!(tr && tr!=='none' && tr.length) || st._evStart==='chord' || st._evEnd==='chord';   // (06.11) an event chord keeps its 4k+1 world too
+        var _kk=(typeof _pk!=='undefined' && _pk>1)?_pk:0;
+        if(pp>want && (!st._keepP || (pp-1)*60/999>share+0.5)){ var q=want; while(q>=5 && !(isPrime(q) && (!k1 || (q%4===1 && cfgRichType(q))) && (!_kk || _multPrime(q,_kk)))) q--; pp=(q>=5)?q:5; }   // (06.11, review) a world with the type, and the pair; _keepP (the proof's thesis and coda, the ascent's view): the world stays, the tempo lifts
+        if(k1 && pp%4===1 && !cfgHasQuads(pp, st.typeId||'complete')){ var _rt1=cfgRichType(pp); if(_rt1) st.typeId=_rt1; }
         if((pp-1)*60/bpm>share+0.5){ bpm=Math.min(999, Math.ceil((pp-1)*60/share)); st.bpm=bpm; }
         st.p=pp; if(st.r) st.r=Math.max(1,Math.min(pp-1,st.r|0)); it.dur=(pp-1)*60/bpm; };
       var _share=Math.max(2, T/4), _L=plan.length-1;
       _fit(plan[0], _share); plan[0].sec='prelude';
       _fit(plan[_L], _share); plan[_L].sec='postlude';
       for(i=1;i<_L;i++) plan[i].sec='main';
+      if(plan._gen){ var _m0=0, _n0=0; for(i=1;i<_L;i++){ _m0+=plan[i].dur; _n0++; } _m0=_n0?_m0/_n0:0;
+        for(i=1;i<_L;i++){ var _w=+((plan[i].state&&plan[i].state._durW)||0); if(_w>0 && _m0>0) plan[i].dur=_m0*_w; } }   // (06.11) the genres' weights, of the mean inner scene: a round is the mean, a rest half of it, the plate's bounces ×0.6 each (measured: on their own random draws the bounces did not shrink in order)
       var _rest=T-plan[0].dur-plan[_L].dur, _sum=0; for(i=1;i<_L;i++) _sum+=plan[i].dur;
       if(_L>1 && _sum>0 && _rest>0) for(i=1;i<_L;i++) plan[i].dur=plan[i].dur*_rest/_sum;
     } }catch(e){}
@@ -21207,7 +21557,7 @@ startRenderLoop();
           var g2=window._qrEndGate;
           if(!g2 || !state.running || state.paused){   // the pause landed (the watch's own, the wire's or the hand's), or a door opened the gate
             clearInterval(_parkT); _parkT=null;
-            if(wasClosed && state.running && state.paused) point();   // only the END's rest lands the point: the watch is up from the first look, and a hand's ❚❚ before the close is a pause inside the form, not its end — on ▶ the form plays on and the take with it
+            if(wasClosed && state.running && state.paused){ point(); try{ _sceneStamps({},{release:true}); }catch(e){} }   // (06.11) the end's own rest gives the hand its dynamics back, in the silence · only the END's rest lands the point: the watch is up from the first look, and a hand's ❚❚ before the close is a pause inside the form, not its end — on ▶ the form plays on and the take with it
             return; }
           if(!g2.closed){ quietSince=0; return; }   // the form is still being written
           wasClosed=true;
@@ -21255,6 +21605,7 @@ startRenderLoop();
   // down open locally only — the half that started it opened and mailed already). The transport's own toggles travel the
   // wire as 'xport' and treat the gate in pauseAudio.
   function _qrEndOpen(why, fromWire){
+    try{ var _wasC=!!(window._qrEndGate && window._qrEndGate.closed), _run=/^(the next form|a plan)$/.test(String(why||'')); if(_wasC || (fromWire && /stopped/.test(String(why||'')))) _sceneStamps({},{release:true, keepDyn:_run}); }catch(e){}   // a door that starts a run keeps the dynamics for the run's own first seam (review r4)   // (06.11, review r3) a door opened in a form's tail (or the hand's ■ on the other half) gives back the genre's stamps now — its own rest will not come
     try{ window._qrEndGate=null; if(_parkT){ clearInterval(_parkT); _parkT=null; }
       if(!fromWire && state.duo && state.duo.on && state.duo.peer) send({t:'end-gate', wall:0, why:why||''}); }catch(e){}
     try{ if(window._qrFreeSyncLater) window._qrFreeSyncLater(); }catch(e){}   // (04.11) a deferred return to free (a pal's natural end inside a tail) is kept now that the stage is free
@@ -21276,6 +21627,7 @@ startRenderLoop();
     if(byHand){
       try{ _qrEndOpen('stopped by hand'); }catch(e){}   // (16.10) the hand's stop takes the pending watch with it (its delayed pause must not land on a restarted transport) — (04.11) and opens the gate on both halves: her mailed gate would otherwise close her scheduler at the old plan's end after the next ▶ (❚❚ keeps gates — pauseAudio)
       try{ if(state.running && !state.paused) pauseAudio(); }catch(e){}
+      try{ _sceneStamps({},{release:true}); }catch(e){}   // (06.11, review r2) stopped by hand: the genre's stamps and dynamics go, in the silence
     } else {
       try{ _qrEndArm(0, why); }catch(e){}   // the run aimed the gate from its first look; the watch, up since then, waits for the beat-closed gate and the silent tail. No gate here means a door took the stage during the form — nothing rests it (a pause would land on the new owner, and on the other half)
     }
@@ -21330,8 +21682,9 @@ startRenderLoop();
         var st=Object.assign({},it.state);
         if(st.duo) delete st.duo; if(st.solo) delete st.solo;
         try{ if(typeof apStripPinned==='function') apStripPinned(st, scenes.capture()); }catch(e){}   // (14.10) the pins hold at every seam
+        try{ if(st._dyn!=null || state._dynHand!=null) delete st.headroomTarget; }catch(e){}   // (06.11) a genre's dynamics are the stamps' (on the beat), not restore's (at once)
         scenes.restore(st,{at:_at});   // (04.11) the previous scene's long voices, the faders, sends and pans land at the beat, not at the queueing
-        try{ state._lyrPhase=st._lyrPhase||null; state._lyrStage=st._lyrStage||null; state._lyrEvent=st._lyrEvent||null; state._chordDose=(st._chordDose!=null)?st._chordDose:null; if(typeof synthState!=='undefined' && synthState){ synthState._lyrClimaxAt=0; synthState._lyrN=0; synthState._desN=0; synthState._desChord=false; }   // (05.11) the five-stage name, the climax event and the chord dose ride the seam too; the event re-arms per scene
+        try{ _sceneStamps(st,{at:_at});   // (06.11) the dynamics land on the seam's beat · (05.11) the five-stage name, the climax event and the chord dose ride the seam too; the event re-arms per scene · (06.11) and the genres' events and breath (_sceneStamps)
           if(st._lyrPhase && window._duoMailBH && !document.body.classList.contains('mk-embedded')) window._duoMailBH({act:'lyric', stage:st._lyrPhase, ts:Date.now()});
           if(st._lyrPhase && window._duoSpaceSet) window._duoSpaceSet({tender:0.75,desire:0.45,passion:0.08,afterglow:0.15}[st._lyrPhase] ?? 0.5);   // the arc walks them through the room: across -> approaching -> skin -> the room dissolves
         }catch(e){}   // (21.08) the scene's stamped arc phase rides the seam — and the breath mail carries it to her window
@@ -21397,7 +21750,8 @@ startRenderLoop();
   window._qrFormCreate=function(T){
     T=Math.max(10,Math.min(59940,+T||0));
     try{ if(state.activity==='lyric' && window._lyricArcReset) window._lyricArcReset(Math.max(3,Math.min(13,Math.round(T/20)))); }catch(e){}   // (05.11) the five stages are laid over the plan's scenes   // (21.08) the arc is born in tenderness at COMPOSITION time — generate() consumes the phases while building the scenes
-    var plan=_qrBuildPlan(T);
+    try{ if(['focus','workout','chores','ascent'].indexOf(state.activity)>=0 && window._genreArcReset) window._genreArcReset(Math.max(3,Math.min(13,Math.round(T/20))),T); }catch(e){}   // (06.11) every genre lays its own dramaturgy over the plan's scenes (the same k as _qrBuildPlan)
+    var plan=null; try{ plan=_qrBuildPlan(T); } finally { try{ if(window._genreArcEnd) window._genreArcEnd(); }catch(e){} }
     if(!plan){ try{ if(typeof _fl==='function') _fl('form','nothing to create — the improviser gave no scenes'); }catch(e){} return null; }
     var _form=null; try{ _form=(state.duo&&state.duo.mode)||'parts'; }catch(e){}
     // (28.08 author: «при разных формообразующих разный результат create form»)
@@ -22015,6 +22369,9 @@ startRenderLoop();
     _lastKey=k;
     send({t:'scene', snap:s, mode:state.duo.mode});
   }
+  // (06.11) the genres' events of a leading Markova (parts, retro): her window chooses the moment, Markov's — which carries the
+  // shared bed — sounds the event in its own world (under ×k his p is the pair of hers: a chord his world cannot hold rings as a bell)
+  try{ window._duoMailGev=function(o){ try{ send({t:'gev', k:String(o&&o.k||''), big:!!(o&&o.big), w:+(o&&o.w)||0, cap:+(o&&o.cap)||0, from:+(o&&o.from)||0, until:+(o&&o.until)||0}); }catch(e){} }; }catch(e){}
   var _lastBpmSent=0, _lastLoSent=0, _lastHiSent=0;
 
   // ---- follower: apply a scene the leader sent (same as loading a session step) --
@@ -22240,6 +22597,10 @@ startRenderLoop();
         try{ if(_wasC && +m.lead>Date.now() && typeof ctx!=='undefined' && ctx){ var _nbW=ctx.currentTime+(+m.lead-Date.now())/1000+0.06; if(nextBeatTime<_nbW) nextBeatTime=_nbW; } }catch(e){} }   // (04.11) a form started on the other half inside this half's tail: the ended scene is not walked again for the lead — the first queued beat is the new form's own (round-6 review)
     }catch(e){} }
     else if(m.t==='sdist'){ try{ window._spaceHandAt=Date.now(); if(window._duoSpaceSet) window._duoSpaceSet(+m.v, true); if(window._duoSpaceUI) window._duoSpaceUI(+m.v); }catch(e){} }   // one hand, both windows
+    else if(m.t==='gev'){ try{
+        if(m.k==='rest'){ if(+m.until>Date.now()) state._gevRest={from:+m.from||0, until:+m.until}; }   // (06.11) the other half's pause, as wall instants — this half mirrors and has no stamps of its own
+        else if(IS_LEADER && !_isLead() && !(state._palScore && state._palScore.on && state._palScore.parts)){ var Q=window._gevQ||(window._gevQ=[]); if(Q.length<16) Q.push({k:String(m.k||''), big:!!m.big, w:+m.w||Date.now(), cap:+m.cap||0, until:Date.now()+8000}); }   // (06.11) a leading Markova's genre event: queued, sounded on his own beat at her instant (_gevDrain) — Markov's window carries the bed
+      }catch(e){} }
     else if(m.t==='bh'){ try{ if(m.o && m.o.act){ window._breathHint=m.o;
       try{ state._lyrPhase=m.o.stage||null; }catch(_){}
       if(window._duoSpaceSet && m.o.stage) window._duoSpaceSet({tender:0.75,desire:0.45,passion:0.08,afterglow:0.15}[m.o.stage] ?? 0.5);

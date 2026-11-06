@@ -52,5 +52,35 @@
   "duoMode": "parts",
   "secs": 150,
   "expect": "profile"
+ },
+ {
+  "name": "profile focus x3",
+  "mode": "form",
+  "genre": "focus",
+  "T": 120,
+  "duoMode": "parts",
+  "k": 3,
+  "secs": 150,
+  "expect": "profile"
+ },
+ {
+  "name": "profile ascent x3",
+  "mode": "form",
+  "genre": "ascent",
+  "T": 120,
+  "duoMode": "parts",
+  "k": 3,
+  "secs": 150,
+  "expect": "profile"
+ },
+ {
+  "name": "profile workout x3",
+  "mode": "form",
+  "genre": "workout",
+  "T": 120,
+  "duoMode": "parts",
+  "k": 3,
+  "secs": 150,
+  "expect": "profile"
  }
 ]
