@@ -8685,6 +8685,11 @@ function _scheduleOneBeatBody(time){
     // Goncharova triggers (multi-voice): each SELECTED voice that sounds this beat
     // queues the quadruples its value belongs to. Values are residues mod p, so
     // they index into cfg.index the same way. Dedup via cfg.played (cleared per r).
+    // (06.11) DESIRE GETS ITS CHORD: its configuration comes only on a kiss (a = b), and in a world of 37–41 a desire scene may pass
+    // with none. From its sixth beat, the first residue a queues one chord — once per scene (re-armed at the seam).
+    try{ if(state._lyrStage==='desire' && cfg.p===p && cfg.quads.length && b!==0){ s._desN=(s._desN|0)+1;
+      if(!s._desChord && cfg.chordQueue.length) s._desChord=true;
+      if(!s._desChord && s._desN>=6 && isQR(a,p) && cfgQueueForNote(a, s.aIdx+1)) s._desChord=true; } }catch(e){}
     if(cfg.trigSet && cfg.trigSet.size && cfg.p===p && b!==0){
       const T=cfg.trigSet;
       const pos=s.aIdx+1;                       // 1-based position in the a-sweep
@@ -13211,7 +13216,7 @@ function _setOrder(grp,val){
   if(typeof _instantApply==='function') _instantApply();    // INSTANT: the new order sounds within a beat (programmatic applies are _apProg-guarded out)
 }
 document.querySelectorAll('.ord-btn').forEach(b=>{
-  b.onclick=()=>_setOrder(b.dataset.grp, parseInt(b.dataset.val));
+  b.onclick=()=>{ _setOrder(b.dataset.grp, parseInt(b.dataset.val)); if(b.dataset.grp==='OM'){ try{ if(typeof apPin==='function') apPin('omArpOrd'); }catch(e){} } };   // (06.11) the hand's choice of the omega order outranks the Markovs' (apStripPinned)
 });
 // Per-level direction controls (pre/post, r, a). Each level has:
 //   (b) QR ↑/↓  — direction of the QR notes  (archXQR)
@@ -13787,6 +13792,7 @@ function apStripPinned(s, cur){
   if(P.has('order')) for(const k of ['reorderR','reorderA','reorderPP','archAQR','archANQR','archAOrd','archRQR','archRNQR','archROrd','archPPQR','archPPNQR','archPPOrd']){ if(cur[k]!=null) s[k]=cur[k]; }
   if(P.has('bg')){ delete s.bgLight; delete s.bgDark; }   // player owns the canvas colors — restore() leaves absent keys untouched
   if(P.has('groove')) delete s.groove;             // leave the beat exactly as the player set it
+  if(P.has('omArpOrd') && cur.omArpOrd) s.omArpOrd=cur.omArpOrd;   // (06.11) the hand chose the omega's order
   for(const k of P){ if(k.indexOf('vol.')===0){ const lk=k.slice(4); if(s.vol&&cur.vol&&cur.vol[lk]!=null) s.vol[lk]=cur.vol[lk]; } }
   // 'vols' = ALL channel faders at once (master keeps its own pin)
   if(P.has('vols') && s.vol && cur.vol){ for(const lk in s.vol){ if(lk!=='master' && cur.vol[lk]!=null) s.vol[lk]=cur.vol[lk]; } }
@@ -15472,6 +15478,7 @@ const scenes = (()=>{
       arpOrd:document.getElementById('cfg-arp-ord')?.value||'pitch',
       durIdx:parseInt(document.getElementById('cfg-dur')?.value||'15'),
       inset:_cfgInsetOn,
+      omArpOrd:state.omArpOrd,   // (06.11) the omega's succession rides the scene: the Markovs choose it scene by scene (author 05.11: «на выбор Марковых, квадраты по умолчанию»)
       // ---- FULL-STATE capture [28.07]: the parameters that used to slip through ----
       caption:(state._caption!=null?state._caption:undefined),           // reel captions / end-cards now round-trip
       rules:{...(state.rules||{})},                                      // the four compositional rules (ratio=prime, freq-lock, sustain-hold, trans@anchors)
@@ -15637,6 +15644,7 @@ const scenes = (()=>{
     { const _ao=document.getElementById('cfg-arp-ord'); if(_ao) _ao.value=(s.arpOrd==='square'||s.arpOrd==='orbit')?s.arpOrd:'pitch'; }
     setNum('cfg-dur', s.durIdx!=null?s.durIdx:15);
     _cfgInsetOn=!!s.inset; const ic=document.getElementById('cfg-inset'); if(ic)ic.checked=_cfgInsetOn;
+    if(s.omArpOrd==='square'||s.omArpOrd==='sweep'){ state.omArpOrd=s.omArpOrd; try{ const _om=(s.omArpOrd==='square')?1:0; document.querySelectorAll('.ord-btn[data-grp="OM"]').forEach(b=>{ b.classList.toggle('active', parseInt(b.dataset.val)===_om); }); }catch(e){} }   // (06.11) a scene without the key (older saves) keeps the live order
     if(typeof cfgRenderGlyphs==='function') cfgRenderGlyphs();
     if(typeof cfgRefresh==='function') cfgRefresh();
     if(cfg._syncDurUI) cfg._syncDurUI();
@@ -15810,7 +15818,7 @@ const session = (()=>{
       glissA:!!s.glissA, glissB:!!s.glissB,
       rR:s.reorderR, rPP:s.reorderPP, rA:s.reorderA,
       arch:[s.archAQR,s.archANQR,s.archAOrd,s.archRQR,s.archRNQR,s.archROrd,s.archPPQR,s.archPPNQR,s.archPPOrd],
-      type:s.typeId, trig:(s.trig||[]).slice().sort(), chordDir:s.chordDir, arp:!!s.arp, tie:!!s.tie, arpSub:s.arpSub, durIdx:s.durIdx, inset:!!s.inset,
+      type:s.typeId, trig:(Array.isArray(s.trig)?s.trig.slice().sort():String(s.trig||'')), chordDir:s.chordDir, arp:!!s.arp, tie:!!s.tie, arpSub:s.arpSub, durIdx:s.durIdx, inset:!!s.inset,
       vol:qObj(s.vol,0.005), send:qObj(s.send,0.01), bright:qObj(s.bright,0.01),
       mod:q(s.modDepth,0.01), pan:q(s.depthPan,0.01), snd:q(s.depthSend,0.01), swap:!!s.modSwap,
       trem:q(s.tremDepth,0.01), vib:q(s.vibDepth,1), floors:q(s.floorsDepth,0.01), pulse:q(s.pulseDepth,0.01),
@@ -17557,7 +17565,7 @@ const learner = (()=>{
       let u=Math.max(0,Math.min(1,((out.bpm||120)-A.bpmMin)/Math.max(span,999-A.bpmMin)));
       const tt=(out._tension!=null)?out._tension:0.4;
       const heat=(act==='workout') ? (_woVict?0.35:(_actPhase?Math.min(1,0.70+0.03*_woRound):0.2))
-               : (act==='lyric')   ? [0.12,0.45,0.95,0.05][_lyricPhase]
+               : (act==='lyric')   ? [0.12,0.45,0.95,1.0,0.05][_lyricPhase]   // (06.11) five stages: caress · desire · passion · climax · catharsis (the stages set their own tempo after this)
                : Math.max(0,Math.min(1,(tt-0.45)/0.55));
       const gamma=3.2-2.4*heat;                     // calm: γ≈3.2 hugs the floor · hot: γ≈0.8 opens the top
       u=Math.pow(u,gamma);
@@ -17569,7 +17577,7 @@ const learner = (()=>{
     if(A.ordR) out.reorderR=inList(out.reorderR,A.ordR);
     if(A.ordPP) out.reorderPP=inList(out.reorderPP!=null?out.reorderPP:0,A.ordPP);
     if(act==='focus'){
-      out.motion='linear'; out.secMask={pre:true,main:true,post:true}; out.trig=(out.trig||[]).slice(0,1); out.arp=false;
+      out.motion='linear'; out.secMask={pre:true,main:true,post:true}; out.trig=Array.isArray(out.trig)?out.trig.slice(0,1):[]; out.arp=false;   // (06.11, measured) a scene's trig may be the string 'none' — its slice(0,1) was 'n', a voice that does not exist; and the 4k+1 guarantee took 'n' for a trigger and pulled every lemma's transposition (137 → 139) back to 137
       // SCIENTIFIC VALUE (author 29.07: «мысль развивается по законам логики,
       // развитие направлено к выводу»). Each cycle is a PROOF: a thesis stated
       // cleanly, lemmas derived from it by strict transformations (transposition,
@@ -17695,6 +17703,7 @@ const learner = (()=>{
         out.abOffsetBeats=0;                                  // nothing between them
         out.vol.a=0.32; out.vol.b=0.30; out.vol.sustain=Math.max(out.vol.sustain||0,0.22);
         out.vol.diag=0.20; out.vol.omega=0.50;                // the bell of the meeting; the harp at full
+        out.omArpOrd='square';                                // the climax's harp is the circle's own succession
         out.vol.chord=0.30; out.vol.glue=Math.max(out.vol.glue||0,0.14); out.trig=['a','b','diag']; out.typeId='complete'; out._chordDose=0.12;   // the complete configuration — all six differences agree; one trigger in eight (measured 05.11: a third gave 13 chords in the climax's 24 s — the event must stand alone)
         out.vibDepth=34; out.tremDepth=0.20; out.modDepth=Math.max(out.modDepth||0,0.7);
         out.minFreq=Math.round(Math.max(out.minFreq||90,110));
@@ -18227,6 +18236,7 @@ const learner = (()=>{
         out.groove.meter=_pr.reduce((best,q)=>Math.abs(q-_t)<Math.abs(best-_t)?q:best,13); }   // a learned metre is snapped to the nearest prime — the grid has no composite left
     }
     else if(out.groove) delete out.groove;
+    out.omArpOrd=(Math.random()<0.75)?'square':'sweep';   // (06.11, author 05.11: «омегу по умолчанию в порядке квадратов; на выбор Марковых, но квадраты доступны») the Markovs choose the omega's succession scene by scene, the squaring order three times in four (a pinned hand choice is restored by apStripPinned)
     out=_actShape(base,out);                    // ACTIVITY frame shapes the final scene
     // MARKOVA answers by crossing: when she is present, the pre/post lean toward
     // direct = −reversed (contrary motion), more as the scene tenses — her reply to him.
@@ -18380,9 +18390,9 @@ const learner = (()=>{
     // placed at the end of generate — the dialogue's class alternation (4k+1 ↔ 4k+3, 60 %) and the omega-circle guard both re-chose
     // the prime after this block and sent a triggering scene back to a 4k+3 world (measured: the climax at p=19, no chord). Where the
     // circle guard applies (omega on) the 4k+1 prime found here must have a circle too.
-    try{ const _tr=out.trig; const _trOn=!!(_tr && _tr!=='none' && _tr.length);
+    try{ const _tr=out.trig; const _trOn=!!(Array.isArray(_tr) ? _tr.some(function(v){ return ['a','b','r','r2','diag','prelude'].indexOf(v)>=0; }) : (typeof _tr==='string' && _tr!=='none' && /(^|\+)(a|b|r|r2|diag|prelude)(\+|$)/.test(_tr)));   // (06.11) a real voice, not 'none' or a stray letter
       if(_trOn && typeof cfgHasQuads==='function' && typeof isPrime==='function'){
-        const _pinnedP=keepP || (state.apPins && state.apPins.has('prime'));
+        const _pinnedP=keepP || (state.apPins && state.apPins.has('prime')) || ['ascent','focus','meditate'].indexOf(state.activity)>=0;   // (06.11, measured) a genre whose PRIME IS ITS LAW keeps it: ascent's climb (nextPrime scene by scene — every inner scene of a 2:00 ascent was pulled back to 17), focus's lemma «one prime up» (29 → 31 pulled back to 29), the prayer's room. There the type falls back where quadruples exist; a 4k+3 rung sounds none
         let q=out.p|0;
         const _needC=(vget('omega')>0.05 && typeof _hasCircle==='function'); const _okP=(v)=> v%4===1 && isPrime(v) && (!_needC || _hasCircle(v));
         if(q%4!==1 && !_pinnedP){ let up=q+1, dn=q-1; while(up<100003 && !_okP(up)) up++; while(dn>=5 && !_okP(dn)) dn--;
@@ -20841,7 +20851,7 @@ startRenderLoop();
         try{ _q2=(_mk2>1)?_multPrime(st.p|0,_mk2):null;
           if(_q2){ st.p=_q2; if(st.r) st.r=Math.max(1,Math.min(_q2-1,Math.ceil((st.r|0)/_mk2))); st.bpm=Math.max(5,Math.min(999,(st.bpm||state.bpm)/_mk2)); } }catch(e){ _q2=null; }
         scenes.restore(st,{at:_at});   // (04.11) the previous scene's long voices, the faders, sends and pans land at the beat, not at the queueing
-        try{ state._lyrPhase=st._lyrPhase||null; state._lyrStage=st._lyrStage||null; state._lyrEvent=st._lyrEvent||null; state._chordDose=(st._chordDose!=null)?st._chordDose:null; if(typeof synthState!=='undefined' && synthState){ synthState._lyrClimaxAt=0; synthState._lyrN=0; }   // (05.11) the five-stage name, the climax event and the chord dose ride the seam too; the event re-arms per scene
+        try{ state._lyrPhase=st._lyrPhase||null; state._lyrStage=st._lyrStage||null; state._lyrEvent=st._lyrEvent||null; state._chordDose=(st._chordDose!=null)?st._chordDose:null; if(typeof synthState!=='undefined' && synthState){ synthState._lyrClimaxAt=0; synthState._lyrN=0; synthState._desN=0; synthState._desChord=false; }   // (05.11) the five-stage name, the climax event and the chord dose ride the seam too; the event re-arms per scene
           if(st._lyrPhase && window._duoMailBH && !document.body.classList.contains('mk-embedded')) window._duoMailBH({act:'lyric', stage:st._lyrPhase, ts:Date.now()});
           if(st._lyrPhase && window._duoSpaceSet) window._duoSpaceSet({tender:0.75,desire:0.45,passion:0.08,afterglow:0.15}[st._lyrPhase] ?? 0.5);
         }catch(e){}   // (21.08) the stamped phase rides the pal seam too
@@ -21321,7 +21331,7 @@ startRenderLoop();
         if(st.duo) delete st.duo; if(st.solo) delete st.solo;
         try{ if(typeof apStripPinned==='function') apStripPinned(st, scenes.capture()); }catch(e){}   // (14.10) the pins hold at every seam
         scenes.restore(st,{at:_at});   // (04.11) the previous scene's long voices, the faders, sends and pans land at the beat, not at the queueing
-        try{ state._lyrPhase=st._lyrPhase||null; state._lyrStage=st._lyrStage||null; state._lyrEvent=st._lyrEvent||null; state._chordDose=(st._chordDose!=null)?st._chordDose:null; if(typeof synthState!=='undefined' && synthState){ synthState._lyrClimaxAt=0; synthState._lyrN=0; }   // (05.11) the five-stage name, the climax event and the chord dose ride the seam too; the event re-arms per scene
+        try{ state._lyrPhase=st._lyrPhase||null; state._lyrStage=st._lyrStage||null; state._lyrEvent=st._lyrEvent||null; state._chordDose=(st._chordDose!=null)?st._chordDose:null; if(typeof synthState!=='undefined' && synthState){ synthState._lyrClimaxAt=0; synthState._lyrN=0; synthState._desN=0; synthState._desChord=false; }   // (05.11) the five-stage name, the climax event and the chord dose ride the seam too; the event re-arms per scene
           if(st._lyrPhase && window._duoMailBH && !document.body.classList.contains('mk-embedded')) window._duoMailBH({act:'lyric', stage:st._lyrPhase, ts:Date.now()});
           if(st._lyrPhase && window._duoSpaceSet) window._duoSpaceSet({tender:0.75,desire:0.45,passion:0.08,afterglow:0.15}[st._lyrPhase] ?? 0.5);   // the arc walks them through the room: across -> approaching -> skin -> the room dissolves
         }catch(e){}   // (21.08) the scene's stamped arc phase rides the seam — and the breath mail carries it to her window
@@ -21979,7 +21989,7 @@ startRenderLoop();
       s.p, s.dir, s.motion,   // bpm AND r deliberately EXCLUDED: bpm breathes continuously (mirrors via the light {t:'bpm'} channel); r is live POSITION, not structure — at fast tempi it steps every beat, and keying on it caused the 4-restores-per-second storm (p20759 log, 26.07). The follower keeps its own transport; position re-syncs on real structure changes (restore {sim:true}).
       s.secMask&&[s.secMask.pre,s.secMask.main,s.secMask.post],
       s.reorderR, s.reorderPP, s.reorderA, s.glissA, s.glissB,
-      s.typeId, (s.trig||[]).slice().sort(), s.harmMode,
+      s.typeId, (Array.isArray(s.trig)?s.trig.slice().sort():String(s.trig||'')), s.harmMode,   // (06.11) a generated scene's trig may be the string 'none': its .sort threw and the key became random
       s.pitchFlip, s.pitchCouple, s.primeArch, s.markova,
       s.sustainOn, s.pnNMode, s.pnNFixed
     ]); }catch(e){ return 'k'+Math.random(); } }

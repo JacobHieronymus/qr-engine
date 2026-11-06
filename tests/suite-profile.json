@@ -1,0 +1,56 @@
+[
+ {
+  "name": "profile focus",
+  "mode": "form",
+  "genre": "focus",
+  "T": 120,
+  "duoMode": "parts",
+  "secs": 150,
+  "expect": "profile"
+ },
+ {
+  "name": "profile workout",
+  "mode": "form",
+  "genre": "workout",
+  "T": 120,
+  "duoMode": "parts",
+  "secs": 150,
+  "expect": "profile"
+ },
+ {
+  "name": "profile chores",
+  "mode": "form",
+  "genre": "chores",
+  "T": 120,
+  "duoMode": "parts",
+  "secs": 150,
+  "expect": "profile"
+ },
+ {
+  "name": "profile ascent",
+  "mode": "form",
+  "genre": "ascent",
+  "T": 120,
+  "duoMode": "parts",
+  "secs": 150,
+  "expect": "profile"
+ },
+ {
+  "name": "profile meditate",
+  "mode": "form",
+  "genre": "meditate",
+  "T": 120,
+  "duoMode": "parts",
+  "secs": 150,
+  "expect": "profile"
+ },
+ {
+  "name": "profile lyric",
+  "mode": "form",
+  "genre": "lyric",
+  "T": 120,
+  "duoMode": "parts",
+  "secs": 150,
+  "expect": "profile"
+ }
+]
