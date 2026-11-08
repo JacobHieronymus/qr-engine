@@ -590,6 +590,48 @@ details.acc[open] { padding-bottom: 0; }
 </style>
 </head>
 <body>
+<script>
+/* (08.11) ?demos — THE PICKER, drawn before the engine boots (its style comes with it: the bridge's sheet is parsed at the end).
+   The cards wake when the pair is ready (the bridge sets data-ready); the click on one starts that piece inside the gesture. */
+(function(){ try{
+  if(!/[?&]demos(=|&|$)/.test(location.search) || /[?&]demo=/.test(location.search)) return;
+  var css=document.createElement('style'); css.textContent=[
+    '#qrdemo-pick{position:fixed;inset:0;z-index:30000;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#0e0e0e;color:#e9e4da;font:19px/1.55 Georgia,"Times New Roman",serif}',
+    '#qrdemo-pick[hidden]{display:none!important}',
+    '#qrdemo-pick .qp-main{display:block;max-width:900px;margin:0 auto;box-sizing:border-box;padding:calc(48px + env(safe-area-inset-top)) max(24px,env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left))}',
+    '#qrdemo-pick h1{font-size:36px;font-weight:400;letter-spacing:.01em;margin:0 0 10px}',
+    '#qrdemo-pick p.sub{color:#b9b2a6;margin:0 0 44px;font-size:20px}',
+    '#qrdemo-pick p.how{color:#9a948a;font-size:16px;margin:0 0 16px}',
+    '#qrdemo-pick .qp-cards{display:grid;grid-template-columns:repeat(3,1fr);align-items:start;gap:16px;max-width:720px;margin:0}',
+    '#qrdemo-pick button.demo{display:block;width:100%;padding:0;margin:0;border:0;background:none;color:inherit;font:inherit;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+    '#qrdemo-pick:not([data-ready]) button.demo{cursor:progress;opacity:.55}',
+    '#qrdemo-pick button.demo img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;background:#000;border:1px solid #2a2a2a;box-sizing:border-box}',
+    '#qrdemo-pick[data-ready] button.demo:hover img,#qrdemo-pick[data-ready] button.demo:active img,#qrdemo-pick[data-ready] button.demo:focus-visible img{border-color:#8fb7c9}',
+    '#qrdemo-pick button.demo b{display:block;font-weight:400;font-size:20px;margin:10px 0 0}',
+    '#qrdemo-pick button.demo span{display:block;color:#9a948a;font-size:15px;line-height:1.4;margin-top:4px}',
+    '#qrdemo-pick .wake{color:#9a948a;font-size:15px;margin:18px 0 0;min-height:1.4em}',
+    '#qrdemo-pick footer{margin-top:56px;color:#9a948a;font-size:16px}',
+    '#qrdemo-pick footer a{color:#e9e4da}',
+    'body.qrdemo-picking #qrdemo-bar,body.qrdemo-picking #qrdemo-prog,body.qrdemo-picking #qrdemo-time,body.qrdemo-picking #qr-caption{display:none!important}',
+    '@media (max-width:720px){#qrdemo-pick h1{font-size:28px}#qrdemo-pick p.sub{font-size:17px}#qrdemo-pick p.how{font-size:15px}#qrdemo-pick button.demo b{font-size:17px}#qrdemo-pick .qp-cards{grid-template-columns:1fr;gap:28px;max-width:420px}}'
+  ].join('\n'); document.head.appendChild(css);
+  // the same three pieces and words as demos.html (30.10): genre · form · length — the form in the FORMS tooltip's words
+  var D=[['focus,free,90','demo/demo1.jpg','Demo 1 — Focus, free','demo 1','focus · free · 1:30 — he reads the score; she improvises her own'],
+         ['meditate,pal,150','demo/demo2.jpg','Demo 2 — Meditation, palindrome','demo 2','meditate · palindrome · 2:30 — the score plays forward here and back note-for-note on the other half'],
+         ['chores,retro,120','demo/demo3.jpg','Demo 3 — Chores, retro','demo 3','chores · retro · 2:00 — she answers with his material reversed, live']];
+  var pk=document.createElement('div'); pk.id='qrdemo-pick';
+  // (08.11) its own class names: the engine's sheet styles every main (display:flex) and every .row (flex, centred)
+  var h='<div class="qp-main"><h1>Sonification of Primes</h1><p class="sub">a generative instrument built on quadratic residues modulo primes</p>'+
+        '<p class="how">headphones on · phone off silent · a card starts the sound · ♥ keeps a moment</p><div class="qp-cards">';
+  D.forEach(function(x){ h+='<button class="demo" type="button" data-spec="'+x[0]+'"><img src="'+x[1]+'" alt="'+x[2]+'"><b>'+x[3]+'</b><span>'+x[4]+'</span></button>'; });
+  h+='</div><p class="wake" aria-live="polite">the Markovs are waking…</p><footer>Jacob Hieronymus · <a href="https://www.jacobhieronymus.com">www.jacobhieronymus.com</a></footer></div>';
+  pk.innerHTML=h; document.body.appendChild(pk);
+  // while the cards are up, the engine's keys (Space = start, arrows = the prime, letters) do not reach it behind them; the
+  // browser's own keys still work (Space and the arrows scroll, Tab and Enter choose a card). First in the capture phase.
+  ['keydown','keyup'].forEach(function(t){ window.addEventListener(t,function(e){ try{ if(pk.hidden || e.key==='Tab' || e.key==='Enter' || e.metaKey || e.ctrlKey || e.altKey) return; e.stopImmediatePropagation(); }catch(x){} },true); });
+  document.body.classList.add('qrdemo','qrdemo-picking');
+}catch(e){} })();
+</script>
 
 <div id="top-dock"></div>
 <main>
@@ -3066,7 +3108,7 @@ try{ if(typeof Mp4Muxer!=="undefined"){ window.Mp4Muxer = Mp4Muxer; } }catch(e){
 // was just shipped, the tab is stale») became a standing false alarm. The tab said «Musrara Presentation», the lock screen
 // «QR Engine», the field's plate «The Markovs». Raising QR_BUILD is the FIRST LINE OF EVERY SHIPMENT — the dock's stamp and
 // its title, the #td-label title, the tab (document.title) and the Media Session artist read these two.
-const QR_BUILD='06.11', QR_NAME='The Markovs';
+const QR_BUILD='08.11', QR_NAME='The Markovs';
 try{ document.title=QR_NAME+' \u00b7 '+QR_BUILD; }catch(e){}
 
 // ---------- Math ----------
@@ -4716,8 +4758,10 @@ try{
 }catch(e){ _audioLatency='playback'; }
 function initAudio(){
   if(ctx)return;
-  try{ ctx=new(window.AudioContext||window.webkitAudioContext)({latencyHint:(_audioLatency==='huge'?0.45:_audioLatency)}); }
-  catch(e){ ctx=new(window.AudioContext||window.webkitAudioContext)(); }
+  // (08.11) at 48 kHz, whatever the device's own rate (a 96 kHz output doubled the render's work and broke the sound up in Safari)
+  const _AC=window.AudioContext||window.webkitAudioContext, _lh=(_audioLatency==='huge'?0.45:_audioLatency);
+  try{ ctx=new _AC({latencyHint:_lh, sampleRate:48000}); }
+  catch(e){ try{ ctx=new _AC({latencyHint:_lh}); }catch(e2){ ctx=new _AC(); } }
   try{ ctx.addEventListener('statechange',()=>{ if(typeof _fl==='function') _fl('ctx-state',ctx.state); }); }catch(e){}   // suspensions/interruptions land in the flight log
   // ---- crash mitigation: whole-subgraph release on voice end -----------------
   // WebKit (Safari) retains stopped AudioNodes far longer than Chrome; at high
@@ -8847,9 +8891,22 @@ function _advanceSection(s,p,time){
   return scheduleOneBeat(time);
 }
 
+let _tickW=0, _holdAt=-1e9, _tickSkip=false;   // (08.11) the tick's own wall clock on a demo page: a gap is a held main thread
 function schedulerTick(){
   try{ if(document.hidden && SCHEDULE_AHEAD<1.25) SCHEDULE_AHEAD=1.25; }catch(e){}   // (03.09) hidden from birth (an iframe in a pocketed page) never saw the visibilitychange that raises the margin
-  if(!state.running||state.paused) return;
+  if(!state.running||state.paused){ _tickW=0; return; }
+  // (08.11) A HELD PAGE, on the demo pages only (body.qrdemo: written forms, no live hand, a stranger's machine). A visible tick
+  // 150 ms – 2.5 s late was held (the first scene of a big prime composed in the card's click, a seam on a slow machine, a GC):
+  // the notes due then were late, and past 0.5 s the overflow guard below flushed the sounding voices. The margin grows to
+  // cover the hold seen, as an audio strain grows it, and relaxes as that does; two holds within a minute keep the strain
+  // floor (0.32 s). A longer gap (a prompt, a sleeping machine) and the tick after a raise (its own catch-up) do not count.
+  try{ const _tw=performance.now();
+    if(_tickSkip){ _tickSkip=false; }
+    else if(_tickW && !document.hidden && _tw>_wakeHold && document.body.classList.contains('qrdemo')){ const _g=_tw-_tickW;
+      if(_g>150 && _g<2500){ const _want=Math.min(SCHEDULE_AHEAD_MAX, _g/1000+0.15);
+        if(_tw-_holdAt<60000) _wdFloor=Math.max(_wdFloor||0, Math.min(0.32, _want)); _holdAt=_tw;
+        if(_want>SCHEDULE_AHEAD+0.01){ SCHEDULE_AHEAD=_want; _tickSkip=true; try{ _fl('page-held','the page was held '+Math.round(_g)+' ms → lookahead '+SCHEDULE_AHEAD.toFixed(2)+' s'+(_wdFloor?(' · floor '+_wdFloor.toFixed(2)):'')); }catch(e){} } } }
+    _tickW=_tw; }catch(e){}
   if(ctx.state!=='running'){ try{ ctx.resume(); }catch(e){} }   // wake a context the OS/tab suspended, don't pile beats onto a frozen clock
   // (04.11) THE END GATE (author 30.10: «звук не просто угас, а закончился»): a form's end is the last beat it wrote, not a
   // fader. Once the gate is closed this tick queues nothing — no beat, no groove hit, no stall re-base — while the clock and
@@ -9003,6 +9060,7 @@ function startAudio(){
       if(ok){
         flushVoices();                       // drop notes queued onto the frozen clock
         nextBeatTime=ctx.currentTime+0.1;    // re-base on the now-moving clock
+        try{ if(window._qrLeadW>Date.now()) nextBeatTime=Math.max(nextBeatTime, ctx.currentTime+(window._qrLeadW-Date.now())/1000+0.06); }catch(e){}   // (08.11) a form's lead mailed while this clock woke stays the first beat
       }
     });
   }
@@ -9035,7 +9093,7 @@ function startAudio(){
     const go=()=>{
       gestureKick('overlay');          // synchronous part first — the tap is alive RIGHT NOW
       forceAudioAlive((ok)=>{
-        if(ok || (ctx&&ctx.state==='running')){ ov.remove(); if(state.running){ flushVoices(); nextBeatTime=ctx.currentTime+0.1; } }
+        if(ok || (ctx&&ctx.state==='running')){ ov.remove(); if(state.running){ flushVoices(); nextBeatTime=ctx.currentTime+0.1; try{ if(window._qrLeadW>Date.now()) nextBeatTime=Math.max(nextBeatTime, ctx.currentTime+(window._qrLeadW-Date.now())/1000+0.06); }catch(e){} } }
         else {
           const sub=document.getElementById('qr-tap-sub');
           const zombie=ctx&&ctx.state==='running';
@@ -9080,7 +9138,7 @@ function pauseAudio(){
   if(state.paused){ try{ state._pauseAt=ctx.currentTime; }catch(e){} flushVoices();   // (08.09) the score freezes at this instant instead of vanishing
     try{ if(typeof learner!=='undefined'&&learner.saveNow) learner.saveNow(); }catch(e){}   // playback ended — flush all learned memory
     try{ const _k=window.__qrKA; if(_k && !_k.paused) _k.pause(); }catch(e){} }   // (26.10) nothing plays while paused: iOS then sends the next stem squeeze as 'play', and an AirPod taken out changes nothing
-  else { state._pauseAt=0; nextBeatTime=ctx.currentTime+0.08;       // re-base the clock after the pause
+  else { state._pauseAt=0; nextBeatTime=ctx.currentTime+0.08; state._resumeW=Date.now();       // re-base the clock after the pause — (08.11) the wall instant of this wake: a lead mailed right after it drops what it queued
     try{ _ensureKeepAlive(true); }catch(e){} }                        // (26.10) and the keep-alive back (inside a tap or a media key; refused otherwise, until the next touch)
   setStatus(state.paused?'paused':'running',!state.paused);
 }
@@ -11023,10 +11081,11 @@ try{ _bgDark = localStorage.getItem('qr_bg_dark') || _COLORS_DARK.BG; }catch(e){
 try{ _bgLight = localStorage.getItem('qr_bg_light') || _COLORS_LIGHT.BG; }catch(e){ _bgLight=_COLORS_LIGHT.BG; }
 function _colors(darkBg){ return darkBg ? Object.assign({}, _COLORS_DARK, {BG:_bgDark}) : Object.assign({}, _COLORS_LIGHT, {BG:_bgLight}); }
 function _setBg(which, hex){
+  if((which==='dark'?_bgDark:_bgLight)===hex) return;   // (08.11) a scene restore passes the colours it already has, at every seam: nothing to repaint
   if(which==='dark'){ _bgDark=hex; try{ localStorage.setItem('qr_bg_dark', hex); }catch(e){} }
   else { _bgLight=hex; try{ localStorage.setItem('qr_bg_light', hex); }catch(e){} }
   try{ _mainStatic.key=null; _ppStatic.key=null; _dualPPStatic.key=null; }catch(e){}   // drop cached bg so it repaints
-  try{ drawFrame(); }catch(e){}                                                        // immediate feedback when stopped
+  try{ if(!(state.running && !state.paused)) drawFrame(); }catch(e){}                  // immediate feedback when stopped — (08.11) while it plays, the next frame repaints (a seam's O(p) static plot was built here twice, inside the scheduler's tick)
 }
 (function _wireBgPickers(){
   const lt=document.getElementById('bg-nqr'), dk=document.getElementById('bg-qr');
@@ -14234,7 +14293,10 @@ function cfgCanon(set4,p){
 // the info line labels both so the two counts cannot be mistaken for one.
 function cfgLegendre(a,p){ a%=p; if(a<0)a+=p; if(a===0)return 0; return modPow(a,(p-1)>>1,p)===1?1:-1; }
 function cfgJ(p){ const k=(p-1)>>2; let s=0; for(let i=1;i<=4*k-2;i++) s+=cfgLegendre(i*(i+1)*(i+2),p); return s; }
-function cfgCompleteCount(p){ const k=(p-1)>>2, J=cfgJ(p), d=(J*J-4)/32; return (k*(k-1)*(k-4)+2*k*d)/24; }
+function _cfgCompleteCountRaw(p){ const k=(p-1)>>2, J=cfgJ(p), d=(J*J-4)/32; return (k*(k-1)*(k-4)+2*k*d)/24; }
+// (08.11) remembered per p — her closed form is pure in p, and cfgRefresh asked for it at every seam (BigInt Legendre sums, O(p log p))
+const _cfgCCMemo=new Map();
+function cfgCompleteCount(p){ let v=_cfgCCMemo.get(p); if(v===undefined){ v=_cfgCompleteCountRaw(p); _cfgCCMemo.set(p,v); while(_cfgCCMemo.size>256) _cfgCCMemo.delete(_cfgCCMemo.keys().next().value); } return v; }
 
 // Concrete QR-quadruples of the selected type: 4-subsets of the (de-duplicated)
 // quadratic-residue set whose difference graph matches the chosen type. These
@@ -14269,7 +14331,7 @@ function cfgHasQuads(p, typeId, cap){
   if(_cfgHasCache.size>512) _cfgHasCache.clear();
   _cfgHasCache.set(key,found); return found;
 }
-function cfgBuild(p, typeId){
+function _cfgBuildRaw(p, typeId){
   const qt=qrTable(p);
   // de-duplicated QR list (each residue once)
   const seen=new Uint8Array(p); const QR=[];
@@ -14308,6 +14370,58 @@ function cfgBuild(p, typeId){
     }
   }
   return {quads, index, QR, truncated};
+}
+// (08.11) REMEMBERED BUILDS. The enumeration is pure in (p, type), and the engine asked for it again and again: every scene
+// restore calls cfgRefresh (at the prime it is leaving, then the 400 ms watcher at the new one), both halves of a duet do it,
+// and a palindrome comes back to the same worlds. At p≈90 000 one type is 20–390 ms of the main thread (measured 08.11), so
+// a seam stalled the scheduler. The last few results are kept (readers never mutate them: quads/index/QR are read-only), and
+// each build also files its count for the cockpit's type labels. Small: one entry at p≈90 000 is a few MB (the index map).
+const _cfgBuildCache=new Map();
+function cfgBuild(p, typeId){
+  p=p|0; const key=p+':'+typeId;
+  let r=_cfgBuildCache.get(key);
+  if(r){ _cfgBuildCache.delete(key); _cfgBuildCache.set(key,r); return r; }   // the most recent stays last
+  r=_cfgBuildRaw(p, typeId);
+  _cfgBuildCache.set(key,r); while(_cfgBuildCache.size>4) _cfgBuildCache.delete(_cfgBuildCache.keys().next().value);
+  _cfgCountPut(p, typeId, r.quads.length);
+  return r;
+}
+// the type labels' counts, per (p, type) — numbers only, so many can be kept
+const _cfgCountCache=new Map();
+function _cfgCountPut(p, typeId, n){ const k=(p|0)+':'+typeId; if(!_cfgCountCache.has(k) && _cfgCountCache.size>=4096){ const it=_cfgCountCache.keys(); for(let i=0;i<1024;i++) _cfgCountCache.delete(it.next().value); } _cfgCountCache.set(k, n|0); }   // the oldest quarter goes before a new entry, never the one being filed
+// THE LABELS' WORKER: the same _cfgBuildRaw and qrTable, by their own source, on a thread of their own — so the eleven counts
+// of a huge prime never take the beat's thread. Built on first need; where a page cannot make one, _cfgCountsSync is the old way.
+let _cfgW=null, _cfgWFail=false, _cfgWBusy=0, _cfgWNext=null;
+function _cfgCountWorker(){
+  if(_cfgW || _cfgWFail) return _cfgW;
+  try{
+    const src=['"use strict";',
+      'const CFG_BY_KEY='+JSON.stringify(CFG_BY_KEY)+';',
+      'const CFG_MAX_SCAN='+CFG_MAX_SCAN+', CFG_MAX_QUADS='+CFG_MAX_QUADS+';',
+      'function _bound(m){ while(m.size>2) m.delete(m.keys().next().value); }',
+      'const _qrTableCache=new Map();',
+      qrTable.toString(), _cfgBuildRaw.toString(),
+      'onmessage=function(e){ var p=e.data.p, out={}; (e.data.types||[]).forEach(function(t){ try{ out[t]=_cfgBuildRaw(p,t).quads.length; }catch(x){ out[t]=0; } }); postMessage({p:p, counts:out}); };'].join('\n');
+    const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));
+    _cfgW=new Worker(url);
+    _cfgW.onmessage=function(e){ try{
+      const d=e.data||{}; for(const t in (d.counts||{})) _cfgCountPut(d.p, t, d.counts[t]);
+      _cfgWBusy=0;
+      if(cfg._paintTypeCounts && (cfg.p|0)===(d.p|0)) cfg._paintTypeCounts();
+      if(_cfgWNext){ const nx=_cfgWNext; _cfgWNext=null; _cfgCountAsk(nx); }
+    }catch(x){} };
+    _cfgW.onerror=function(){ _cfgWFail=true; _cfgW=null; _cfgWBusy=0; try{ if(cfg._updateTypeCounts) cfg._updateTypeCounts(); }catch(x){} };
+  }catch(e){ _cfgWFail=true; _cfgW=null; }
+  return _cfgW;
+}
+// ask for the missing counts of p: one question at a time, the latest p wins the queue
+function _cfgCountAsk(p){
+  p=p|0; const miss=CFG_TYPES.map(t=>t.id).filter(id=>!_cfgCountCache.has(p+':'+id));
+  if(!miss.length) return true;
+  const w=_cfgCountWorker(); if(!w) return false;
+  if(_cfgWBusy){ _cfgWNext=p; return true; }
+  _cfgWBusy=p; try{ w.postMessage({p:p, types:miss}); }catch(e){ _cfgWBusy=0; return false; }
+  return true;
 }
 
 const cfg = {
@@ -15005,18 +15119,38 @@ function cfgRenderGlyphs(){
   // Relabel options with the count of quadruples available at the current p, so
   // empty types (e.g. "complete" below p=53) are visibly marked and never look
   // broken. Recomputed whenever the prime changes.
-  cfg._updateTypeCounts=function(){
+  // (08.11) the counts used to be built HERE, all eleven types, at every cfgRefresh — every scene seam, cockpit open or not
+  // (a ?demo= page, the face, the stage): at a huge prime 0.7–1.6 s of the main thread per refresh, both halves, the scheduler
+  // waiting behind it. Now the labels show what is known (the current type was just built), and the rest is counted by the
+  // labels' worker — only while this select can be seen; a hidden one is marked and counted when it is shown or touched.
+  cfg._paintTypeCounts=function(){
     const p=cfg.p|0;
     if(!isPrime(p)||p%4!==1){
       [...sel.options].forEach(o=>{ const t=CFG_TYPES.find(x=>x.id===o.value); o.textContent=`${t.edges}e — ${t.name}`; });
       return;
     }
     for(const o of sel.options){
-      const t=CFG_TYPES.find(x=>x.id===o.value);
-      let n=0; try{ n=cfgBuild(p,t.id).quads.length; }catch(e){ n=0; }
-      o.textContent=`${t.edges}e — ${t.name}  (${n})`;
+      const t=CFG_TYPES.find(x=>x.id===o.value), k=p+':'+t.id;
+      o.textContent=_cfgCountCache.has(k) ? `${t.edges}e — ${t.name}  (${_cfgCountCache.get(k)})` : `${t.edges}e — ${t.name}  (…)`;
     }
   };
+  const _cfgSelSeen=function(){ try{ if(sel.closest && sel.closest('details:not([open])')) return false; if(sel.checkVisibility) return sel.checkVisibility(); return !!(sel.offsetParent || (sel.getClientRects && sel.getClientRects().length)); }catch(e){ return false; } };   // a closed <details> keeps its content's boxes in Chromium (content-visibility), so it is asked first
+  // no worker on this page: the old synchronous count, still only for a select that can be seen
+  const _cfgCountsSync=function(p){ for(const t of CFG_TYPES){ const k=p+':'+t.id; if(_cfgCountCache.has(k)) continue; let n=0; try{ n=_cfgBuildRaw(p,t.id).quads.length; }catch(e){ n=0; } _cfgCountPut(p,t.id,n); } };
+  cfg._countsStale=0;
+  cfg._updateTypeCounts=function(force){
+    const p=cfg.p|0;
+    cfg._paintTypeCounts();
+    if(!isPrime(p)||p%4!==1){ cfg._countsStale=0; return; }
+    if(CFG_TYPES.every(t=>_cfgCountCache.has(p+':'+t.id))){ cfg._countsStale=0; return; }
+    if(!force && !_cfgSelSeen()){ cfg._countsStale=p; return; }
+    cfg._countsStale=0;
+    if(!_cfgCountAsk(p)){ _cfgCountsSync(p); cfg._paintTypeCounts(); }
+  };
+  // a stale label set is counted when the select is shown (its accordion opens) or touched; a slow look covers the rest
+  try{ for(let _acc=sel.closest && sel.closest('details'); _acc; _acc=_acc.parentElement && _acc.parentElement.closest('details')){ const a=_acc; a.addEventListener('toggle',()=>{ if(a.open && cfg._countsStale) cfg._updateTypeCounts(); }); } }catch(e){}
+  try{ ['focus','pointerdown','mousedown','touchstart'].forEach(ev=>sel.addEventListener(ev,()=>{ if(cfg._countsStale || [...sel.options].some(o=>/\(…\)$/.test(o.textContent))) cfg._updateTypeCounts(true); },{passive:true})); }catch(e){}
+  setInterval(()=>{ try{ if(cfg._countsStale && cfg._countsStale===(cfg.p|0) && _cfgSelSeen()) cfg._updateTypeCounts(); }catch(e){} }, 1500);
   cfgRenderGlyphs();
   // ---- Sequence play/stop + single-chord prev/next ----
   const playBtn=document.getElementById('cfg-play');
@@ -15545,7 +15679,7 @@ function buildSceneParamEditor(st, opts){
       const src=document.getElementById(srcId); const d=cell(); lab(d,t);
       if(src && src.tagName==='SELECT'){
         const s=document.createElement('select'); s.style.cssText='flex:0;min-width:92px';
-        [...src.options].forEach(o=>{ const op=document.createElement('option'); op.value=o.value; op.textContent=o.textContent; s.appendChild(op); });
+        [...src.options].forEach(o=>{ const op=document.createElement('option'); op.value=o.value; op.textContent=o.textContent.replace(/\s+\(…\)$/,''); s.appendChild(op); });   // (08.11) a type not yet counted is copied without its «(…)»
         s.value=String(st[key]); s.onchange=()=>{ st[key]= asInt? parseInt(s.value,10): s.value; };
         d.appendChild(s);
       } else {
@@ -21791,10 +21925,10 @@ startRenderLoop();
     try{ var _DP=window._demoPins||[]; if(_wasDemo || _DP.length){ window._demoPins=_DP;
       var _vi=_DP.indexOf('vols'); if(_vi>=0){ if(typeof apUnpin==='function') apUnpin('vols'); _DP.splice(_vi,1); }
       if(!(state.apPins&&state.apPins.has('vol.kick'))){ if(typeof apPin==='function') apPin('vol.kick'); if(_DP.indexOf('vol.kick')<0) _DP.push('vol.kick'); } } }catch(e){}   // (14.10) the form keeps its own voices, the kick stays at zero, master/freq/prime/bpm/groove stay pinned — only the demonstration's own pins are touched
-    try{ if(state.running && state.paused) _wasClosed=true; }catch(e){}   // (05.11) measured: a start after the REST (the transport paused by the tail watch, or by the hand) re-walked the ended scene for one beat before the new form's first seam, as a start inside the tail did — the same re-base below
+    var _wasRest=false; try{ if(state.running && state.paused){ _wasClosed=true; _wasRest=true; } }catch(e){}   // (08.11) _wasRest: the lead's mail says the pause flushed her — (05.11) measured: a start after the REST (the transport paused by the tail watch, or by the hand) re-walked the ended scene for one beat before the new form's first seam, as a start inside the tail did — the same re-base below
     try{ if(!state.running) startAudio(); else if(state.paused) pauseAudio(); }catch(e){}
     var t0=Date.now()+_qrFormLead();   // (04.11) the lead covers the lookahead (700 ms alone on a Mac at rest, as before)
-    if(_wasClosed){ try{ var _nb=ctx.currentTime+(t0-Date.now())/1000+0.06; if(nextBeatTime<_nb) nextBeatTime=_nb; if(state.duo && state.duo.on && state.duo.peer) send({t:'end-gate', wall:0, why:'the next form', lead:t0}); }catch(e){} }   // (04.11) a form started inside the previous form's tail: with the gate open the very next tick queued the ENDED scene from where it stood, at full faders, for the whole lead (0.7–1.6 s), and the first seam then killed those re-started drones — a burst of the old scene after its own tail. The scheduler waits for the downbeat (60 ms past it: a beat starting before the seam's instant would still be the old scene's, and the audio clock and the wall clock disagree by up to ±20 ms between two readings — measured 05.11, 10 ms was not enough); the other half is told the same lead (round-6 review)
+    if(_wasClosed){ try{ var _nb=ctx.currentTime+(t0-Date.now())/1000+0.06; if(nextBeatTime<_nb) nextBeatTime=_nb; if(state.duo && state.duo.on && state.duo.peer) send({t:'end-gate', wall:0, why:'the next form', lead:t0, rest:_wasRest?1:0}); }catch(e){} }   // (04.11) a form started inside the previous form's tail: with the gate open the very next tick queued the ENDED scene from where it stood, at full faders, for the whole lead (0.7–1.6 s), and the first seam then killed those re-started drones — a burst of the old scene after its own tail. The scheduler waits for the downbeat (60 ms past it: a beat starting before the seam's instant would still be the old scene's, and the audio clock and the wall clock disagree by up to ±20 ms between two readings — measured 05.11, 10 ms was not enough); the other half is told the same lead (round-6 review)
     try{ if(typeof masterGain!=='undefined' && masterGain && ctx && masterGain.gain.value<0.02)
       masterGain.gain.setTargetAtTime(Math.max(0.05,state.vol.master||0.72), ctx.currentTime, 0.2); }catch(e){}   // an interrupted prayer must not darken the next form — (16.10) for every form: the darkness is gone (15.10), so a form with events is no exception
     try{ window._formArc={t0:performance.now()+(t0-Date.now()), T:Fp.T*1000}; window._formOn=true; }catch(e){}
@@ -22594,7 +22728,7 @@ startRenderLoop();
       if(m.silent){ if(window._qrEndGate) window._qrEndGate.peerSilent=true; }   // the other half's tail has reached silence — the baton's half may rest the pair once its own has
       else if(+m.wall>0){ if(state.running && !state.paused) _qrEndArm(+m.wall, m.why||'', true); else if(+m.wall>Date.now()+200) window._qrEndPend={wall:+m.wall, why:m.why||''}; else send({t:'end-gate', silent:true}); }   // the other half's form reaches its last beat: this scheduler closes on the same wall instant and the tail rings out here too; a half not yet running (booting, or paused) keeps the aim for its start / ▶ while the instant is ahead (round-6 review); a half at rest past it has no tail to wait for
       else { var _wasC=!!(window._qrEndGate && window._qrEndGate.closed); _qrEndOpen(m.why||'', true);   // a door on the other half (a new form, ▶ once, a seek, the walk, the hand's ■) opened its gate: this half's opens too
-        try{ if(_wasC && +m.lead>Date.now() && typeof ctx!=='undefined' && ctx){ var _nbW=ctx.currentTime+(+m.lead-Date.now())/1000+0.06; if(nextBeatTime<_nbW) nextBeatTime=_nbW; } }catch(e){} }   // (04.11) a form started on the other half inside this half's tail: the ended scene is not walked again for the lead — the first queued beat is the new form's own (round-6 review)
+        try{ if(+m.lead>Date.now() && typeof ctx!=='undefined' && ctx){ var _nbW=ctx.currentTime+(+m.lead-Date.now())/1000+0.06; window._qrLeadW=+m.lead; if(nextBeatTime<_nbW){ if(+m.rest && state.running && !state.paused && state._resumeW && Date.now()-state._resumeW<1500){ try{ flushVoices(); }catch(e){} } nextBeatTime=_nbW; } } }catch(e){} }   // (08.11) the lead whenever it is mailed (the open before it had already opened the gate, so the old _wasC test never passed). When the sender's start woke a RESTED pair (rest:1), her xport has just resumed her and the pause had flushed all else: the old scene she began to walk is dropped. Otherwise (a start inside a ringing tail) the tail rings on. The lead is kept for a clock still waking   // (04.11) a form started on the other half inside this half's tail: the ended scene is not walked again for the lead — the first queued beat is the new form's own (round-6 review)
     }catch(e){} }
     else if(m.t==='sdist'){ try{ window._spaceHandAt=Date.now(); if(window._duoSpaceSet) window._duoSpaceSet(+m.v, true); if(window._duoSpaceUI) window._duoSpaceUI(+m.v); }catch(e){} }   // one hand, both windows
     else if(m.t==='gev'){ try{
@@ -23068,7 +23202,7 @@ startRenderLoop();
         // light mains while hers sat dark at p=3). A build stamp on the query string
         // forces the frame to fetch the same build the parent runs.
         var _bust=''; try{ _bust='?v='+(document.lastModified?Date.parse(document.lastModified):Date.now()); }catch(e){ _bust='?v=0'; }
-        fr.src=location.href.split('#')[0].split('?')[0]+_bust+(IS_PHONE?'#markova-phone':'#markova')+(PAIR?('-pair='+PAIR):'')+(new URLSearchParams(location.search).get('demo')?'-qrdemo':'');   // (30.10) her src drops the query: a ?demo= page (the bridge's own test) tells her half by the hash
+        fr.src=location.href.split('#')[0].split('?')[0]+_bust+(IS_PHONE?'#markova-phone':'#markova')+(PAIR?('-pair='+PAIR):'')+((new URLSearchParams(location.search).get('demo')||new URLSearchParams(location.search).has('demos'))?'-qrdemo':'');   // (30.10) her src drops the query: a ?demo= page (the bridge's own test) tells her half by the hash
         // Frame scale. Default 1 (author 26.07: «сравнять по размеру шрифта») — Markova
         // renders at NATURAL size in her half, exactly like Markov's squeezed half: same
         // fonts, mirrored half-width layouts. ⊖ shrinks toward a desktop-layout miniature
@@ -24288,7 +24422,7 @@ startRenderLoop();
    the same #qrdemo-bar, and Markova's frame builds none (one door for the pair, as with #stage-exit). Its ♥ carries the
    demo bar's id, so ♥ like's flash and the first meeting's glow find it as they find that one. */
 (function(){
-  try{ if(new URLSearchParams(location.search).get('demo')) return; }catch(e){}
+  try{ var _dq=new URLSearchParams(location.search); if(_dq.get('demo') || _dq.has('demos')) return; }catch(e){}   // (08.11) and the ?demos picker's page
   if(document.body.classList.contains('mk-embedded')) return;
   var bar=null, tr=null;
   var always=(typeof matchMedia==='function')?matchMedia('(pointer: coarse), (max-width: 620px)'):null;   // the CSS query that shows the bar for good
@@ -25613,14 +25747,17 @@ body.viz-max:not(.qrdemo) #qr-caption { top:calc(112px + env(safe-area-inset-top
     c.textContent=text;
     if(dur>0) capT=setTimeout(function(){ capT=null; try{ c.remove(); }catch(e){} },dur*1000);
   }catch(e){} };
-  var q=new URLSearchParams(location.search); var d=q.get('demo'); if(!d) return;
-  var P=d.split(','); var genre=P[0]||'focus', mode=P[1]||'parts', secs=Math.max(20,+(P[2]||90)|0);
+  var q=new URLSearchParams(location.search); var d=q.get('demo');
+  // (08.11) ?demos: the picker drawn at the top of <body> chooses the piece; its click is the gesture (no «tap anywhere»)
+  var pickEl=d?null:document.getElementById('qrdemo-pick'); if(!d && !pickEl) return;
+  var P=(d||'focus,free,90').split(','); var genre=P[0]||'focus', mode=P[1]||'parts', secs=Math.max(20,+(P[2]||90)|0);
+  function setSpec(sp){ var A=String(sp||'').split(','); genre=A[0]||'focus'; mode=A[1]||'parts'; secs=Math.max(20,+(A[2]||90)|0); }
   document.body.classList.add('qrdemo');
   function clickGenre(g){ var gen=document.getElementById('face-gen'); if(!gen) return false; var bs=gen.querySelectorAll('button'); for(var i=0;i<bs.length;i++) if(bs[i].textContent.trim()===g){ bs[i].click(); return true; } return false; }
   function clickMode(m){ var frm=document.getElementById('face-formp'); if(!frm) return false; var bs=frm.querySelectorAll('button'); for(var i=0;i<bs.length;i++){ if(bs[i].dataset && bs[i].dataset.m===m){ bs[i].click(); return true; } } return false; }
   function setLen(s){ var mi=document.getElementById('face-min'), si=document.getElementById('face-sec'); if(!mi||!si) return false; mi.value=String(Math.floor(s/60)); mi.dispatchEvent(new Event('change',{bubbles:true})); si.value=String(s%60); si.dispatchEvent(new Event('change',{bubbles:true})); return true; }
   function herWin(){ try{ var fr=document.querySelector('#duo-frame-wrap iframe'); return fr&&fr.contentWindow; }catch(e){ return null; } }
-  function herTap(){ try{ var W=herWin(); if(W&&W.ctx&&W.ctx.resume) W.ctx.resume(); }catch(e){} }
+  function herTap(){ try{ var W=herWin(); if(!W) return; if(W.__qrWake) W.__qrWake(); else if(W._qrAudio && W._qrAudio.ctx && W._qrAudio.ctx.state!=='running') W._qrAudio.ctx.resume(); }catch(e){} }   // (08.11) W.ctx is never visible from here (a lexical binding): her own wake hook, or her published context
   function stage(on){ try{ var is=document.body.classList.contains('viz-max'); if(on!==is && window._qrStageToggle) window._qrStageToggle(); }catch(e){} }
   // (18.10, author: «звук нужно нормализовать под 0») the engine's own level-rider on both halves:
   // −10.8 dBFS RMS on the bus, makeup up to 12×, the limiter at −1.5 dBFS as the ceiling
@@ -25654,7 +25791,11 @@ body.viz-max:not(.qrdemo) #qr-caption { top:calc(112px + env(safe-area-inset-top
     acc=0; lastT=performance.now();
     herTap(); normalize(); stage(true);
     // no gesture yet (a phone): hold the transport at the first beat until the first touch
-    setTimeout(function(){ if(!hold()) startLine(); paint(); },150);   // (30.10) where the sound is already allowed (a desktop) the piece names itself at once
+    // (08.11) after a card's click the context was made in the gesture: one still waking (a Bluetooth route) is given 1.5 s
+    // before the hint is shown — the hint is for a withheld sound, not a slow one
+    var gen=++beginGen;   // a later start (another card, ← back) retires this one's wait
+    setTimeout(function(){ if(gen!==beginGen) return; var w0=performance.now(), g=!!(pickStart && w0-pickStart<2500);
+      (function settle(){ if(gen!==beginGen) return; if(g && !soundOK() && performance.now()-w0<1500){ setTimeout(settle,100); return; } if(!hold()) startLine(); paint(); })(); },150);   // (30.10) where the sound is already allowed (a desktop) the piece names itself at once
     paint();
   }
   // (30.10) the watchdog's overlay stands down while the hint holds a sleeping context (startAudio), so a clock that stays
@@ -25704,6 +25845,7 @@ body.viz-max:not(.qrdemo) #qr-caption { top:calc(112px + env(safe-area-inset-top
       else if(ctx!==frozenCtx){ frozenCtx=ctx; frozenAt=ctx?ctx.currentTime:0; }
       else if(ctx && ctx.currentTime>frozenAt+0.0005){ frozenAt=-1; caption(''); if(!ended) startLine(); } }
     bPlay.disabled=ended && !playing;
+    if(pickOn){ if(!pickT && state.running && !state.paused){ try{ pauseAudio(); }catch(e){} } return; }   // (08.11) the cards are up: no END line, no ♥ line under them — and no sound: a media key, an AirPod put back or a squeeze that woke the rested transport is rested again
     if(ended){ var cp=document.getElementById('qr-caption');
       if(!playing && !hint && !cp) caption(END);
       else if(playing && cp && cp.textContent===END) caption(''); }
@@ -25732,15 +25874,35 @@ body.viz-max:not(.qrdemo) #qr-caption { top:calc(112px + env(safe-area-inset-top
         setTimeout(function(){ if(!hold()) startLine(); paint(); },150); paint(); },1400); });   // the stop parks with a short fermata and a release 900 ms later — start after it
     bLike=btn('\u2665',function(){ likeSeen=lastLike(); likeUntil=performance.now()+6000; try{ var lk=document.getElementById('tb-like'); if(lk) lk.click(); }catch(e){} bLike.classList.add('on'); setTimeout(function(){ bLike.classList.remove('on'); },900); });   // (20.10) ♥ — the Markovs everywhere hear of it
     bLike.id='qrdemo-like';   /* (30.10) named: ♥ like's handler flashes it for a yes from H or the stem too */ bLike.title='like this moment — the Markovs learn it, everywhere';   // (30.10) its size lives in the CSS (48 px), where the narrow-screen rule reaches it
-    bBack=btn('← back',function(){ if(restT){ clearTimeout(restT); restT=null; } try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} wasForm=false; var r=document.referrer||''; if(r && !/2907QR_Engine/.test(r) && history.length>1) history.back(); else location.href='demos.html'; });   // back to where the visitor came from (the portfolio or demos.html)
+    bBack=btn('← back',function(){ if(restT){ clearTimeout(restT); restT=null; } try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} wasForm=false;
+      if(pickEl){ showPick(); return; }   // (08.11) the picker's page: back to its cards, no new page (the next card is a gesture again)
+      var r=document.referrer||''; if(r && !/2907QR_Engine/.test(r) && history.length>1) history.back(); else location.href='demos.html'; });   // back to where the visitor came from (the portfolio or demos.html)
     document.body.appendChild(bar);
     prog=document.createElement('div'); prog.id='qrdemo-prog'; prog.appendChild(document.createElement('i')); document.body.appendChild(prog);
     timeEl=document.createElement('div'); timeEl.id='qrdemo-time'; document.body.appendChild(timeEl);
     setInterval(paint,250);
   }
+  // (08.11) THE PICKER. A card's click: its piece, then begin() inside the same gesture — the context is made or resumed in
+  // it (and hers by herTap), the stage is entered, and fullOnce asks for full screen in it, as with the first tap before.
+  var pickOn=!!pickEl, pickLive=false, pickT=null, pickStart=0, beginGen=0;
+  function showPick(){ if(!pickEl) return; beginGen++; pickOn=true; ended=false; again=false; hint=false; caption('');
+    pickEl.hidden=false; document.body.classList.add('qrdemo-picking'); try{ pickEl.scrollTop=0; }catch(e){}
+    // the park's fermata and release (≈1.4 s) end the piece; then the transport rests until the next card
+    if(pickT) clearTimeout(pickT); pickT=setTimeout(function(){ pickT=null; try{ if(pickOn && state.running && !state.paused) pauseAudio(); }catch(e){} paint(); },1500); }
+  function choose(sp){ if(!pickLive) return; if(pickT){ clearTimeout(pickT); pickT=null; }
+    setSpec(sp); pickOn=false; pickEl.hidden=true; document.body.classList.remove('qrdemo-picking');
+    wasForm=false; ended=false; again=false; hint=false; likeSeen=lastLike(); likeUntil=0;
+    try{ var ae=document.activeElement; if(ae && ae.blur && pickEl.contains(ae)) ae.blur(); }catch(e){}   // the hidden card keeps no focus
+    fsAsked=false;      // each card is a gesture of its own: fullOnce may ask for full screen again (an Esc may have left it)
+    pickStart=performance.now();
+    try{ var W=herWin(); if(W && W.gestureKick) W.gestureKick('start'); }catch(e){}   // her context made and resumed inside this click too (on the first card it does not exist yet)
+    begin(); }   // _qrFormStart wakes a transport rested by showPick or by the form's own end (its _wasClosed re-base), in this gesture
+  function pickWake(){ if(!pickEl || pickLive) return; pickLive=true; pickEl.setAttribute('data-ready','');
+    try{ var w=pickEl.querySelector('.wake'); if(w) w.textContent='choose one — it starts at once'; }catch(e){} }
+  if(pickEl){ try{ pickEl.querySelectorAll('button.demo').forEach(function(b){ b.addEventListener('click',function(ev){ try{ choose(b.getAttribute('data-spec')); }catch(e){} }); }); }catch(e){} }
   function ready(){ return !!(document.getElementById('face-gen') && window._qrFace && window._qrStageToggle); }
   function pairReady(){ try{ return !!(document.getElementById('duo-frame-wrap') && state.duo && state.duo.peer); }catch(e){ return false; } }   // a pair form must not start before Markova's frame exists and has said hello — else it falls to one engine
-  (function wait(n){ if(ready() && (pairReady() || n>80)){ build(); var go=false; var b=function(){ if(go) return; go=true; setTimeout(begin,50); };
+  (function wait(n){ if(ready() && (pairReady() || n>80)){ build(); var go=false; var b=function(){ if(go) return; go=true; if(pickEl){ pickWake(); return; } setTimeout(begin,50); };   // (08.11) the picker's page waits for a card
     try{ (window._qrCrowd||Promise.resolve()).then(b); }catch(e){} setTimeout(b,1500); }   // the first form is composed after the Markovs have heard the others' likes (at most 1.5 s)
     else if(n<300) setTimeout(function(){ wait(n+1); },100); })(0);
 })();

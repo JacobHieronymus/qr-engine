@@ -41,3 +41,25 @@ genre's own events (`gev`: a bell on a line's entry, a chord on a scene's entry 
 counts the events Markova's window fired: it should stay 0 — the events belong to Markov's window, which carries the shared bed.
 
     deno run -A tests/run-headless.ts 2907QR_Engine_8.html tests/suite-profile.json tests/results-profile.json   # ~15 minutes
+
+## The demos in Safari's engine, and the seams of a big prime (08.11)
+
+The author heard the public demos (`demos.html`) break up in Safari. Three causes were measured and removed; the kit that
+measured them lives in `/Users/jg/claude/tools/demo-0811/` (outside the repo):
+
+- `probe-demo.ts` — headless Chrome, a `?demo=` page, both halves sampled every 200 ms (bus level, transport, prime), the
+  main thread's long tasks, an optional CPU profile (`PROF_FROM` / `PROF_TO`), `prof.py` to read it by function.
+- `wk/run-wk.ts` with `wk/WKProbe` (Swift, a WKWebView window: the Safari engine) — every note's slack against the audio
+  clock, the 10 ms interval's gaps, frames, and each context's pace (rendered seconds per wall second), one bucket a second
+  per half, posted to the runner. A preflight proves the page's audio goes into a zero gain before anything plays (the
+  author hears nothing). Per-run switches through the runner: `sr48`, `noconv`, `convx2`; `click` uses `wk/WKProbe2`, which
+  needs a real gesture for audio and sends a real mouse click to a card. `wk/ratio.py` and `wk/anwk.py` read the results.
+- `test-pick.ts` — the `?demos` picker in Chrome under the default autoplay policy (sound only after a gesture): forward,
+  card, ← back, another card, ↻, and the old `?demo=` link still asking for its tap. `test-labels.ts` — the cockpit's
+  type labels counted by the worker equal the old synchronous counts.
+
+What was found: at every seam of a huge prime (meditate, p≈30 000–90 000) the main thread stood 1–3 s (the cockpit's
+type labels: all eleven configuration types enumerated at every cfgRefresh, for a select nobody saw; the background repainted
+twice; Goncharova's closed form recomputed); in Safari the device's 96 kHz doubled the render, and the ten convolvers of
+each half ran the audio clock at 0.5 of real time (the watchdog's damps and flushes were the breaks); a second form after a
+rest let Markova walk her previous scene for the lead.
