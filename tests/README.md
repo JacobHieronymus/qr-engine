@@ -63,3 +63,13 @@ type labels: all eleven configuration types enumerated at every cfgRefresh, for 
 twice; Goncharova's closed form recomputed); in Safari the device's 96 kHz doubled the render, and the ten convolvers of
 each half ran the audio clock at 0.5 of real time (the watchdog's damps and flushes were the breaks); a second form after a
 rest let Markova walk her previous scene for the lead.
+
+## A half that joins a plain run late (09.11)
+
+The author heard Markova silent through a whole retro form: her frame had opened mid-form (HEAR «both», or a reload). A new
+peer got the scene and the mode on 'hello', and only a palindrome or a parts score was mailed again with the transport; retro
+and free (and a parts plan without a score) run by `_qrPlainRun`, so her clock ran and her transport stood. Now the window that
+plays sends `{t:'xport', on:true}` once per new peer (`_lastPeerXport`), not on the phone route (her own tap starts her) and not
+while a palindrome is live (its own door). Checked silently in headless Chrome (`tools/ambi-0911/test-late.ts`: the demo runs,
+her frame is reloaded at 8 s, her transport and notes are read 4 and 10 s later): before the fix retro and free stayed silent,
+after it she plays in all four modes (retro and parts on his scene and p, free on her own, the palindrome unchanged).

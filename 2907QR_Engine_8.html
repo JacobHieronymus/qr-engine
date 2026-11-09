@@ -3108,7 +3108,7 @@ try{ if(typeof Mp4Muxer!=="undefined"){ window.Mp4Muxer = Mp4Muxer; } }catch(e){
 // was just shipped, the tab is stale») became a standing false alarm. The tab said «Musrara Presentation», the lock screen
 // «QR Engine», the field's plate «The Markovs». Raising QR_BUILD is the FIRST LINE OF EVERY SHIPMENT — the dock's stamp and
 // its title, the #td-label title, the tab (document.title) and the Media Session artist read these two.
-const QR_BUILD='08.11', QR_NAME='The Markovs';
+const QR_BUILD='09.11', QR_NAME='The Markovs';
 try{ document.title=QR_NAME+' \u00b7 '+QR_BUILD; }catch(e){}
 
 // ---------- Math ----------
@@ -21125,7 +21125,7 @@ startRenderLoop();
   if(!IS_LEADER){ try{ if(window.parent && window.parent!==window) document.body.classList.add('mk-embedded'); }catch(e){} }   // (05.08) the embedded half yields its bar to the ONE console above both
   if(!IS_LEADER && /qrdemo/.test(HASH) && document.body.classList.contains('mk-embedded')){ try{ document.body.classList.add('qrdemo'); }catch(e){} }   // (30.10) the ?demo= flag from the frame's hash: her icon rows hide as his do — only inside the frame, where the bar above her is the hand
   if(IS_LEADER && !PAIR){ try{ PAIR=Math.random().toString(36).slice(2,8); }catch(e){ PAIR='p0'; } }
-  var _lastPeerSynced=null, _lastPeerSeeded=null;   // [29.07 fix] was read undeclared below — the ReferenceError killed the 'hello' handler, so a new peer never got the full sync (dead right half on the duet stage; Safari surfaced it hardest)
+  var _lastPeerSynced=null, _lastPeerSeeded=null, _lastPeerXport=null;   // [29.07 fix] was read undeclared below — the ReferenceError killed the 'hello' handler, so a new peer never got the full sync (dead right half on the duet stage; Safari surfaced it hardest)
   // ---- PALINDROME FORMS (author 29.07: «эти палиндромы важны») ---------------------
   // A crab canon for the pair: the leader composes a plan of scenes (via the learner)
   // whose total length is the free form-dur field; he plays it start-to-end, she plays
@@ -22652,7 +22652,14 @@ startRenderLoop();
       // downbeat as the pauses have slid it (the score clock) and the transport; her _palRun enters the scene sounding now.
       if(_palLate && _palActive && _palLate.gen===_palGen && state.duo.on && state._palScore && m.role && m.role!==ROLE && m.id!==_palLate.to){ _palLate.to=m.id;
         if(state.running && !state.paused) send({t:'xport', on:true});
-        send(Object.assign({}, _palLate.msg, {t0:state._palScore.wall0, late:true})); } }
+        send(Object.assign({}, _palLate.msg, {t0:state._palScore.wall0, late:true})); }
+      // (09.11, author: «для формы retro он этого не делает, исправь») A HALF THAT JOINS A PLAIN RUN LATE GETS THE TRANSPORT. Retro and
+      // free (and a parts plan without a score) are mirrored live by _qrPlainRun, so no score is mailed above and no 'xport' went with
+      // it: her frame, opened by HEAR «both» or reloaded mid-form, got the scene and the mode and stood with its clock running and its
+      // transport stopped — silent to the end. The window that plays now sends the transport once per new peer. A palindrome or a
+      // parts score keeps its own door above; on the phone route her own tap on her veil starts her, as always.
+      else if(state.duo.on && m.role && m.role!==ROLE && m.id!==_lastPeerXport && !IS_PHONE && !_palLive() && state.running && !state.paused){
+        _lastPeerXport=m.id; send({t:'xport', on:true}); } }
     else if(m.t==='mode'){ if(m.mode){ if(m.mode==='pal' && state.duo.mode!=='pal') _prePalMode=state.duo.mode; state.duo.mode=m.mode;   // (05.08 audit) both windows must hold the SAME pre-pal mode, or the crab's natural end crosses them
       if(m.mode!=='pal' && _palActive && _palFull) _palStopLocal();   // one family: a mode change ends the palindrome everywhere · (24.09) a parts form under the score is not a palindrome — it ends with its form
       if(m.mode==='free'||m.mode==='pal'){ state._landPend=null; state._landTok=false; state._landArmed=false; }   // (16.08) the announced landing belongs to parts/retro only
