@@ -12,6 +12,18 @@ how often she stepped a prime of her own, and how many errors either page threw.
 `duet-harness.js` is the in-page part (it drives only the engine's own controls); `run-headless.ts` is the server and the
 Chrome driver; `suite-xk.json` lists the scenarios. A full run takes about 20 minutes.
 
+## Measured timbres (10.11)
+
+The family waves are measured spectra of real instruments (30 UVI instruments captured offline, 09.11), per instrument and the
+nearest measured pitch, built as PeriodicWaves; each window writes its class into the overtones (Markov keeps the partials n with
+(n|p) = +1, Markova those with −1; the fundamental and n ≡ 0 belong to both; the other class falls 60 dB) and each wave is scaled to
+the RMS of the family wave it replaces, so every fader and headroom stays as tuned. Bells take measured modes; the groove's drums
+are rendered per prime in a Worker. `?tmb=off` plays the old waves (her frame follows his switch). The patch is generated, never
+edited by hand: `python3 tools/ambi-0911/make_ambi_timbre.py <master> <out> --build=DD.MM` (outside this repository).
+Checked silently before the commit: in both windows every built wave keeps its class's partials at their measured level and
+drops the other class by 60 dB, its RMS equal to the old wave's; the demos' levels within ±2 dB of the master's, pace 1.0, no
+exceptions; the form suite, the lyric arc, the eleven ×k and the four ×32 scenarios 0 errors.
+
 ## The room by law (10.11)
 
 The duet's room level is a law, never a read-back: initAudio takes the wet return's nominal once; the distance (the lyric arc's
