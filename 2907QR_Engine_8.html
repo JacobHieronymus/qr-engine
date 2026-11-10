@@ -7055,7 +7055,7 @@ function _multPrime(p,k){ p=p|0; k=k|0; if(k<2||p<3) return null; var L=p-1; if(
 // down at equal distance) whose p'−1 is k·(q−1) with q prime. Keeps the improviser's
 // register; null when none within reach.
 function _pairPrimeNear(p,k){ p=p|0; k=k|0; if(k<2) return null; if(_multPrime(p,k)) return p;
-  var lim=Math.max(120,p); for(var d=1; d<=lim; d++){ var u=p+d, w=p-d;
+  var lim=Math.max(120,p,64*k); for(var d=1; d<=lim; d++){ var u=p+d, w=p-d;   // (09.11) k up to 32: pairs are rarer as k grows (p ≡ 1 mod k, and q prime) — the reach grows with k
     if(isPrime(u) && _multPrime(u,k)) return u; if(w>=3 && isPrime(w) && _multPrime(w,k)) return w; } return null; }
 function _multOptions(p){ var out=[], L=(p|0)-1; for(var k=2;k<=L;k++){ if(L%k===0){ var q=_multPrime(p,k); if(q) out.push({k:k,q:q}); } } return out; }
 function _palScoreApply(s,SC,time,dur){
@@ -21156,8 +21156,11 @@ startRenderLoop();
       // (27.10) a k that arrives from the other pill may be missing from this list (his p offers no q for it, or the lists were
       // built from different p) — without a rebuild the select showed nothing; rebuild, so the «no prime at p» entry names it.
       if(p!==_multP || multSel.options.length===0 || (k>1 && !multSel.querySelector('option[value="'+k+'"]'))){ _multP=p;
-        var opts=_multOptions(p), html='<option value="1">\u00d71 \u00b7 off</option>', seen=false;
-        for(var i=0;i<opts.length;i++){ html+='<option value="'+opts[i].k+'">\u00d7'+opts[i].k+' \u2192 '+opts[i].q+'</option>'; if(opts[i].k===k) seen=true; }
+        var html='<option value="1">\u00d71 \u00b7 off</option>', seen=false;
+        // (09.11, author: «можно сделать выбор любого отношения до 32? и в зависимости от него будут выбираться темпы и p в
+        // композиции?») EVERY k UP TO 32: the arrow names the q of THIS p where there is one; a k without one is still offered —
+        // a composed form moves each scene's prime to one that has its q, and sets the tempo (see the composer's pairs)
+        for(var kk=2;kk<=32;kk++){ var qq=_multPrime(p,kk); html+='<option value="'+kk+'">\u00d7'+kk+(qq?(' \u2192 '+qq):' \u00b7 the form pairs')+'</option>'; if(kk===k) seen=true; }
         if(k>1 && !seen) html+='<option value="'+k+'">\u00d7'+k+' \u00b7 no prime at '+p+'</option>';
         multSel.innerHTML=html;
       }
@@ -21607,7 +21610,10 @@ startRenderLoop();
             _p1=_f || ((_p0%4===1 && cfgRichType(_p0))?_p0:_p1); }   // (06.11, review) a scene that sounds chords keeps a world where they exist, and its pair — or, with no such pair in reach, its own world (the plain mirror for that scene), never a 4k+3 pair
           if(_p1 && _chordy(_st) && _p1%4===1 && !cfgHasQuads(_p1,_st.typeId||'complete')){ var _rt0=cfgRichType(_p1); if(_rt0) _st.typeId=_rt0; }
           if(_p1 && _p1!==_p0){ _st.p=_p1; if(_st.r) _st.r=Math.max(1,Math.min(_p1-1,_st.r|0)); }
-          _pairs.push((_p1||_p0)+'\u2192'+(_p1?_multPrime(_p1,_pk):'\u2014')); }
+          // (09.11, author: «её темп жанра») the genre's tempo is HERS: he plays k times faster, at most 999 — her tempo is his ÷ k,
+          // so she stands at the genre's (or at 999/k where the cap holds him). A scene without a pair keeps its tempo (the plain mirror).
+          if(_p1 && _multPrime(_p1,_pk) && !_st._clock && !_st._click){ _st.bpm=Math.max(5,Math.min(999,Math.round((_st.bpm||60)*_pk))); }
+          _pairs.push((_p1||_p0)+'\u2192'+(_p1?_multPrime(_p1,_pk):'\u2014')+(_p1&&_multPrime(_p1,_pk)?(' @'+_st.bpm+'/'+Math.round(_st.bpm/_pk*10)/10):'')); }
         plan._pairs='\u00d7'+_pk+': '+_pairs.join(' '); } }catch(e){}
     // THE CODA (21.08, author: «финал звучит не как финал а как искусственная
     // остановка») — the last scene is composed as the close, in the engine's own
@@ -23688,7 +23694,7 @@ startRenderLoop();
       // «×(p−1)» for now: the silent duet suite (tests/duet-harness.js, multSel) finds THIS select by that text — rename both together.
       var multWrap=document.createElement('label');
       multWrap.style.cssText='display:inline-flex;align-items:center;gap:4px;margin-left:8px;font:10px ui-monospace,monospace;color:var(--muted)';
-      multWrap.title='×k — MULTIPLICITY: Markova takes the prime q with (p\u22121) = k\u00b7(q\u22121) and the tempo bpm/k. Her prelude of q\u22121 beats lasts exactly his prelude of p\u22121 beats; in main one of her r-sweeps lasts one of his. Only the k for which q is prime are offered; a scene whose p has no such q plays the plain mirror.';
+      multWrap.title='×k — MULTIPLICITY: Markova takes the prime q with (p\u22121) = k\u00b7(q\u22121) and the tempo bpm/k. Her prelude of q\u22121 beats lasts exactly his prelude of p\u22121 beats; in main one of her r-sweeps lasts one of his. Any k up to 32: a composed form moves each scene\u2019s prime to one that has its q and plays him k times faster, so she keeps the genre\u2019s tempo (he at most 999); live, a scene whose p has no such q plays the plain mirror.';
       multWrap.appendChild(document.createTextNode('\u00d7(p\u22121)'));
       multSel=document.createElement('select');
       multSel.style.cssText='background:#0d1116;color:#e8e4da;border:1px solid #262e38;border-radius:8px;min-height:28px;font:11px ui-monospace,monospace;padding:0 6px';
@@ -24822,7 +24828,7 @@ body.face-manual #controls { padding-bottom: 64px; }   /* (30.10) the fixed «�
       var kL=document.createElement('span'); kL.className='flbl'; kL.textContent='×k'; kL.style.cssText='color:#565e68;font-size:11px;letter-spacing:.1em;margin-left:6px';
       var kS=document.createElement('select');
       kS.style.cssText='width:170px;height:44px;background:#0d1116;color:#e8e4da;border:0;border-bottom:1px solid #2b323c;border-radius:0;font-family:"SF Mono",ui-monospace,monospace;cursor:pointer';   // (30.10) 44 px, as offset beside it now is
-      kS.title='×k — Markova takes the prime q with (p−1) = k·(q−1) and the tempo bpm/k · only the k for which q is prime are offered';
+      kS.title='×k — Markova takes the prime q with (p−1) = k·(q−1) and the tempo bpm/k · any k up to 32: ✚ composes each scene on a prime that has its q, and him k times faster (≤ 999), so she keeps the genre\u2019s tempo';
       var _kSig='', _kSeen='';   // (30.10) _kSeen: the k the note last read — see _kPaint
       function _kPaint(){ try{ if(!kS || !window._qrDuo || !window._qrDuo.multList) return;
         if(document.activeElement===kS) return;   // not under the hand: a list held open is neither rebuilt nor turned

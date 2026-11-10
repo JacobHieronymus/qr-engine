@@ -12,6 +12,16 @@ how often she stepped a prime of her own, and how many errors either page threw.
 `duet-harness.js` is the in-page part (it drives only the engine's own controls); `run-headless.ts` is the server and the
 Chrome driver; `suite-xk.json` lists the scenarios. A full run takes about 20 minutes.
 
+## ×k up to 32 (09.11)
+
+The ×k selector offers every k from 2 to 32 (the arrow names this p's q where one exists; otherwise «the form pairs»). A composed
+form (✚) moves each paired scene's prime to one whose q = (p−1)/k+1 is prime and sets him k times faster than the genre's tempo,
+at most 999 bpm: she keeps the genre's tempo (his ÷ k). `suite-xk32.json` plays retro and parts at ×32 (193@999 → 7@31.2), retro
+×16 (97@999 → 7@62.4) and parts ×7 (29@742 → 5@106, then the unpaired 31): her prime, tempo and section his own in 100 % of the
+samples, no step of her own, no errors (09.11, master and the ambisonic build alike).
+
+    deno run -A tests/run-headless.ts 2907QR_Engine_8.html tests/suite-xk32.json /tmp/xk32.json    # ~8 minutes
+
 ## The form's end (05.11)
 
 `run-form.sh` plays the face's written form (✚, then start) to its own end, with both halves spied: every queued beat with its

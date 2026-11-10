@@ -1,0 +1,6 @@
+[
+ {"name":"retro x32 193@999",  "mode":"retro", "k":32, "p":193, "bpm":999, "secs":120},
+ {"name":"parts x32 193@999",  "mode":"parts", "k":32, "p":193, "bpm":999, "secs":100},
+ {"name":"retro x16 97@999",   "mode":"retro", "k":16, "p":97,  "bpm":999, "secs":100},
+ {"name":"parts x7 29@742",    "mode":"parts", "k":7,  "p":29,  "bpm":742, "secs":90}
+]
