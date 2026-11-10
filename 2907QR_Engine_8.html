@@ -4883,6 +4883,7 @@ function initAudio(){
   // QR-derived bus: voices → voiceBus → [dry + QR-diffusor reverb] → symmetric
   // saturation → limiter → masterGain. Every stage carries a parameter from p.
   qrBus=buildQRChain(ctx, masterGain, _liveP());
+  window._duoSpaceBaseWet=qrBus.wet.gain.value||1;   // (10.11, review) the room's NOMINAL, read once from the fresh chain before anything moves it (1.0 here) — the distance, the bloom and the damp scale it by law (_duoWetLaw), never by a read of the live gain
   // Per-layer reverb sends + LIVE volume nodes. Each layer's notes feed LVOL[k]
   // (gain = its live volume) → voiceBus, so moving a volume slider changes even a
   // currently-sounding note. The global shared send is governed by applyFX from
@@ -4913,7 +4914,6 @@ function initAudio(){
       if(window._duoPlace) window._duoPlace.pan.setTargetAtTime(lean*(0.08+0.30*(1-d)), t, 2.0);
       if(window._duoPlaceG) window._duoPlaceG.gain.setTargetAtTime(1-0.22*d, t, 2.0);
       try{ if(qrBus && qrBus.wet){
-        if(window._duoSpaceBaseWet==null) window._duoSpaceBaseWet=qrBus.wet.gain.value||1;
         qrBus.wet.gain.setTargetAtTime(window._duoSpaceBaseWet*(0.45+1.4*d), t, 2.0);
       } }catch(e){}
       window._duoSpaceD=d;
@@ -4927,7 +4927,7 @@ function initAudio(){
         if(window._duoBloomAt && now-window._duoBloomAt<700) return;   // dosed: one bloom per breath
         window._duoBloomAt=now;
         if(qrBus && qrBus.wet){
-          const base=(window._duoSpaceBaseWet!=null)?window._duoSpaceBaseWet*(0.45+1.4*(window._duoSpaceD!=null?window._duoSpaceD:0.5)):qrBus.wet.gain.value||1;
+          const base=_duoWetLaw();   // (10.11, review) the law, not the gain: read back inside the last bloom's decay, the base grew ×1.025 a bloom at 60 bpm (+13 dB a minute) wherever no distance had been set
           const t=ctx.currentTime;
           qrBus.wet.gain.setTargetAtTime(base*1.3, t, 0.05);
           qrBus.wet.gain.setTargetAtTime(base, t+0.15, 0.35);
@@ -4993,11 +4993,14 @@ function flushVoices(){
 // behaviour — flushVoices inside every damp — rebuilt 60 nodes and restarted every
 // note; at fast tempi each damp CAUSED the next underrun: a self-perpetuating storm
 // every 3s, plainly visible in the flight log.)
+// (10.11, review) THE ROOM BY LAW: the wet return's level is the nominal (initAudio) scaled by the distance the arc or the
+// hand set; with no distance yet, the nominal itself.
+function _duoWetLaw(){ const N=window._duoSpaceBaseWet||1, D=window._duoSpaceD; return (D!=null&&isFinite(D))?N*(0.45+1.4*D):N; }
 function dampReverbTails(){
   if(typeof ctx==='undefined'||!ctx||!qrBus) return;
   const now=ctx.currentTime;
   [qrBus.wet, qrBus.floorRevRet].forEach(g=>{
-    if(g && g.gain){ const v=g.gain.value;
+    if(g && g.gain){ const v=(g===qrBus.wet)?_duoWetLaw():((state.floorsOn!==false)?1:0);   // (10.11, review) restore to the LAW (the floors' return as tuneFloors sets it), never to a read: a second damp inside the dip (⟲ twice, a flush over a watchdog damp) read 0 or 0.49·v and left the room dead or low until the context was rebuilt
       try{ g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(0,now); g.gain.setTargetAtTime(v, now+0.16, 0.06); }catch(e){}
     }
   });

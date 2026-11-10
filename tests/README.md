@@ -12,6 +12,15 @@ how often she stepped a prime of her own, and how many errors either page threw.
 `duet-harness.js` is the in-page part (it drives only the engine's own controls); `run-headless.ts` is the server and the
 Chrome driver; `suite-xk.json` lists the scenarios. A full run takes about 20 minutes.
 
+## The room by law (10.11)
+
+The duet's room level is a law, never a read-back: initAudio takes the wet return's nominal once; the distance (the lyric arc's
+stage or the hand) scales it, the partner's bloom swells it for a moment and returns to it, and the ⟲ damp restores it. Before,
+in a lyric duet with no form the bloom re-read the still-decaying gain as its new base on every partner note (30 notes at 1/s:
++6.4 dB and climbing, about +13 dB a minute at 60 bpm), and a second damp inside the first one's dip left the room at zero.
+Checked silently (one page, 30 blooms, then a double damp): +0.2 dB (the bloom itself) and back to the nominal. The form suite
+and the lyric arc pass unchanged (0 errors).
+
 ## ×k up to 32 (09.11)
 
 The ×k selector offers every k from 2 to 32 (the arrow names this p's q where one exists; otherwise «the form pairs»). A composed
