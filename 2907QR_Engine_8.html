@@ -4050,6 +4050,7 @@ function _tmbLeg(p){ p=p|0; let L=_tmbLC.get(p); if(L) return L; L=new Int8Array
   _tmbLC.set(p,L); if(_tmbLC.size>8) _tmbLC.delete(_tmbLC.keys().next().value); return L; }
 // family + register → the measured instrument
 function _tmbInst(fam,f){
+  { const _v=state.voiceInst&&state.voiceInst[_tmbLay]; if(_v && _v.charAt(0)==='=' && _TMB.h[_v.slice(1)]) return _v.slice(1); }   // (mixer 19.11) the instrument chosen by name in the mixer, whatever the pitch
   if(_tmb.jv && _tmbJV(fam,f)) return 'jviolin';   // (11.11) his own violin, where it was measured
   switch(fam){
     case 'str':   return f<110?'contrabass':f<220?'cello':f<587?'viola':'violin';
@@ -4318,7 +4319,8 @@ function voiceWave(layer, freq){
   _tmbF=freq; _tmbLay=layer;   // (09.11) _vw takes the pitch (and whether this layer sounds at all) to the measured wave
   // [2026-06-17] manual instrument override: state.voiceInst[layer] forces a timbre;
   // 'auto' / unset → the register- and prime-aware routing below.
-  const _ov=(state.voiceInst && state.voiceInst[layer]);
+  let _ov=(state.voiceInst && state.voiceInst[layer]);
+  if(_ov && _ov.charAt(0)==='='){ _ov=({violin:'str',jviolin:'str',viola:'str',cello:'str',contrabass:'str',clarinet:'wood',bassoon:'wood',flute:'flute',oboe:'reed',horn:'brass',trumpet:'brass',trombone:'brass',tuba:'brass',harp:'pluck',vibraphone:'bell',glockenspiel:'bell'})[_ov.slice(1)]||'auto'; }   // (mixer 19.11) '=cello' = ONE measured instrument: its family here, _tmbInst then keeps the instrument at every pitch
   if(_ov && _ov!=='auto' && _WAVE_BY[_ov]) return _vw(_ov);
   const p=(typeof synthState!=='undefined'&&synthState&&synthState.p)?synthState.p|0:(_liveP()|0);
   const lo=state.minFreq||111, hi=Math.max(lo+1,state.maxFreq||1332);
@@ -13993,7 +13995,9 @@ if(state.exciteDepth==null) state.exciteDepth=0.5;         // 0..1 master amount
 (function(){
   const bHost=document.getElementById('bright-host');
   const nice={qr:'r QR',nqr:'r NQR',r2:'r²',a:'a',b:'b',diag:'diag',hat:'hat',kick:'kick',prelude:'prelude',postlude:'postlude',sustain:'sustain p/n',susA:'sustain a',susB:'sustain b',chord:'chord (Γ)',glue:'glue'};
-  const INST=[['auto','auto'],['str','strings'],['wood','clarinet'],['reed','oboe'],['brass','brass'],['flute','flute'],['pluck','harp'],['bell','celesta']];
+  const INST=[['auto','auto'],['str','strings'],['wood','clarinet'],['reed','oboe'],['brass','brass'],['flute','flute'],['pluck','harp'],['bell','celesta'],
+    // (mixer 19.11) the measured instruments by name — one instrument at every pitch (the families above still choose by register)
+    ['=jviolin','· your violin'],['=violin','· violin'],['=viola','· viola'],['=cello','· cello'],['=contrabass','· contrabass'],['=clarinet','· clarinet'],['=bassoon','· bassoon'],['=flute','· flute'],['=oboe','· oboe'],['=horn','· horn'],['=trumpet','· trumpet'],['=trombone','· trombone'],['=tuba','· tuba'],['=harp','· harp'],['=vibraphone','· vibraphone'],['=glockenspiel','· glockenspiel']];
   if(!state.voiceInst) state.voiceInst={};
   if(!state.pan) state.pan={}; if(!state.vib) state.vib={};
   VOL_LAYERS.forEach(k=>{ if(state.pan[k]==null) state.pan[k]=0; if(state.vib[k]==null) state.vib[k]=1; });
