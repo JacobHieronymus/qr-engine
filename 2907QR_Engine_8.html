@@ -4330,9 +4330,9 @@ function _tmbWorkerMain(){
       res.push({id:it.id,f0:it.f0,data:out}); tr.push(out.buffer); }
     self.postMessage({sig:d.sig,job:d.job,sr:d.sr,items:res},tr); };
 }
-function _vw(name){ _emitInst=name; const _f=_tmbF, _ly=_tmbLay; _tmbF=null; _tmbLay=null; let _w=null;
+function _vw(name){ _emitInst=name; const _f=_tmbF, _ly=_tmbLay; _tmbF=null; let _w=null;   // (20.11) the layer stays known while the measured wave is looked up: a per-layer '=name' now reaches the sound
   if(_f!=null&&_tmb.on){ try{ const _mute=!!(_ly&&typeof vget==='function'&&!(vget(_ly)>0.001)); _w=_tmbWave(name,_f,null,null,_mute); }catch(e){ _w=null; } }
-  _tmbFlag=!!_w; return _w||(_WAVE_BY[name]||stringWave)(); }   // (09.11) the measured wave, or the family's own   // seat the family + record it for the body-formant bank
+  _tmbLay=null; _tmbFlag=!!_w; return _w||(_WAVE_BY[name]||stringWave)(); }   // (09.11) the measured wave, or the family's own   // seat the family + record it for the body-formant bank
 function voiceWave(layer, freq){
   _tmbF=freq; _tmbLay=layer;   // (09.11) _vw takes the pitch (and whether this layer sounds at all) to the measured wave
   // [2026-06-17] manual instrument override: state.voiceInst[layer] forces a timbre;
