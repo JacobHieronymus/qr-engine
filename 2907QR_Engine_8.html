@@ -5200,7 +5200,14 @@ function initAudio(){
   if(ctx)return;
   // (08.11) at 48 kHz, whatever the device's own rate (a 96 kHz output doubled the render's work and broke the sound up in Safari)
   const _AC=window.AudioContext||window.webkitAudioContext, _lh=(_audioLatency==='huge'?0.45:_audioLatency);
-  try{ ctx=new _AC({latencyHint:_lh, sampleRate:48000}); }
+  // (21.11) THE PAIR ON TWO AUDIO THREADS IN SAFARI. WebKit renders all the AudioContexts of ONE sample rate on a single shared realtime
+  // thread, so Markov and Markova — two whole engines — queued for the same 2.7 ms deadline (measured in WKWebView: one thread at 60–78 %
+  // in a dense passage, 64…2560 ms of sound lost per minute — the crackle the author heard). A context of ANOTHER rate gets a thread of
+  // its own: there she runs at 44.1 kHz, he at 48 (measured: two threads at ~25 % each, nothing lost). Chrome and Firefox give every
+  // context its own thread already — both stay at 48 there. Nothing in the music reads the rate (pitches are in Hz; impulses and buffers
+  // are built at ctx.sampleRate); the one road that carries raw PCM between the halves, the take's AV bridge, converts (_vfResample).
+  let _sr0=48000; try{ if(/markova/.test((location.hash||'').toLowerCase()) && /Apple/.test(navigator.vendor||'')) _sr0=44100; }catch(e){}
+  try{ ctx=new _AC({latencyHint:_lh, sampleRate:_sr0}); }
   catch(e){ try{ ctx=new _AC({latencyHint:_lh}); }catch(e2){ ctx=new _AC(); } }
   try{ ctx.addEventListener('statechange',()=>{ if(typeof _fl==='function') _fl('ctx-state',ctx.state); }); }catch(e){}   // suspensions/interruptions land in the flight log
   // ---- crash mitigation: whole-subgraph release on voice end -----------------
@@ -23980,6 +23987,7 @@ startRenderLoop();
                 if(_vfRecv){
                   try{
                     var vsp=mixCtx.createScriptProcessor(2048,1,2);
+                    try{ _vfRecv.ring.sr=mixCtx.sampleRate; }catch(e){}   // (21.11) the rate her PCM must arrive at (see _vfResample)
                     var vg0=mixCtx.createGain(); vg0.gain.value=0; vg0.connect(vsp);   // silent input keeps the node pulling
                     vsp.onaudioprocess=function(ev2){
                       var ob=ev2.outputBuffer, L=ob.getChannelData(0), R=ob.getChannelData(1);
@@ -24775,6 +24783,23 @@ startRenderLoop();
   // frames + PCM audio chunks over plain postMessage (no RTC, no ICE, works in
   // file:// always; driven by the frame's audio clock, background-proof).
   var _vfRecv=null;
+  // (21.11) THE BRIDGE BETWEEN TWO RATES. In Safari she runs at 44.1 kHz and he at 48 (two rates = two audio threads, see initAudio), so
+  // her 2048-frame PCM chunks are no longer his 2048 frames: they are brought to his rate (4-point Hermite, its state kept across the
+  // chunks) and re-cut into his blocks — or the take would carry her a tone and a half sharp and starve the ring.
+  function _vfResample(rg, al, ar, hs, ms){
+    var z=rg._rs||(rg._rs={x:0, pl:[0,0,0], pr:[0,0,0], bl:new Float32Array(2048), br:new Float32Array(2048), n:0});
+    var st=hs/ms, N=al.length, x=z.x, pl=z.pl, pr=z.pr, i, f, a0,a1,a2,a3, b0,b1,b2,b3;
+    while(x < N-2){
+      i=Math.floor(x); f=x-i;   // a negative index reads the last three samples of the chunk before
+      a0=(i-1<0)?pl[i+2]:al[i-1]; a1=(i<0)?pl[i+3]:al[i]; a2=(i+1<0)?pl[i+4]:al[i+1]; a3=al[i+2];
+      b0=(i-1<0)?pr[i+2]:ar[i-1]; b1=(i<0)?pr[i+3]:ar[i]; b2=(i+1<0)?pr[i+4]:ar[i+1]; b3=ar[i+2];
+      z.bl[z.n]=(((0.5*(a3-a0)+1.5*(a1-a2))*f + (a0-2.5*a1+2*a2-0.5*a3))*f + 0.5*(a2-a0))*f + a1;
+      z.br[z.n]=(((0.5*(b3-b0)+1.5*(b1-b2))*f + (b0-2.5*b1+2*b2-0.5*b3))*f + 0.5*(b2-b0))*f + b1;
+      if(++z.n>=2048){ rg.q.push({l:z.bl.slice(0), r:z.br.slice(0)}); z.n=0; }
+      x+=st;
+    }
+    z.x=x-N; if(N>=3){ z.pl=[al[N-3],al[N-2],al[N-1]]; z.pr=[ar[N-3],ar[N-2],ar[N-1]]; }
+  }
   window.addEventListener('message',function(ev){
     var d0=ev&&ev.data; if(!d0 || !_vfRecv) return;
     if(d0.qrvfB){
@@ -24787,8 +24812,10 @@ startRenderLoop();
       }catch(e){}
     } else if(d0.qrvfA){
       try{
-        _vfRecv.ring.q.push({l:new Float32Array(d0.qrvfA.l), r:new Float32Array(d0.qrvfA.r)});
-        if(_vfRecv.ring.q.length>48) _vfRecv.ring.q.shift();
+        var _al=new Float32Array(d0.qrvfA.l), _ar=new Float32Array(d0.qrvfA.r), _hs=+d0.qrvfA.sr||0, _ms=+_vfRecv.ring.sr||0;
+        if(_hs>0 && _ms>0 && Math.abs(_hs-_ms)>0.5) _vfResample(_vfRecv.ring,_al,_ar,_hs,_ms);   // (21.11) her rate is not his: convert
+        else _vfRecv.ring.q.push({l:_al, r:_ar});
+        while(_vfRecv.ring.q.length>48) _vfRecv.ring.q.shift();
       }catch(e){}
     }
   });
