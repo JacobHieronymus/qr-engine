@@ -22423,7 +22423,11 @@ startRenderLoop();
     if(_form==='pal'){
       // a crab reads best when the seams are symmetric in time: palindromic durations
       var _k=plan.length;
-      for(var _i=0;_i<(_k>>1);_i++){ var _m=(plan[_i].dur+plan[_k-1-_i].dur)/2; plan[_i].dur=_m; plan[_k-1-_i].dur=_m; }
+      // (21.11, the author: «обратно негатив я не услашал») A WRITTEN SCORE MAY KEEP ITS OWN LENGTHS IN THE CRAB. With window.__qrPalKeepDur
+      // set by the page that carries the engine, the mirror pairs are NOT averaged: Markov reads the plan forward and Markova from its end,
+      // each with the seams of the reading (_palRun counts its bounds in its own step order already), t ↔ T−t still exact. Conflict·3 asks
+      // for it: a scene whose number is a quadratic residue mod 47 is long, a non-residue short, so the way back is the negative of the way there.
+      if(!window.__qrPalKeepDur) for(var _i=0;_i<(_k>>1);_i++){ var _m=(plan[_i].dur+plan[_k-1-_i].dur)/2; plan[_i].dur=_m; plan[_k-1-_i].dur=_m; }
       plan.forEach(function(it){ it.end=_palEndPos(it.state, it.dur, it.sec); });
     }
     var _ev=null;
