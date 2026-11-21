@@ -594,7 +594,10 @@ details.acc[open] { padding-bottom: 0; }
 /* (08.11) ?demos — THE PICKER, drawn before the engine boots (its style comes with it: the bridge's sheet is parsed at the end).
    The cards wake when the pair is ready (the bridge sets data-ready); the click on one starts that piece inside the gesture. */
 (function(){ try{
-  if(!/[?&]demos(=|&|$)/.test(location.search) || /[?&]demo=/.test(location.search)) return;
+  // (21.11) THE GRID: genres × forms, nine large cards and one line of words — a page of its own for listeners (window.__qrGrid,
+  // set by the page that carries the engine, or ?demos=grid). The same picker, the same click-is-the-gesture start.
+  var GRID=(!!window.__qrGrid || /[?&]demos=grid(&|$)/.test(location.search)) && !/markova/.test(location.hash);   // her frame carries the same page: no cards there
+  if((!GRID && !/[?&]demos(=|&|$)/.test(location.search)) || /[?&]demo=/.test(location.search)) return;
   var css=document.createElement('style'); css.textContent=[
     '#qrdemo-pick{position:fixed;inset:0;z-index:30000;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#0e0e0e;color:#e9e4da;font:19px/1.55 Georgia,"Times New Roman",serif}',
     '#qrdemo-pick[hidden]{display:none!important}',
@@ -613,6 +616,16 @@ details.acc[open] { padding-bottom: 0; }
     '#qrdemo-pick footer{margin-top:56px;color:#9a948a;font-size:16px}',
     '#qrdemo-pick footer a{color:#e9e4da}',
     'body.qrdemo-picking #qrdemo-bar,body.qrdemo-picking #qrdemo-prog,body.qrdemo-picking #qrdemo-time,body.qrdemo-picking #qr-caption{display:none!important}',
+    '#qrdemo-pick.grid .qp-main{max-width:760px}',
+    '#qrdemo-pick.grid p.sub{margin:0 0 30px}',
+    '#qrdemo-pick.grid .qp-cards{grid-template-columns:repeat(3,1fr);gap:12px;max-width:none}',
+    '#qrdemo-pick.grid h2{grid-column:1/-1;font-size:15px;font-weight:400;letter-spacing:.22em;text-transform:uppercase;color:#9a948a;margin:18px 0 0}',
+    '#qrdemo-pick.grid button.demo{min-height:112px;padding:14px 6px;border:1px solid #3a3a3a;border-radius:14px;background:#161616;display:flex;flex-direction:column;align-items:center;justify-content:center}',
+    '#qrdemo-pick.grid[data-ready] button.demo:hover,#qrdemo-pick.grid[data-ready] button.demo:active,#qrdemo-pick.grid[data-ready] button.demo:focus-visible{border-color:#8fb7c9;background:#1b2226}',
+    '#qrdemo-pick.grid button.demo b{font-size:22px;margin:0}',
+    '#qrdemo-pick.grid button.demo span{font-size:15px;margin-top:6px}',
+    '#qrdemo-pick.grid .wake{font-size:16px}',
+    '@media (max-width:720px){#qrdemo-pick.grid .qp-cards{grid-template-columns:repeat(3,1fr);gap:8px;max-width:none}#qrdemo-pick.grid button.demo{min-height:96px}#qrdemo-pick.grid button.demo b{font-size:17px}#qrdemo-pick.grid button.demo span{font-size:14px}#qrdemo-pick.grid .qp-main{padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}}',
     '@media (max-width:720px){#qrdemo-pick h1{font-size:28px}#qrdemo-pick p.sub{font-size:17px}#qrdemo-pick p.how{font-size:15px}#qrdemo-pick button.demo b{font-size:17px}#qrdemo-pick .qp-cards{grid-template-columns:1fr;gap:28px;max-width:420px}}'
   ].join('\n'); document.head.appendChild(css);
   // the same three pieces and words as demos.html (30.10): genre · form · length — the form in the FORMS tooltip's words
@@ -625,6 +638,11 @@ details.acc[open] { padding-bottom: 0; }
         '<p class="how">headphones on · phone off silent · a card starts the sound · ♥ keeps a moment</p><div class="qp-cards">';
   D.forEach(function(x){ h+='<button class="demo" type="button" data-spec="'+x[0]+'"><img src="'+x[1]+'" alt="'+x[2]+'"><b>'+x[3]+'</b><span>'+x[4]+'</span></button>'; });
   h+='</div><p class="wake" aria-live="polite">the Markovs are waking…</p><footer>Jacob Hieronymus · <a href="https://www.jacobhieronymus.com">www.jacobhieronymus.com</a></footer></div>';
+  if(GRID){ pk.className='grid';
+    var G=[['meditate','meditation',150],['chores','chores',120],['workout','workout',120]], F=[['pal','palindrome'],['retro','retro'],['free','free']];
+    h='<div class="qp-main"><h1>Sonification of Primes</h1><p class="sub">You hear how quadratic residues and non-residues are distributed modulo a prime p.</p><div class="qp-cards">';
+    G.forEach(function(g){ h+='<h2>'+g[1]+'</h2>'; F.forEach(function(fm){ h+='<button class="demo" type="button" data-spec="'+g[0]+','+fm[0]+','+g[2]+'" aria-label="'+g[1]+', '+fm[1]+'"><b>'+fm[1]+'</b><span>'+Math.floor(g[2]/60)+':'+('0'+g[2]%60).slice(-2)+'</span></button>'; }); });
+    h+='</div><p class="wake" aria-live="polite">the Markovs are waking…</p><footer>Jacob Hieronymus</footer></div>'; }
   pk.innerHTML=h; document.body.appendChild(pk);
   // while the cards are up, the engine's keys (Space = start, arrows = the prime, letters) do not reach it behind them; the
   // browser's own keys still work (Space and the arrows scroll, Tab and Enter choose a card). First in the capture phase.
@@ -5166,7 +5184,13 @@ function initAudio(){
   masterGain=ctx.createGain();
   masterGain.gain.value=state.vol.master;
   try{ window._roomAlign=ctx.createDelay(0.5); window._roomAlign.delayTime.value=0;
-    masterGain.connect(window._roomAlign); window._roomAlign.connect(ctx.destination);
+    // (21.11) THE PAIR'S HEADROOM, after everything: each half is limited under 0 dBFS on its own, and two halves are two
+    // contexts — nothing limits their sum. Measured on the demos (both halves recorded, summed on one clock): each half peaked
+    // at −2.9…−0.2 dBFS, the sum went over 0 in 33 of a meditation's 150 seconds (to +2.9 dB) — the device clips it: the
+    // crackle. A page that plays the pair as one piece asks for 0.5 here (window._qrPairTrim, both halves): the sum stays
+    // under the ceiling whatever the halves do. 1 everywhere else — the engine alone sounds as before.
+    window._pairTrimNode=ctx.createGain(); window._pairTrimNode.__keep=true; window._pairTrimNode.gain.value=(window._qrPairTrim>0)?window._qrPairTrim:1;
+    masterGain.connect(window._roomAlign); window._roomAlign.connect(window._pairTrimNode); window._pairTrimNode.connect(ctx.destination);
   }catch(e){ masterGain.connect(ctx.destination); }   // (07.08 author: JBL Flip 7) if her box is Bluetooth, HIS wired side waits for the radio — turned by ear with ⌖ align
   // CHANNEL ROOM: place this engine's stereo on a chosen channel PAIR of a
   // multichannel (Aggregate) device — his voice ch 1–2, hers ch 3–4.
@@ -19033,7 +19057,7 @@ const learner = (()=>{
         out.groove.meter=_pr.reduce((best,q)=>Math.abs(q-_t)<Math.abs(best-_t)?q:best,13); }   // a learned metre is snapped to the nearest prime — the grid has no composite left
     }
     else if(out.groove) delete out.groove;
-    out.omArpOrd=(Math.random()<0.75)?'square':'sweep';   // (06.11, author 05.11: «омегу по умолчанию в порядке квадратов; на выбор Марковых, но квадраты доступны») the Markovs choose the omega's succession scene by scene, the squaring order three times in four (a pinned hand choice is restored by apStripPinned)
+    out.omArpOrd='square';   /* (21.11, author: «поставь предпочтение на омегу не подряд по возрастанию а по квадратам») the Markovs' harp is always the circle's own succession now (it was 3 in 4); the hand's order buttons still give the sweep */   // (06.11, author 05.11: «омегу по умолчанию в порядке квадратов; на выбор Марковых, но квадраты доступны») the Markovs choose the omega's succession scene by scene, the squaring order three times in four (a pinned hand choice is restored by apStripPinned)
     out=_actShape(base,out);                    // ACTIVITY frame shapes the final scene
     // MARKOVA answers by crossing: when she is present, the pre/post lean toward
     // direct = −reversed (contrary motion), more as the scene tenses — her reply to him.
@@ -23591,7 +23615,7 @@ startRenderLoop();
         // light mains while hers sat dark at p=3). A build stamp on the query string
         // forces the frame to fetch the same build the parent runs.
         var _bust=''; try{ _bust='?v='+(document.lastModified?Date.parse(document.lastModified):Date.now()); }catch(e){ _bust='?v=0'; }
-        fr.src=location.href.split('#')[0].split('?')[0]+_bust+(IS_PHONE?'#markova-phone':'#markova')+(PAIR?('-pair='+PAIR):'')+((new URLSearchParams(location.search).get('demo')||new URLSearchParams(location.search).has('demos'))?'-qrdemo':'')+((window._tmbV)?('-tmb='+encodeURIComponent(window._tmbV)):'');   // (30.10) her src drops the query: a ?demo= page (the bridge's own test) tells her half by the hash
+        fr.src=location.href.split('#')[0].split('?')[0]+_bust+(IS_PHONE?'#markova-phone':'#markova')+(PAIR?('-pair='+PAIR):'')+((new URLSearchParams(location.search).get('demo')||new URLSearchParams(location.search).has('demos')||window.__qrGrid)?'-qrdemo':'')+((window._tmbV)?('-tmb='+encodeURIComponent(window._tmbV)):'');   // (30.10) her src drops the query: a ?demo= page (the bridge's own test) tells her half by the hash
         // Frame scale. Default 1 (author 26.07: «сравнять по размеру шрифта») — Markova
         // renders at NATURAL size in her half, exactly like Markov's squeezed half: same
         // fonts, mirrored half-width layouts. ⊖ shrinks toward a desktop-layout miniature
@@ -26150,7 +26174,11 @@ body.viz-max:not(.qrdemo) #qr-caption { top:calc(112px + env(safe-area-inset-top
   function stage(on){ try{ var is=document.body.classList.contains('viz-max'); if(on!==is && window._qrStageToggle) window._qrStageToggle(); }catch(e){} }
   // (18.10, author: «звук нужно нормализовать под 0») the engine's own level-rider on both halves:
   // −10.8 dBFS RMS on the bus, makeup up to 12×, the limiter at −1.5 dBFS as the ceiling
-  function normalize(){ try{ state.autoLevel=true; var al=document.getElementById('auto-level'); if(al) al.classList.add('active'); }catch(e){} try{ var W=herWin(); if(W) W.eval("try{ state.autoLevel=true; var al=document.getElementById('auto-level'); if(al) al.classList.add('active'); }catch(e){}"); }catch(e){} }
+  function normalize(){
+    // (21.11) the pair's headroom on both halves (see _pairTrimNode): now, and again whenever a context is rebuilt
+    var PT="try{ window._qrPairTrim=0.5; if(window._pairTrimNode) window._pairTrimNode.gain.value=0.5; }catch(e){}";
+    try{ (0,eval)(PT); }catch(e){} try{ var W0=herWin(); if(W0) W0.eval(PT); }catch(e){}
+    try{ state.autoLevel=true; var al=document.getElementById('auto-level'); if(al) al.classList.add('active'); }catch(e){} try{ var W=herWin(); if(W) W.eval("try{ state.autoLevel=true; var al=document.getElementById('auto-level'); if(al) al.classList.add('active'); }catch(e){}"); }catch(e){} }
   var hint=false;
   function soundOK(){ try{ return !!(typeof ctx!=='undefined' && ctx && ctx.state==='running'); }catch(e){ return false; } }
   function caption(t,dur){ try{ if(window._qrCaption) window._qrCaption(t,dur); }catch(e){} }
@@ -26264,7 +26292,7 @@ body.viz-max:not(.qrdemo) #qr-caption { top:calc(112px + env(safe-area-inset-top
     bLike=btn('\u2665',function(){ likeSeen=lastLike(); likeUntil=performance.now()+6000; try{ var lk=document.getElementById('tb-like'); if(lk) lk.click(); }catch(e){} bLike.classList.add('on'); setTimeout(function(){ bLike.classList.remove('on'); },900); });   // (20.10) ♥ — the Markovs everywhere hear of it
     bLike.id='qrdemo-like';   /* (30.10) named: ♥ like's handler flashes it for a yes from H or the stem too */ bLike.title='like this moment — the Markovs learn it, everywhere';   // (30.10) its size lives in the CSS (48 px), where the narrow-screen rule reaches it
     bBack=btn('← back',function(){ if(restT){ clearTimeout(restT); restT=null; } try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} wasForm=false;
-      if(pickEl){ showPick(); return; }   // (08.11) the picker's page: back to its cards, no new page (the next card is a gesture again)
+      if(pickEl){ showPick(); try{ if(window.__qrBack) window.__qrBack(); }catch(e){} return; }   // (08.11) the picker's page: back to its cards, no new page (the next card is a gesture again) · (21.11) a host page that keeps this one in a frame is told, and closes it
       var r=document.referrer||''; if(r && !/2907QR_Engine/.test(r) && history.length>1) history.back(); else location.href='demos.html'; });   // back to where the visitor came from (the portfolio or demos.html)
     document.body.appendChild(bar);
     prog=document.createElement('div'); prog.id='qrdemo-prog'; prog.appendChild(document.createElement('i')); document.body.appendChild(prog);
@@ -26286,6 +26314,10 @@ body.viz-max:not(.qrdemo) #qr-caption { top:calc(112px + env(safe-area-inset-top
     pickStart=performance.now();
     try{ var W=herWin(); if(W && W.gestureKick) W.gestureKick('start'); }catch(e){}   // her context made and resumed inside this click too (on the first card it does not exist yet)
     begin(); }   // _qrFormStart wakes a transport rested by showPick or by the form's own end (its _wasClosed re-base), in this gesture
+  // (21.11) A HOST PAGE'S CARDS (the portfolio keeps this page in a same-origin frame, loaded ahead): its click calls __qrChoose
+  // inside its own gesture, so the piece starts at that one tap; false = the pair is not awake yet. __qrRest: the host closed the frame.
+  if(pickEl){ window.__qrChoose=function(sp){ if(!pickLive) return false; choose(sp); return true; };
+    window.__qrRest=function(){ try{ if(pickOn) return; if(restT){ clearTimeout(restT); restT=null; } try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} wasForm=false; showPick(); }catch(e){} }; }
   function pickWake(){ if(!pickEl || pickLive) return; pickLive=true; pickEl.setAttribute('data-ready','');
     try{ var w=pickEl.querySelector('.wake'); if(w) w.textContent='choose one — it starts at once'; }catch(e){} }
   if(pickEl){ try{ pickEl.querySelectorAll('button.demo').forEach(function(b){ b.addEventListener('click',function(ev){ try{ choose(b.getAttribute('data-spec')); }catch(e){} }); }); }catch(e){} }
