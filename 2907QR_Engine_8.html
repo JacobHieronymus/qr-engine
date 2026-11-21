@@ -26322,7 +26322,16 @@ body.viz-max:not(.qrdemo) #qr-caption { top:calc(112px + env(safe-area-inset-top
     pickEl.hidden=false; document.body.classList.add('qrdemo-picking'); try{ pickEl.scrollTop=0; }catch(e){}
     // the park's fermata and release (≈1.4 s) end the piece; then the transport rests until the next card
     if(pickT) clearTimeout(pickT); pickT=setTimeout(function(){ pickT=null; try{ if(pickOn && state.running && !state.paused) pauseAudio(); }catch(e){} paint(); },1500); }
-  function choose(sp){ if(!pickLive) return; if(pickT){ clearTimeout(pickT); pickT=null; }
+  // (21.11, the author: «карточка … ничего не произошло») A CARD TAPPED WHILE THE PAIR IS STILL WAKING IS KEPT, not dropped: the
+  // gesture's audio work is done in that tap (this context made and resumed; hers too if her page is up), the card and the
+  // line say so, and the piece starts by itself the moment the pair is ready (pickWake).
+  var pickPend=null;
+  function choose(sp){ if(!pickLive){ pickPend=sp;
+      try{ if(typeof gestureKick==='function') gestureKick('start'); }catch(e){} try{ var W1=herWin(); if(W1 && W1.gestureKick) W1.gestureKick('start'); }catch(e){}
+      try{ pickEl.querySelectorAll('button.demo').forEach(function(b){ b.style.opacity=(b.getAttribute('data-spec')===sp)?'1':''; b.style.borderColor=(b.getAttribute('data-spec')===sp)?'#8fb7c9':''; }); var w1=pickEl.querySelector('.wake'); if(w1) w1.textContent='starting in a moment…'; }catch(e){}
+      return; }
+    pickPend=null; try{ pickEl.querySelectorAll('button.demo').forEach(function(b){ b.style.opacity=''; b.style.borderColor=''; }); }catch(e){}
+    if(pickT){ clearTimeout(pickT); pickT=null; }
     setSpec(sp); pickOn=false; pickEl.hidden=true; document.body.classList.remove('qrdemo-picking');
     wasForm=false; ended=false; again=false; hint=false; likeSeen=lastLike(); likeUntil=0;
     try{ var ae=document.activeElement; if(ae && ae.blur && pickEl.contains(ae)) ae.blur(); }catch(e){}   // the hidden card keeps no focus
@@ -26332,10 +26341,11 @@ body.viz-max:not(.qrdemo) #qr-caption { top:calc(112px + env(safe-area-inset-top
     begin(); }   // _qrFormStart wakes a transport rested by showPick or by the form's own end (its _wasClosed re-base), in this gesture
   // (21.11) A HOST PAGE'S CARDS (the portfolio keeps this page in a same-origin frame, loaded ahead): its click calls __qrChoose
   // inside its own gesture, so the piece starts at that one tap; false = the pair is not awake yet. __qrRest: the host closed the frame.
-  if(pickEl){ window.__qrChoose=function(sp){ if(!pickLive) return false; choose(sp); return true; };
+  if(pickEl){ window.__qrChoose=function(sp){ if(!pickLive){ choose(sp); return 'pending'; } choose(sp); return true; };   // (21.11) not awake yet: the tap is kept (see choose) and the host need not ask again
     window.__qrRest=function(){ try{ if(pickOn) return; if(restT){ clearTimeout(restT); restT=null; } try{ if(window._qrFormStop) window._qrFormStop(); }catch(e){} wasForm=false; showPick(); }catch(e){} }; }
   function pickWake(){ if(!pickEl || pickLive) return; pickLive=true; pickEl.setAttribute('data-ready','');
-    try{ var w=pickEl.querySelector('.wake'); if(w) w.textContent='choose one — it starts at once'; }catch(e){} }
+    try{ var w=pickEl.querySelector('.wake'); if(w) w.textContent='choose one — it starts at once'; }catch(e){}
+    if(pickPend){ var sp0=pickPend; pickPend=null; choose(sp0); } }
   if(pickEl){ try{ pickEl.querySelectorAll('button.demo').forEach(function(b){ b.addEventListener('click',function(ev){ try{ choose(b.getAttribute('data-spec')); }catch(e){} }); }); }catch(e){} }
   function ready(){ return !!(document.getElementById('face-gen') && window._qrFace && window._qrStageToggle); }
   function pairReady(){ try{ return !!(document.getElementById('duo-frame-wrap') && state.duo && state.duo.peer); }catch(e){ return false; } }   // a pair form must not start before Markova's frame exists and has said hello — else it falls to one engine
