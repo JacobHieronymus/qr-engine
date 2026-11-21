@@ -25910,6 +25910,402 @@ body.face-manual #controls { padding-bottom: 64px; }   /* (30.10) the fixed «�
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else setTimeout(boot,50);
 })();
+// [desk:begin] sources md5 4988b91ff3a3526a08c8ac1b3c2112cc
+// THE DESK (desk 20.11) - one native control strip at the top of the manual view that drives BOTH performers.
+// The author, 20.11: "terribly inconvenient - Markova is silent - her controls do not scroll", "let all switches be at hand".
+// It lives inside #top-dock (the dock is the manual view's top: the face hides it), so it pushes the page down, and with
+// Markova's frame open her fixed wrap starts below the whole dock, desk included (measured on every size change of the dock).
+// Every control drives the engine's OWN control the way a hand would (a click, or a typed value committed on blur), so all
+// the engine's handlers, pins and instant-apply run. '?desk=off' leaves the page as it was: nothing below runs.
+// Reviewed 20.11 (tools/desk-2011/review.md): the shared world and, in parts / retro, the sections go to the window that
+// holds the baton (the duet mirrors the conductor's scene, tempo and register to the other half).
+// Source: tools/desk-2011/desk.js + desk.css, embedded by desk_patch.py. page before the patch md5 fbe55c5e0a4fe1677b4c86a2d12a703f
+(function(){
+  'use strict';
+  var OFF=false; try{ OFF=(new URLSearchParams(location.search).get('desk')==='off'); }catch(e){}
+  if(OFF) return;
+
+  // ---- in EVERY window (his page and her frame): what this window sounds, read by the desk on demand ----------------
+  // voiceWave(layer, freq) seats the wave of every melodic note; the wrap notes which layer sounded and which family it
+  // got (_emitInst, set by _vw). Installed only when a desk first asks (_deskPeek), so a page nobody reads is untouched.
+  // Per note: one vget and one clock read, no allocation after a layer's first note.
+  var _heard={}, _wrapped=false;
+  function _track(){
+    if(_wrapped) return; _wrapped=true;
+    try{
+      if(typeof voiceWave!=='function') return;
+      var vw0=voiceWave;
+      voiceWave=function(layer, freq){
+        var w=vw0.apply(this, arguments);
+        try{ if(layer && vget(layer)>0.001){ var h=_heard[layer]||(_heard[layer]={t:0, fam:''}); h.t=performance.now(); h.fam=_emitInst; } }catch(e){}
+        return w; };
+    }catch(e){}
+  }
+  window._deskPeek=function(){
+    _track();
+    var o={};
+    try{
+      o.role=window._qrRole||'markov';
+      o.run=!!state.running; o.paused=!!state.paused;
+      o.p=(typeof _liveP==='function')?_liveP():(state.p|0);
+      o.reqP=(state.reqP!=null)?(state.reqP|0):null;
+      var s=(typeof synthState!=='undefined')?synthState:null, ph=s?s.phase:null;
+      o.phase=ph; o.sec=(ph==='dual')?((s.dualStage===0)?'prelude':'postlude'):ph;
+      o.motion=(typeof _motion!=='undefined')?_motion:'linear';
+      o.bpm=+state.bpm||0; o.lo=+state.minFreq||0; o.hi=+state.maxFreq||0;
+      var d=state.duo||{}; o.duo={on:!!d.on, peer:!!d.peer, mode:d.mode||'parts', lead:d.lead||'markov'};
+      o.inst=Object.assign({}, state.voiceInst||{});
+      o.lays=[]; (typeof VOL_LAYERS!=='undefined'?VOL_LAYERS:[]).forEach(function(k){ if(document.getElementById('inst-'+k)) o.lays.push(k); });
+      o.sec3={}; ['pre','main','post'].forEach(function(k){ var b=document.getElementById('sec-'+k); o.sec3[k]=!!(b && b.classList.contains('active')); });
+      o.tmb=window._tmb?{on:!!window._tmb.on, depth:+window._tmb.depth, brightK:+window._tmb.brightK}:null;
+      o.adsr=window._adsr?{on:!!window._adsr.on, att:+window._adsr.att}:null;
+      o.tacet=!!window._halfTacet; o.held=!!window._masterHeld;
+      var now=performance.now(), win=Math.min(15000, Math.max(2500, 2.2*60000/Math.max(5, o.bpm||60)));
+      o.win=win; o.heard={};
+      for(var k in _heard){ if(now-_heard[k].t<win) o.heard[k]=_heard[k].fam; }
+    }catch(e){}
+    return o;
+  };
+
+  // ---- the desk itself: Markov's page only -----------------------------------------------------------------------
+  function mine(){
+    try{
+      if(window._qrRole==='markova') return false;
+      if(document.body.classList.contains('mk-embedded')) return false;
+      if(/phone/.test(String(location.hash||'').toLowerCase())) return false;
+      return !!document.getElementById('top-dock');
+    }catch(e){ return false; }
+  }
+  var LS=function(k,v){ try{ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k,String(v)); }catch(e){} return null; };
+  var LAYERS=[['all','all layers'],['prelude','prelude'],['postlude','postlude'],['a','a'],['b','b'],['qr','r QR'],['nqr','r NQR'],['r2','r²'],['chord','chord'],['sustain','sustain']];
+  var NICE={qr:'r QR',nqr:'r NQR',r2:'r²',a:'a',b:'b',diag:'diag',prelude:'prelude',postlude:'postlude',sustain:'sustain',susA:'sustain a',susB:'sustain b',chord:'chord',glue:'glue',omega:'omega',hat:'hat',kick:'kick'};
+  var FAM={str:'strings',wood:'clarinet',reed:'oboe',brass:'brass',flute:'flute',pluck:'harp',bell:'celesta',bowl:'bowl'};
+  var MEAS=[['=jviolin','your violin'],['=violin','violin'],['=viola','viola'],['=cello','cello'],['=contrabass','contrabass'],['=clarinet','clarinet'],
+    ['=bassoon','bassoon'],['=flute','flute'],['=oboe','oboe'],['=horn','horn'],['=trumpet','trumpet'],['=trombone','trombone'],['=tuba','tuba'],
+    ['=harp','harp'],['=vibraphone','vibraphone'],['=glockenspiel','glockenspiel']];
+  var PRIMES=[7,13,29,53,89,113,233,541,1013], TEMPI=[60,120,240,360,480], BASES=[52,110,220,440], RATIOS=[2,3,5,7,11,13,23,89];
+
+  var D={ tab:(LS('qr_desk_tab')||'instrument'), open:(LS('qr_desk_open')!=='0'), target:(LS('qr_desk_target')||'both'), layer:(LS('qr_desk_layer')||'all'), snap:null, h:null, inPaint:false };
+  if(['both','markov','markova'].indexOf(D.target)<0) D.target='both';
+  if(!LAYERS.some(function(x){ return x[0]===D.layer; })) D.layer='all';
+  // her window, only once her page answers (a frame still loading is about:blank: no _deskPeek; a file:// frame throws)
+  function frameEl(){ try{ return document.querySelector('#duo-frame-wrap iframe'); }catch(e){ return null; } }
+  function her(){ if(D.inPaint) return D.h;
+    try{ var f=frameEl(), W=f&&f.contentWindow; if(W && W.document && W.document.body && typeof W._deskPeek==='function') return W; }catch(e){} return null; }
+  function peek(W){ try{ if(!W) return null; if(W===window) return window._deskPeek(); if(typeof W._deskPeek==='function') return W._deskPeek(); }catch(e){} return null; }
+  function fire(W, el, type){ try{ el.dispatchEvent(new W.Event(type, {bubbles:(type!=='blur')})); }catch(e){} }
+  // a typed value as a hand types it: input (the class pin), then the commit (blur for the fields that commit on blur,
+  // change for #p-num), then change (the instant apply of a continuous field)
+  function typeIn(W, id, v, onBlur){ try{ var el=W.document.getElementById(id); if(!el) return false; el.value=String(v);
+    fire(W, el, 'input'); if(onBlur) fire(W, el, 'blur'); fire(W, el, 'change'); return true; }catch(e){ return false; } }
+
+  function targets(){ var h=her(); if(D.target==='markov') return [window]; if(D.target==='markova') return h?[h]:[]; return h?[window,h]:[window]; }
+  function snapOf(W){ if(!W) return null; return (D.snap && (W===window?D.snap.me:(W===D.h?D.snap.her:null))) || peek(W); }
+  function paired(){ var P=snapOf(window); return !!(P && P.duo.on && P.duo.peer && her()); }
+  // the conductor: the window holding the baton (♛). In parts and retro the duet mirrors HIS scene, tempo and register to
+  // the other half and pulls a follower's own prime back, so the shared world is set there. In free each half keeps its own
+  // prime, and the desk's world acts on Markov (the baton holder's register window still travels).
+  function lead(){ var P=snapOf(window), h=her(); if(P && h && P.duo.on && P.duo.peer && P.duo.lead==='markova' && P.duo.mode!=='free') return h; return window; }
+  function mirrored(){ var P=snapOf(window); return paired() && (P.duo.mode==='parts' || P.duo.mode==='retro'); }
+  // sections ride the mirrored scene (secMask) in parts and retro: a toggle on the answering half alone is taken back by the
+  // next scene, so there they act on the conductor and travel; in free, unpaired or alone they follow the target
+  function secTargets(){ return mirrored()?[lead()]:targets(); }
+  // a lit state over some windows: 1 all agree, 2 some, 0 none
+  function litOver(ws, test){ var n=0, y=0; ws.forEach(function(W){ var P=snapOf(W); if(!P) return; n++; try{ if(test(P,W)) y++; }catch(e){} });
+    return (n && y===n)?1:(y?2:0); }
+  function lit(test){ return litOver(targets(), test); }
+  var noteEl=null, noteT=0;
+  function say(msg){ try{ if(typeof _fl==='function') _fl('desk', msg); }catch(e){} try{ if(noteEl){ noteEl.textContent=msg; noteT=Date.now(); } }catch(e){} }
+  function noHer(){ say('Markova’s frame is not open or not loaded yet - nothing was changed'); }
+
+  // "as written": what each layer held before the desk first changed it - his at the desk's birth (page load),
+  // hers the first time the desk sees her page answer (a reloaded frame is a new window and is snapshotted again)
+  function orig(W){ try{ if(!W.__deskOrig){ var P=peek(W); if(P && P.inst) W.__deskOrig=P.inst; } return W.__deskOrig||null; }catch(e){ return null; } }
+
+  // ---- the actions -------------------------------------------------------------------------------------------------
+  function layersFor(P){ return (D.layer==='all')?(P.lays||[]):((P.lays||[]).indexOf(D.layer)>=0?[D.layer]:[]); }
+  function setInst(v){ D.snap=null; var ws=targets(); if(!ws.length){ noHer(); return; }
+    ws.forEach(function(W){ try{ var P=peek(W); if(!P) return; var o=orig(W)||{};
+      layersFor(P).forEach(function(k){ var sel=W.document.getElementById('inst-'+k); if(!sel) return;
+        var val=(v===null)?(o[k]||'auto'):v; if(!sel.querySelector('option[value="'+val+'"]')) val='auto';
+        if(sel.value===val && (P.inst[k]||'auto')===val) return;   // already so: no pin, no flush
+        sel.value=val; fire(W, sel, 'input'); fire(W, sel, 'change'); }); }catch(e){} });
+    paint(); }
+  // (20.11, the author: "copy the line-up from Markov to Markova and back") the instruments of the chosen layer(s), carried
+  // from one window to the other through the receiving window's own mixer selects
+  function copyInst(toHer){ D.snap=null; var h=her(); if(!h){ noHer(); return; }
+    var from=toHer?window:h, to=toHer?h:window, n=0;
+    try{ var PF=peek(from), PT=peek(to); if(!PF || !PT) { noHer(); return; }
+      layersFor(PT).forEach(function(k){ var sel=to.document.getElementById('inst-'+k); if(!sel) return;
+        var val=PF.inst[k]||'auto'; if(!sel.querySelector('option[value="'+val+'"]')) return;
+        if(sel.value===val && (PT.inst[k]||'auto')===val) return;
+        sel.value=val; fire(to, sel, 'input'); fire(to, sel, 'change'); n++; }); }catch(e){}
+    say((toHer?'Markov → Markova':'Markova → Markov')+': '+(n?(n+' layer'+(n===1?'':'s')+' copied'):'the line-ups were already the same'));
+    paint(); }
+  function sameInst(){ var h=her(); if(!h) return 0; var A=snapOf(window), B=snapOf(h); if(!A || !B) return 0; var ls=layersFor(A); if(!ls.length) return 0;
+    return ls.every(function(k){ return (A.inst[k]||'auto')===(B.inst[k]||'auto'); })?1:0; }
+  function instLit(v){ return lit(function(P,W){ var ls=layersFor(P); if(!ls.length) return false; var o=(v===null)?(W.__deskOrig||null):null;
+    if(v===null && !o) return false;
+    return ls.every(function(k){ var cur=P.inst[k]||'auto'; return (v===null)?(cur===(o[k]||'auto')):(cur===v); }); }); }
+  function setSec(k){ D.snap=null; var ws=secTargets(); if(!ws.length){ noHer(); return; }
+    var want=!(litOver(ws, function(P){ return P.sec3[k]; })===1);
+    ws.forEach(function(W){ try{ var b=W.document.getElementById('sec-'+k); if(b && b.classList.contains('active')!==want) b.click(); }catch(e){} });
+    paint(); }
+  // the mask and the brightness are window state the engine reads at every note (no control of its own, only ?tmb= words);
+  // after a mask change the engine's own warm-up builds the waves the last notes used, in idle slices
+  function setTmb(key, v){ var ws=targets(); if(!ws.length){ noHer(); return; }
+    ws.forEach(function(W){ try{ if(!W._tmb || W._tmb[key]===v) return; W._tmb[key]=v;
+      if(key==='depth' && typeof W._tmbRewarm==='function' && typeof W._liveP==='function') W._tmbRewarm(W._liveP()|0, false); }catch(e){} }); paint(); }
+  function setAdsr(key, v){ var ws=targets(); if(!ws.length){ noHer(); return; }
+    ws.forEach(function(W){ try{ if(W._adsr) W._adsr[key]=v; }catch(e){} }); paint(); }
+  function setMode(m){ try{ var b=document.querySelector('#duo-mode-row button[data-mode="'+m+'"]');
+      if(b) b.click(); else if(window._qrDuo && window._qrDuo.mode) window._qrDuo.mode(m); }catch(e){} D.snap=null; paint(); }
+  // the shared world goes to the conductor's controls only: the duet's wire carries it to the other half (in parts and retro)
+  function setP(p){ p=Math.max(3, p|0); D.snap=null; typeIn(lead(), 'p-num', p, false); paint(); }
+  function stepP(dir){ D.snap=null; try{ var b=lead().document.getElementById(dir>0?'btn-p-up':'btn-p-down'); if(b) b.click(); }catch(e){} paint(); }
+  function setBpm(v){ v=Math.max(5, Math.min(999, Math.round(+v||0))); if(!v) return; D.snap=null; typeIn(lead(), 'bpm-num', v, true); paint(); }
+  function world(){ return snapOf(lead())||{}; }
+  function curRatio(){ var P=world(); return (P.lo>0 && P.hi>P.lo)?(P.hi/P.lo):2; }
+  // the base through fmin-num, then the ratio through the engine's own "min : max ratio" field (its commit runs on blur):
+  // the top = base x ratio (the engine keeps the top within 40..8000 Hz), and with "rule - ratio = prime" on, the engine
+  // settles the ratio on the nearest prime about 0.7 s after the last touch
+  function setWindow(base, ratio){ D.snap=null; var W=lead(), r=(ratio!=null)?+ratio:Math.round(curRatio()*100)/100;
+    if(base!=null){ base=Math.max(20, Math.min(2000, Math.round(+base))); typeIn(W, 'fmin-num', base, true); }
+    if(r>1) typeIn(W, 'freq-ratio-num', r, true);
+    paint(); }
+
+  // ---- the plain words ---------------------------------------------------------------------------------------------
+  // read from _applyRoleMask / _DUO_HIS / _DUO_HERS / _DUO_BED, _setDuoMode, applyRemoteScene and the 'freq' / 'bpm' wire
+  var DUO_TIP={
+    parts:'parts: Markov sings r QR, a, the prelude, sustain a and the shared bed (sustain, r², chord, glue, diag, omega, hat, kick); Markova sings r NQR, b, the postlude and sustain b. So in a linear prelude she is silent (unless a form composed by the Markovs gives her the postlude’s voice against it), and in a linear postlude he keeps only the bed. In a converging (pre/post) section each has a voice.',
+    retro:'retro: the role mask stands down, both play the full ensemble; the answering half plays the conductor’s scene with the direction reversed, from the mirror beat p - r.',
+    free:'free: both play the full ensemble; the answering half runs its own improviser and keeps its own prime and sections. The conductor’s register window still reaches it; the tempo couples only through the duet pill’s ratio, when one is chosen.',
+    pal:'palindrome: the plan owns both windows - one half plays a finite form, the other then plays it backward, note for note.' };
+  function duoSay(P){
+    if(!P) return '';
+    var lead=(P.duo.lead==='markova')?'Markova':'Markov', ans=(lead==='Markov')?'Markova':'Markov';
+    if(!her()){ var fr=frameEl();
+      return fr?'Markova’s frame is loading, or cannot be reached from this page (on file:// it is another origin): the desk drives Markov only.'
+               :'Markova’s frame is not open: Markov plays the full ensemble alone (open her from the duet pill).'; }
+    if(!(P.duo.on && P.duo.peer)) return 'not paired yet: each window plays the full ensemble; the mode takes effect once her frame has said hello.';
+    var m=P.duo.mode;
+    if(m==='parts') return '<b>parts</b>: his r QR, a, prelude, sustain a + the bed; hers r NQR, b, postlude, sustain b - in a linear prelude she is silent';
+    if(m==='retro') return '<b>retro</b>: both play everything; '+ans+' plays '+lead+'’s scene in the opposite direction, from the mirror beat p - r';
+    if(m==='free') return '<b>free</b>: both play everything; '+ans+' runs '+((ans==='Markova')?'her':'his')+' own improviser, with '+((ans==='Markova')?'her':'his')+' own prime and sections; '+lead+'’s register reaches '+((ans==='Markova')?'her':'him')+', the tempo only by the pill’s ratio';
+    if(m==='pal') return '<b>palindrome</b>: the plan owns both windows - one half plays a finite form, the other then plays it backward';
+    return m;
+  }
+  function instName(P, k){ var v=P.inst[k], f=P.heard[k];
+    if(v && v.charAt(0)==='='){ for(var i=0;i<MEAS.length;i++) if(MEAS[i][0]===v) return MEAS[i][1]; return v.slice(1); }
+    if(v && v!=='auto') return (FAM[v]||v)+' (family)';
+    return (FAM[f]||f||'?')+' (auto)'; }
+  var SEC={prelude:'prelude', main:'main', postlude:'postlude', 'pause-before':'a breath before the prime', 'pause-after':'a breath after the prime', 'next-prime':'to the next prime'};
+  function statusOf(P, who){
+    if(!P){ var fr=frameEl();
+      return {cls:'rest', t:(who!=='Markova')?'-':(fr?'her page is loading, or cannot be read from here (a file:// page opens her frame as another origin)':'her frame is not open')}; }
+    var head='p '+P.p+((P.reqP!=null && P.reqP!==P.p)?(' → '+P.reqP):'');
+    if(!P.run) return {cls:'rest', t:'stopped · '+head};
+    if(P.paused) return {cls:'rest', t:'paused · '+head};
+    var sec=SEC[P.sec]||P.sec||'?'; if(P.phase==='dual') sec+=' (two voices)';
+    var ks=Object.keys(P.heard), order=(typeof VOL_LAYERS!=='undefined')?VOL_LAYERS:ks;
+    ks.sort(function(a,b){ return order.indexOf(a)-order.indexOf(b); });
+    if(ks.length){
+      var t=head+' · '+sec+' · '+ks.map(function(k){ return (NICE[k]||k)+': '+instName(P,k); }).join(', ');
+      if(P.tacet) t+=' · the output measures silent';
+      return {cls:'', t:t};
+    }
+    var isHer=(P.role==='markova'), parts=(P.duo.on && P.duo.peer && P.duo.mode==='parts'), why;
+    if(P.phase==='pause-before'||P.phase==='pause-after') why='silent - '+sec;
+    else if(parts && isHer && P.sec==='prelude' && P.phase!=='dual') why='tacet - in parts the prelude is his';
+    else if(parts && !isHer && P.sec==='postlude' && P.phase!=='dual') why='tacet - in parts the postlude is hers (he keeps only the bed)';
+    else if(parts) why='tacet - in parts the sounding layers are '+(isHer?'his':'hers');
+    else if(P.held) why='tacet - the form holds this half silent';
+    else why='silent - no melodic layer has sounded for '+Math.round(P.win/1000)+' s';
+    return {cls:'tacet', t:head+' · '+sec+' · '+why};
+  }
+
+  // ---- the build ---------------------------------------------------------------------------------------------------
+  var root=null, body=null, tog=null, lines={}, sayEl=null, worldSay=null, worldTag=null, secTag=null, chips=[], fields=[], tgtHer=null, adsrG=null;
+  function el(tag, cls, txt, tip){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; if(tip) e.title=tip; return e; }
+  // (20.11, the author's yes to a LOW desk) the groups sit on four tabs - who / world / instrument / timbre - one in view at a
+  // time, so the open desk is a third as tall; 'all' shows everything as before
+  var TABS=[['who','who'],['world','world'],['instrument','instrument'],['timbre','timbre'],['all','all']];
+  var TAB_OF={'target':'who','duet':'who','sections':'who','the world':'world','instrument':'instrument','timbre':'timbre'};
+  function setTab(t){ TABS.forEach(function(x){ root.classList.toggle('dk-tab-'+x[0], x[0]===t); }); }
+  function grp(label, tip, cls){ var g=el('div', 'dk-g'+(cls?' '+cls:''), null, tip); g.classList.add('dk-t-'+(TAB_OF[label]||'who')); g.appendChild(el('span', 'dk-l', label)); body.appendChild(g); return g; }
+  function clus(parent, sub){ var c=el('span', 'dk-c'); if(sub) c.appendChild(el('span', 'dk-s', sub)); parent.appendChild(c); return c; }
+  // a chip: the click acts, then the chip lets the keyboard go (Space, the arrows, H, F stay the engine's keys)
+  function chip(parent, txt, tip, fn, isLit, cls){ var b=el('button', cls||'mini-tgl', txt, tip); b.type='button';
+    b.addEventListener('click', function(ev){ ev.stopPropagation(); try{ fn(); }catch(e){} try{ b.blur(); }catch(e){} }); parent.appendChild(b); chips.push([b, isLit]); return b; }
+  function field(parent, id, tip, read, commit){ var f=el('input', 'dk-n', null, tip); f.type='number'; f.id=id;
+    var go=function(){ var v=parseFloat(f.value); if(isFinite(v) && String(v)!==String(read())) commit(v); f.value=String(read()); };
+    f.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); f.blur(); } });
+    f.addEventListener('blur', go); parent.appendChild(f); fields.push([f, read]); return f; }
+
+  function build(){
+    var td=document.getElementById('top-dock'); if(!td || document.getElementById('desk')) return;
+    var css=document.createElement('style'); css.id='desk-css'; css.textContent="/* THE DESK (desk 20.11) - one strip at the top of the manual view, inside #top-dock, for both performers.\n   It speaks the dock's language: the engine's tokens (--panel, --border, --accent, --green, --mono, --sans),\n   its button classes (mini-tgl for a choice, sec-btn for a section) and the dock's uppercase sans labels.\n   Layout (reviewed 20.11): the groups flow in the order of the work - who (target, duet, sections), the world,\n   the instrument, the timbre - and wrap as whole groups; the duet line and the world grow into the space left. */\n#desk { flex: 1 1 100%; order: 99; width: 100%; min-width: 0; margin: 2px 0 0; padding: 6px 0 0;\n  border-top: 1px solid var(--border); font: 12px/1.4 var(--mono); color: var(--fg); }\nbody.viz-max #desk, body.phone-mode #desk, body.mk-embedded #desk { display: none !important; }\n#desk button { font: 12px/1.2 var(--mono); min-height: 28px; padding: 3px 8px; white-space: nowrap; }\n#desk button.mini-tgl.active { color: var(--accent); border-color: var(--accent); background: rgba(95,196,214,.22);\n  box-shadow: inset 0 0 0 1px var(--accent); font-weight: 600; }\n#desk button.sec-btn.active { box-shadow: inset 0 0 0 1px var(--green); }\n#desk button.dk-part { border-style: dashed; border-color: var(--accent); color: var(--accent); }\n#desk button.sec-btn.dk-part { border-color: var(--green); color: var(--green); }\n#desk button:disabled { opacity: .38; cursor: not-allowed; }\n#desk button:disabled:hover { border-color: var(--border); color: var(--fg); background: var(--panel2); }\n\n/* the head: the fold key and the status, one line per performer (one line each, never wrapping: the dock's height\n   must not change while the status text does - every height change re-measures the frame and the canvas) */\n#desk .dk-head { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }\n#desk #desk-tog { font: 700 12px/1.2 var(--sans); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted);\n  background: var(--panel); flex: 0 0 auto; }\n#desk #desk-tog:hover { color: var(--accent); }\n#desk .dk-st { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-top: 4px; }\n#desk .dk-line { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--fg); }\n#desk .dk-who { font: 700 12px var(--sans); letter-spacing: .08em; text-transform: uppercase; margin-right: 8px; }\n#desk .dk-who.mk { color: var(--accent); }\n#desk .dk-who.mka { color: var(--accent2); }\n#desk .dk-line.tacet .dk-what { color: var(--warn); }\n#desk .dk-line.rest .dk-what { color: var(--muted); }\n\n/* folded: the body hides and the two performers share ONE status line */\n#desk.dk-shut .dk-body { display: none; }\n#desk.dk-shut .dk-st { flex-direction: row; gap: 24px; padding-top: 5px; }\n#desk.dk-shut .dk-line { flex: 1 1 0; }\n\n/* the body: labelled groups that wrap as whole groups, then inside themselves by clusters */\n#desk .dk-body { display: flex; flex-wrap: wrap; gap: 5px 8px; margin-top: 6px; min-width: 0; }\n#desk .dk-g { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; max-width: 100%;\n  padding: 3px 8px 3px 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }\n#desk .dk-g.dk-grow { flex: 1 1 480px; flex-wrap: nowrap; }\n#desk .dk-g.dk-grow > .dk-c, #desk .dk-g.dk-grow > .dk-l { flex: none; }\n#desk .dk-g.dk-world { flex: 1 1 560px; }\n#desk .dk-g.dk-wide { flex: 1 1 100%; }\n#desk .dk-l { font: 600 12px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 2px; white-space: nowrap; }\n#desk .dk-tag { font: 12px var(--mono); color: var(--muted); white-space: nowrap; }\n#desk .dk-tag:empty, #desk .dk-note:empty { display: none; }\n#desk .dk-warn { color: var(--accent2); white-space: normal; }\n#desk .dk-note { font: 12px var(--mono); color: var(--accent2); }\n#desk .dk-c { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; min-width: 0; max-width: 100%; }\n#desk .dk-c + .dk-c { margin-left: 6px; padding-left: 8px; border-left: 1px solid var(--border); }\n#desk .dk-s { font: 12px var(--mono); color: var(--muted); margin: 0 2px 0 0; white-space: nowrap; }\n#desk .dk-say { flex: 1 1 240px; min-width: 0; font: 12px/1.35 var(--mono); color: var(--muted); white-space: normal; }\n#desk .dk-say b { color: var(--fg); font-weight: 600; }\n#desk input.dk-n { width: 60px; min-height: 28px; font: 12px var(--mono); text-align: center; color: var(--fg);\n  background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 4px; }\n#desk input.dk-n:focus { outline: none; border-color: var(--accent); }\n\n/* (20.11) the low desk: one tab of groups in view; the tab chips sit in the head line */\n#desk .dk-tabs { flex: none; display: inline-flex; gap: 3px; align-items: center; }\n#desk.dk-tab-who .dk-g:not(.dk-t-who), #desk.dk-tab-world .dk-g:not(.dk-t-world),\n#desk.dk-tab-instrument .dk-g:not(.dk-t-instrument), #desk.dk-tab-timbre .dk-g:not(.dk-t-timbre) { display: none; }\n"; document.head.appendChild(css);
+    root=el('div', D.open?'':'dk-shut'); root.id='desk';
+    var head=el('div', 'dk-head'); root.appendChild(head);
+    tog=el('button', '', '', 'fold the desk to one status line, or open it again (remembered on this computer)'); tog.id='desk-tog'; tog.type='button';
+    tog.addEventListener('click', function(ev){ ev.stopPropagation(); D.open=!D.open; LS('qr_desk_open', D.open?'1':'0'); paint(); sync(); try{ tog.blur(); }catch(e){} });
+    head.appendChild(tog);
+    if(!TABS.some(function(t){ return t[0]===D.tab; })) D.tab='instrument';
+    setTab(D.tab);
+    var tb=el('span', 'dk-tabs'); head.appendChild(tb);
+    TABS.forEach(function(t){ chip(tb, t[1], (t[0]==='all')?'show every group of the desk at once':('show the '+t[1]+' group of the desk'),
+      function(){ D.tab=t[0]; LS('qr_desk_tab', t[0]); setTab(t[0]); if(!D.open){ D.open=true; LS('qr_desk_open','1'); } paint(); sync(); },
+      function(){ return (D.open && D.tab===t[0])?1:0; }); });
+    var st=el('div', 'dk-st'); head.appendChild(st);
+    [['mk','Markov','desk-st-mk'],['mka','Markova','desk-st-mka']].forEach(function(x){
+      var ln=el('div', 'dk-line'); ln.id=x[2]; var w=el('span', 'dk-who '+x[0], x[1]), t=el('span', 'dk-what', '');
+      ln.appendChild(w); ln.appendChild(t); st.appendChild(ln); lines[x[1]]={ln:ln, t:t}; });
+    body=el('div', 'dk-body'); body.id='desk-body'; root.appendChild(body);
+
+    // 1 target
+    var g=grp('target', 'which performer the per-window controls (instrument, timbre; sections outside parts / retro) act on');
+    chip(g, 'both', 'the per-window controls act on Markov and Markova together', function(){ D.target='both'; LS('qr_desk_target','both'); paint(); }, function(){ return D.target==='both'?1:0; });
+    chip(g, 'Markov', 'the per-window controls act on Markov only (the left page)', function(){ D.target='markov'; LS('qr_desk_target','markov'); paint(); }, function(){ return D.target==='markov'?1:0; });
+    tgtHer=chip(g, 'Markova', 'the per-window controls act on Markova only (the right frame)', function(){ D.target='markova'; LS('qr_desk_target','markova'); paint(); }, function(){ return D.target==='markova'?1:0; });
+    noteEl=el('span', 'dk-note', ''); noteEl.id='desk-note'; g.appendChild(noteEl);
+
+    // 2 duet mode
+    g=grp('duet', 'the duet mode - the engine’s own mode buttons of the duet pill', 'dk-grow');
+    var c=clus(g);
+    ['parts','retro','free'].forEach(function(m){
+      chip(c, m, DUO_TIP[m], function(){ setMode(m); }, function(){ var P=snapOf(window); return (P && P.duo.mode===m)?1:0; }); });
+    sayEl=el('div', 'dk-say'); sayEl.id='desk-say'; g.appendChild(sayEl);
+
+    // 3 sections
+    g=grp('sections', 'which sections play - the engine’s own section toggles; in parts and retro they ride the duet’s scene, so they act on the conductor and reach the other half');
+    secTag=el('span', 'dk-tag', ''); g.appendChild(secTag);
+    [['pre','prelude'],['main','main'],['post','postlude']].forEach(function(s){
+      chip(g, s[1], 'include or leave out the '+s[1]+', as its own toggle does', function(){ setSec(s[0]); }, function(){ return litOver(secTargets(), function(P){ return P.sec3[s[0]]; }); }, 'sec-btn'); });
+
+    // 4 the world (shared)
+    g=grp('the world', 'the prime, the tempo and the register window: set in the window that holds the baton (♛); in parts and retro the duet’s wire carries them to the other half', 'dk-world');
+    worldTag=el('span', 'dk-tag', 'shared'); g.appendChild(worldTag);
+    c=clus(g, 'p');
+    chip(c, '−', 'the previous prime (the engine’s own ▼ button, the ↓ key)', function(){ stepP(-1); }, function(){ return 0; });
+    field(c, 'desk-p', 'type a prime and press Enter: it goes to the engine’s p field (a non-prime moves up to the next prime)', function(){ return world().p|0; }, function(v){ setP(v); });
+    chip(c, '+', 'the next prime (the engine’s own ▲ button, the ↑ key)', function(){ stepP(+1); }, function(){ return 0; });
+    PRIMES.forEach(function(p){ chip(c, String(p), 'go to p = '+p+' (typed into the engine’s p field; dashed while the request waits)', function(){ setP(p); },
+      function(){ var P=world(); return (P.p===p)?1:((P.reqP===p)?2:0); }); });
+    c=clus(g, 'tempo');
+    field(c, 'desk-bpm', 'the tempo in beats per minute, 5 to 999 - committed to the engine’s tempo field on Enter', function(){ return Math.round(world().bpm||0); }, function(v){ setBpm(v); });
+    TEMPI.forEach(function(v){ chip(c, String(v), 'tempo '+v+' beats per minute', function(){ setBpm(v); }, function(){ return (Math.round(world().bpm)===v)?1:0; }); });
+    c=clus(g, 'base Hz');
+    field(c, 'desk-base', 'the lowest frequency of the register window in Hz (20 to 2000); the ratio top : base is kept, the top stays within 8000 Hz', function(){ return Math.round(world().lo||0); }, function(v){ setWindow(v, null); });
+    BASES.forEach(function(v){ chip(c, String(v), 'base '+v+' Hz, the ratio top : base kept (the top stays within 8000 Hz)', function(){ setWindow(v, null); }, function(){ return (Math.round(world().lo)===v)?1:0; }); });
+    c=clus(g, 'top : base');
+    field(c, 'desk-ratio', 'the ratio of the top of the register to its base; the base stays. With the rule “ratio = prime” on, the engine settles it on the nearest prime', function(){ return Math.round(curRatio()*100)/100; }, function(v){ setWindow(null, v); });
+    RATIOS.forEach(function(v){ chip(c, String(v), 'top = base × '+v+', the base kept (the top stays within 8000 Hz)', function(){ setWindow(null, v); }, function(){ return (Math.abs(curRatio()-v)<0.02*v)?1:0; }); });
+    worldSay=el('span', 'dk-tag dk-warn', ''); g.appendChild(worldSay);
+
+    // 5 instrument
+    g=grp('instrument', 'the instrument of a layer - the mixer’s own instrument select of each targeted window', 'dk-wide');
+    c=clus(g, 'layer');
+    LAYERS.forEach(function(L){ chip(c, L[1], (L[0]==='all')?'the instrument chips set every layer that has an instrument (not hat and kick)':('the instrument chips set the '+L[1]+' layer only'),
+      function(){ D.layer=L[0]; LS('qr_desk_layer', L[0]); paint(); }, function(){ return D.layer===L[0]?1:0; }); });
+    c=clus(g);
+    chip(c, 'as written', 'back to what the chosen layer(s) had before the desk changed them (Markov: at page load; Markova: when her page first answered the desk)', function(){ setInst(null); }, function(){ return instLit(null); });
+    c=clus(g, 'copy');
+    chip(c, 'Markov → Markova', 'Markova takes Markov’s instruments on the chosen layer(s); lit when the two line-ups are the same', function(){ copyInst(true); }, sameInst);
+    chip(c, 'Markova → Markov', 'Markov takes Markova’s instruments on the chosen layer(s); lit when the two line-ups are the same', function(){ copyInst(false); }, sameInst);
+    c=clus(g, 'family');
+    var sel=document.getElementById('inst-qr')||document.querySelector('select.inst-sel'), fams=[];
+    try{ if(sel) for(var i=0;i<sel.options.length && fams.length<8;i++){ var o=sel.options[i]; if(o.value.charAt(0)!=='=') fams.push([o.value, o.textContent.replace(/^\W+/, '')]); } }catch(e){}
+    if(!fams.length) fams=[['auto','auto'],['str','strings'],['wood','clarinet'],['reed','oboe'],['brass','brass'],['flute','flute'],['pluck','harp'],['bell','celesta']];
+    fams.forEach(function(f){ chip(c, f[1], (f[0]==='auto')?'the engine chooses the family by register and prime':('the '+f[1]+' family: the engine picks the measured wave by register'), function(){ setInst(f[0]); }, function(){ return instLit(f[0]); }); });
+    c=clus(g, 'measured');
+    MEAS.forEach(function(m){ if(sel && !sel.querySelector('option[value="'+m[0]+'"]')) return;
+      chip(c, m[1], (m[0]==='=jviolin')?'your own violin, measured: one instrument at every pitch':('the measured '+m[1]+': one instrument at every pitch'), function(){ setInst(m[0]); }, function(){ return instLit(m[0]); }); });
+
+    // 6 timbre
+    g=grp('timbre', 'the measured timbre of each targeted window');
+    c=clus(g, 'mask');
+    [[0,'off'],[6,'-6 dB'],[12,'-12 dB'],[60,'-60 dB']].forEach(function(d){ chip(c, d[1], (d[0]?('Markov keeps the partials n with (n|p) = +1, Markova those with (n|p) = -1; the other class falls by '+d[0]+' dB'+(d[0]>=40?' (from 40 dB on the engine drops it)':'')):'no partial mask: every partial at its measured level'), function(){ setTmb('depth', d[0]); }, function(){ return lit(function(P){ return P.tmb && P.tmb.depth===d[0]; }); }); });
+    c=clus(g, 'brightness');
+    [1,2,3,4].forEach(function(k){ chip(c, String(k), 'how far the lowpasses open for the measured waves: '+k+(k===2?' (the engine’s default)':''), function(){ setTmb('brightK', k); }, function(){ return lit(function(P){ return P.tmb && P.tmb.brightK===k; }); }); });
+    adsrG=el('span', 'dk-c'); g.appendChild(adsrG);
+    adsrG.appendChild(el('span', 'dk-s', 'ADSR'));
+    chip(adsrG, 'measured', 'the measured attack, decay, sustain and release of the instrument chosen by name', function(){ setAdsr('on', true); }, function(){ return lit(function(P){ return P.adsr && P.adsr.on; }); });
+    chip(adsrG, 'off', 'the engine’s own envelope, as before the measured one', function(){ setAdsr('on', false); }, function(){ return lit(function(P){ return P.adsr && !P.adsr.on; }); });
+    adsrG.appendChild(el('span', 'dk-s', 'attack'));
+    [0.25,0.5,1,2].forEach(function(k){ chip(adsrG, '×'+k, 'the measured attack times scaled by '+k, function(){ setAdsr('att', k); }, function(){ return lit(function(P){ return P.adsr && P.adsr.att===k; }); }); });
+
+    td.appendChild(root);
+    orig(window);   // "as written" for Markov: what his layers hold at the desk's birth (page load)
+    paint(); sync();
+    // one timer, one observer, one resize listener (build runs once: it returns when #desk exists). The paint reads two
+    // small snapshots and touches the DOM only where a text or a lit state changed; nothing runs while the tab is hidden
+    // or the desk is not shown (the face, a stage, the phone route)
+    setInterval(function(){ try{ if(document.hidden || !shown()) return; paint(); herScroll(); }catch(e){} }, 400);
+    try{ if(window.ResizeObserver) new ResizeObserver(function(){ setTimeout(sync, 0); }).observe(td); }catch(e){}
+    window.addEventListener('resize', function(){ setTimeout(sync, 0); });
+  }
+  function shown(){ try{ var B=document.body.classList; return !(B.contains('face-on')||B.contains('viz-max')||B.contains('phone-mode')); }catch(e){ return true; } }
+
+  // ---- the paint (every 400 ms) ------------------------------------------------------------------------------------
+  function paint(){
+    if(!root) return;
+    D.inPaint=false; D.h=her(); D.snap={me:peek(window), her:D.h?peek(D.h):null}; D.inPaint=true;
+    try{
+      var h=D.h;
+      if(h) orig(h);   // "as written" for Markova: the first time her page answers
+      root.classList.toggle('dk-shut', !D.open);
+      var tt=(D.open?'▾':'▸')+' desk'; if(tog.textContent!==tt) tog.textContent=tt;
+      [['Markov', D.snap.me], ['Markova', D.snap.her]].forEach(function(x){ var L=lines[x[0]], s=statusOf(x[1], x[0]);
+        if(L.t.textContent!==s.t){ L.t.textContent=s.t; L.ln.title=x[0]+': '+s.t; }
+        L.ln.classList.toggle('tacet', s.cls==='tacet'); L.ln.classList.toggle('rest', s.cls==='rest'); });
+      if(!D.open) return;
+      if(tgtHer.disabled!==!h) tgtHer.disabled=!h;
+      var nt=(D.target==='markova' && !h)?'her frame is not open: the per-window controls do nothing':((noteT && Date.now()-noteT<4000)?noteEl.textContent:'');
+      if(noteEl.textContent!==nt) noteEl.textContent=nt;
+      var sy=duoSay(D.snap.me); if(sayEl._t!==sy){ sayEl._t=sy; sayEl.innerHTML=sy; sayEl.title=(D.snap.me && DUO_TIP[D.snap.me.duo.mode])||''; }
+      var ld=lead(), mi=mirrored();
+      var wt=(ld===window)?'shared':'shared · on Markova (♛)'; if(worldTag.textContent!==wt) worldTag.textContent=wt;
+      var stg=mi?'shared':''; if(secTag.textContent!==stg) secTag.textContent=stg;
+      var ws=(D.snap.me && D.snap.me.duo.mode==='free' && h)?'free: the prime and tempo set here are Markov’s own - Markova keeps hers (her tempo follows only the pill’s ratio)':'';
+      if(worldSay.textContent!==ws) worldSay.textContent=ws;
+      var ad=(D.snap.me && D.snap.me.adsr)?'':'none'; if(adsrG.style.display!==ad) adsrG.style.display=ad;
+      chips.forEach(function(x){ var v=0; try{ v=x[1]()|0; }catch(e){} var b=x[0];
+        if(b.classList.contains('active')!==(v===1)) b.classList.toggle('active', v===1);
+        if(b.classList.contains('dk-part')!==(v===2)) b.classList.toggle('dk-part', v===2); });
+      fields.forEach(function(x){ if(document.activeElement===x[0]) return; var v=String(x[1]()); if(x[0].value!==v) x[0].value=v; });
+    } finally { D.inPaint=false; }
+  }
+
+  // ---- the frame below the dock, and her page that scrolls -------------------------------------------------------
+  // The same law as the engine's _wrapTop (frame open): her wrap starts at the dock's height and fills the rest, his
+  // page is padded by it, and --dock-h tells both stages. Measured whenever the dock changes size (the desk folding,
+  // rows wrapping), not only on a window resize. His canvas re-measures after it (the page's own height changed).
+  var _lastH=-1;
+  function sync(){
+    try{
+      var td=document.getElementById('top-dock'); if(!td) return;
+      var h=td.offsetHeight||0, B=document.body.classList, wr=document.getElementById('duo-frame-wrap');
+      if(wr && B.contains('duo-framed') && !B.contains('phone-mode')){
+        if(wr.style.top!==h+'px'){ wr.style.top=h+'px'; wr.style.height='calc(100vh - '+h+'px)'; }
+        if(document.body.style.paddingTop!==h+'px') document.body.style.paddingTop=h+'px';
+        if(document.documentElement.style.getPropertyValue('--dock-h')!==h+'px') document.documentElement.style.setProperty('--dock-h', h+'px');
+      }
+      if(h!==_lastH){ _lastH=h; if(typeof resizeCanvas==='function') setTimeout(resizeCanvas, 80); }
+    }catch(e){}
+  }
+  // Her frame's html is height 100vh / overflow hidden (the engine's base rule; only below 760 px does the narrow rule
+  // let it scroll) and her body cannot scroll inside it: in the manual view (not on a stage, not on the phone route) her
+  // root scrolls, so her own panels can be reached - the rule his own page already has under body.duo-framed.
+  var HER_CSS='html:has(> body.mk-embedded:not(.viz-max):not(.phone-mode)){height:auto!important;min-height:100vh;overflow-y:auto!important}'+
+    'body.mk-embedded:not(.viz-max):not(.phone-mode){overflow-y:visible!important}';
+  function herScroll(){ try{ var W=her(); if(!W) return; var d=W.document; if(!d.head || d.getElementById('desk-her-scroll')) return;
+    var s=d.createElement('style'); s.id='desk-her-scroll'; s.textContent=HER_CSS; d.head.appendChild(s); }catch(e){} }
+
+  function boot(n){ try{ if(!mine()) return; if(!document.getElementById('engine-play') && n<50){ setTimeout(function(){ boot(n+1); }, 100); return; } build(); }catch(e){} }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ boot(0); }, 200); });
+  else setTimeout(function(){ boot(0); }, 200);
+})();
+// [desk:end]
 </script>
 
 <script>
