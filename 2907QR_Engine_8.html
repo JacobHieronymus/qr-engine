@@ -4056,6 +4056,113 @@ const _JV_LO=181.295, _JV_HI=1217.489;
 function _tmbJV(fam,f){ if(!(f>=_JV_LO && f<_JV_HI)) return false;
   if(fam==='str' || (_tmb.jv>1 && (fam==='wood'||fam==='flute'||fam==='reed'||fam==='brass'))){ _tmb.stats.jv++; return true; } return false; }
 // [jviolin:end]
+// [adsr:begin] (adsr 20.11) THE MEASURED NOTE ENVELOPE (ADSR) for an instrument chosen BY NAME ('=cello', '=harp', ...).
+// Written by tools/adsr-2011/adsr_patch.py; the table below is generated at apply time from tools/adsr-2011/adsr.json.
+// table source md5 f550fe655d4726e56184d07e983518b2 · page before the patch md5 edb806d64422fc91e630cb81a96b3582 (restore checks it)
+// Only a layer whose instrument (resolved like voiceWave: the player's choice first, then state.voiceInst) is '=NAME' with NAME
+// in this table is shaped; the eight families and '=vox:...' keep the engine's own envelopes. ?adsr=off = the page as it was.
+// Live: window._adsr = {on, att, rel, dec} (scales, read at every note) · window._adsrSt (counters) · window._adsrLog (last 300 notes:
+// [audioTime, layer, instrument, Hz, attack_ms, sustain_dB (sustained) or early decay dB/s (decaying), release_ms, written_s]).
+// Fields per instrument (arrays aligned with k = MIDI keys): r20 r10 r6 r3 = rise_ms["-20"/"-10"/"-6"/"-3"] (ms after onset to that
+// many dB under the plateau (sustained) or the peak (decaying)); s = sus_db; d = dec_ms; r = rel_ms; de/dl = dec_early/late_db_s.
+const _ADSR={"violin":{"kind":"sustained","k":[55,58,61,64,67,70,73,76,79,82,85,88,91,94,97,100],"r20":[21.0,null,54.0,36.9,27.2,19.4,14.1,7.9,21.5,18.3,48.7,19.2,15.8,55.4,39.1,25.8],"r10":[99.8,null,137.0,226.1,109.1,119.1,71.8,43.8,131.3,192.2,117.6,104.5,26.0,75.2,75.5,108.8],"r6":[271.5,null,227.2,350.0,322.4,380.0,261.9,223.1,273.0,308.2,315.4,249.1,89.6,152.3,80.1,126.9],"r3":[640.2,null,317.3,659.5,464.4,611.4,406.0,281.5,418.4,535.8,579.9,401.4,129.0,291.6,137.5,320.0],"s":[-0.6,null,-1.5,-1.5,-1.9,-1.6,-1.9,-1.0,-1.7,-1.9,-1.3,-2.0,-6.5,-1.5,-3.7,-3.4],"d":[0.0,null,22.1,30.9,29.5,42.8,66.6,0.0,25.7,45.0,23.5,18.0,50.3,18.1,222.9,32.8],"r":[56.2,55.7,60.4,58.3,61.9,57.0,56.6,57.6,67.6,57.0,55.6,60.7,51.9,57.9,55.3,40.8]},"viola":{"kind":"sustained","k":[48,51,54,57,60,63,66,69,72,75,78,81,84,87,90],"r20":[77.7,83.7,56.0,null,14.6,148.6,72.7,34.3,68.2,53.7,26.8,null,30.9,82.3,43.7],"r10":[291.8,147.7,176.0,null,132.7,433.2,151.3,95.4,294.2,82.1,189.5,null,59.2,197.3,80.6],"r6":[450.6,282.3,243.8,null,163.3,615.0,282.9,137.2,317.2,282.1,199.0,null,183.4,257.7,180.1],"r3":[879.9,362.1,512.7,null,257.8,767.8,682.3,381.9,342.1,299.5,208.5,null,541.6,430.4,207.5],"s":[-0.9,-1.4,-2.3,null,-1.2,-1.2,-0.9,-1.6,-4.2,-3.7,-4.1,null,-1.7,-2.0,-4.2],"d":[0.0,47.7,59.9,null,19.6,23.8,0.0,null,85.5,null,223.4,null,31.1,20.9,118.9],"r":[58.1,54.1,54.9,55.8,56.5,59.5,54.2,56.5,56.8,51.8,57.1,70.1,56.0,56.3,56.4]},"cello":{"kind":"sustained","k":[36,39,42,45,48,51,54,57,60,63,66,69,72,75,78,81],"r20":[25.0,14.1,43.7,3.2,6.3,17.1,11.6,0.8,3.9,8.9,6.9,1.6,2.4,1.4,4.2,1.1],"r10":[230.5,84.0,180.7,30.9,22.2,86.0,102.5,22.0,33.6,49.9,24.7,12.9,49.7,9.6,11.2,5.6],"r6":[370.1,305.8,225.7,95.5,46.9,242.0,135.2,52.2,96.3,88.4,39.1,63.4,176.2,31.9,16.7,12.6],"r3":[910.6,437.9,557.1,208.5,131.6,353.1,294.3,68.1,240.2,199.6,114.7,115.3,199.0,54.1,24.8,51.4],"s":[-1.2,-1.0,-0.8,-1.4,-2.7,-0.8,-2.7,-1.2,-3.5,-3.3,-1.2,-5.7,-5.1,-4.6,-2.6,-4.2],"d":[33.9,0.0,0.0,24.6,53.3,0.0,202.5,36.0,72.0,69.6,12.6,75.2,61.0,36.8,26.1,27.8],"r":[56.8,57.9,59.2,58.3,59.9,58.2,59.1,58.8,46.6,60.0,57.5,53.1,61.5,50.6,58.7,63.2]},"contrabass":{"kind":"sustained","k":[28,31,34,37,40,43,46,49,52,55,58,61,64,67,70],"r20":[3.7,null,88.4,108.4,27.1,9.9,2.3,1.2,1.7,1.7,1.4,3.4,1.7,24.8,0.2],"r10":[13.6,null,160.7,174.4,83.4,46.4,63.9,9.5,2.8,80.6,5.3,41.3,10.5,61.8,2.3],"r6":[62.0,null,212.1,212.9,166.8,86.1,103.1,99.9,7.1,145.9,35.8,81.3,22.8,104.1,6.9],"r3":[92.8,null,395.7,283.1,362.3,134.7,156.4,286.2,496.7,159.5,50.7,140.2,46.1,246.8,30.1],"s":[-1.9,null,-1.1,-1.1,-1.9,-1.0,-1.4,-0.7,-0.9,-2.1,-2.8,-2.5,-2.6,-2.6,-4.0],"d":[31.4,null,6.6,41.1,283.6,0.0,32.0,0.0,0.0,240.4,74.0,57.0,81.2,53.7,68.6],"r":[58.4,59.3,59.1,60.4,58.3,62.2,55.3,58.1,57.6,55.1,62.4,59.8,53.9,63.4,68.5]},"clarinet":{"kind":"sustained","k":[50,53,56,59,62,65,68,71,74,77,80,83,86,89,92],"r20":[17.8,6.2,23.8,16.6,20.4,15.7,23.9,16.4,11.9,42.6,23.5,11.8,21.6,17.7,7.6],"r10":[40.8,34.3,52.7,36.8,42.2,33.2,44.2,38.4,26.4,71.1,41.9,19.5,37.2,30.6,13.5],"r6":[53.4,48.8,64.6,48.1,54.5,43.6,54.4,55.8,190.9,83.3,52.8,26.3,45.2,36.6,16.0],"r3":[673.7,74.4,78.8,64.7,80.5,70.8,71.2,1088.9,344.0,103.4,78.8,202.9,57.0,43.0,18.7],"s":[-0.5,-1.9,-0.7,-0.1,-0.3,-0.4,-0.2,-0.3,-1.4,-2.5,-2.8,-5.0,-0.7,-0.5,-0.3],"d":[0.0,372.1,0.0,0.0,0.0,0.0,0.0,0.0,219.6,416.4,267.1,352.9,0.0,0.0,0.0],"r":[57.1,56.9,56.9,57.2,57.4,57.1,57.0,55.6,56.2,56.5,55.2,56.4,56.7,57.8,56.8]},"bassoon":{"kind":"sustained","k":[34,37,40,43,46,49,52,55,58,61,64,67,70,73],"r20":[10.4,4.1,11.6,10.1,7.9,8.0,5.6,7.0,10.9,6.0,5.6,0.3,4.6,5.3],"r10":[34.3,15.1,22.4,13.0,15.0,14.6,11.1,16.2,13.2,17.5,11.6,2.5,10.2,40.4],"r6":[35.4,18.4,24.6,20.4,16.1,16.3,14.4,17.2,20.5,27.9,17.8,3.2,15.6,53.6],"r3":[52.4,29.1,33.0,21.7,17.8,21.9,16.2,21.9,22.3,95.1,19.4,11.4,20.4,62.7],"s":[-0.3,-1.8,-0.6,-1.2,-0.8,-0.3,-1.0,-0.6,-0.7,-0.3,-0.6,-5.4,-1.0,-0.2],"d":[0.0,101.7,0.0,20.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,20.3,0.0,0.0],"r":[54.1,54.2,58.2,59.1,56.4,55.5,58.2,57.9,57.4,56.9,57.4,56.7,57.7,57.1]},"flute":{"kind":"sustained","k":[59,62,65,68,71,74,77,80,83,86,89,92,95,98],"r20":[2.6,15.8,4.8,3.7,3.9,19.6,10.8,16.0,21.0,22.8,39.5,30.7,25.0,7.8],"r10":[41.7,44.3,28.7,16.7,14.4,43.5,26.4,29.9,31.5,31.7,51.5,43.8,55.7,263.5],"r6":[72.3,73.4,45.7,22.9,20.2,57.9,33.7,37.2,36.9,35.7,56.6,48.8,61.8,302.9],"r3":[113.1,148.5,85.0,31.2,27.5,85.2,41.1,47.4,43.6,39.5,61.6,54.5,71.2,322.8],"s":[-1.5,-0.4,-0.9,-1.0,-0.8,-0.6,-1.1,-0.4,-0.4,-2.2,-0.6,-1.6,-6.0,-8.3],"d":[33.8,0.0,0.0,0.0,0.0,0.0,16.1,0.0,0.0,43.1,0.0,117.0,486.5,701.0],"r":[57.1,56.6,58.0,57.4,57.0,57.1,57.0,57.0,56.7,56.8,56.5,57.6,57.5,53.0]},"oboe":{"kind":"sustained","k":[58,61,64,67,70,73,76,79,82,85,88,91],"r20":[2.6,3.7,2.6,5.2,3.4,7.9,19.2,31.3,69.4,34.4,24.7,42.4],"r10":[28.1,32.3,22.1,32.3,49.1,32.4,39.0,73.2,89.4,49.0,36.2,83.2],"r6":[40.3,42.3,29.7,47.7,64.7,43.3,48.1,106.0,96.3,55.9,40.4,94.2],"r3":[49.5,58.1,38.2,160.0,280.6,57.6,70.3,141.8,102.3,62.5,43.5,101.7],"s":[-0.9,-0.4,-1.0,-2.6,-0.9,-2.0,-0.9,-1.0,-1.2,-0.7,-3.1,-3.1],"d":[0.0,0.0,0.0,132.5,0.0,291.6,0.0,null,30.1,0.0,153.5,159.4],"r":[56.3,56.9,57.5,56.2,56.4,53.9,56.5,56.7,56.9,57.2,57.0,58.1]},"horn":{"kind":"sustained","k":[34,37,40,43,46,49,52,55,58,61,64,67,70,73,76],"r20":[0.4,0.7,1.1,6.1,47.3,16.4,39.1,18.5,2.0,1.9,1.6,1.2,1.4,1.6,4.8],"r10":[81.6,82.2,45.6,57.7,80.2,30.4,91.8,29.5,23.3,6.8,5.8,6.7,6.3,5.7,9.8],"r6":[98.4,110.4,59.6,210.9,140.1,32.1,122.7,180.5,129.6,28.6,22.5,18.9,24.1,13.9,16.6],"r3":[131.8,168.0,93.7,782.8,406.0,325.4,264.5,308.9,327.4,78.5,30.5,45.6,43.8,19.5,21.7],"s":[-1.4,-0.7,-0.8,-0.3,-0.4,-0.5,-0.6,-0.4,-0.4,-0.6,-0.6,-0.8,-1.2,-1.4,-1.0],"d":[0.5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,40.3,97.6,0.0],"r":[62.1,59.0,53.4,55.9,57.8,55.6,56.1,57.9,56.3,57.3,56.3,56.3,56.6,57.5,57.5]},"trumpet":{"kind":"sustained","k":[54,57,60,63,66,69,72,75,78,81,84,87],"r20":[0.4,1.0,11.6,3.0,0.4,22.3,21.4,3.0,5.4,2.7,21.9,4.7],"r10":[21.0,12.5,23.0,12.9,47.9,27.9,71.2,31.4,16.2,19.4,28.2,39.8],"r6":[25.9,26.1,181.2,106.9,371.9,50.5,152.9,148.4,38.7,24.6,32.1,49.8],"r3":[32.3,166.9,353.4,229.6,709.8,153.0,263.4,315.5,148.4,99.9,44.5,53.8],"s":[-1.1,-0.5,-0.6,-0.3,-0.2,-0.4,-0.8,-0.7,-0.4,-0.3,-0.8,-1.2],"d":[0.1,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,27.3],"r":[58.2,58.3,55.1,57.5,57.2,57.5,57.4,56.5,57.0,56.5,56.9,57.5]},"trombone":{"kind":"sustained","k":[40,43,46,49,52,55,58,61,64,67,70],"r20":[0.8,9.9,26.0,1.5,1.1,2.7,16.6,12.4,12.0,14.2,8.4],"r10":[22.8,32.3,42.3,48.9,23.3,23.7,29.8,23.0,21.1,21.1,14.7],"r6":[35.5,59.5,51.5,64.0,24.4,39.3,46.3,38.5,39.4,39.2,28.8],"r3":[48.2,69.9,68.8,114.4,41.6,59.8,233.0,48.6,75.9,78.2,58.5],"s":[-2.2,-0.8,-0.5,-0.5,-3.9,-0.8,-0.2,-0.3,-0.4,-0.4,-0.2],"d":[193.6,0.0,0.0,0.0,452.2,0.0,0.0,0.0,0.0,0.0,0.0],"r":[55.9,59.8,56.2,59.5,58.6,57.3,57.8,57.0,55.7,56.6,56.8]},"tuba":{"kind":"sustained","k":[32,35,38,41,44,47,50,53,56,59,62,65],"r20":[17.5,14.6,13.8,1.9,3.9,1.0,7.3,2.3,0.8,1.0,2.2,1.5],"r10":[35.5,32.2,49.0,32.7,35.2,7.5,34.3,12.2,4.8,4.4,13.5,5.9],"r6":[36.4,46.9,69.7,55.9,60.2,23.1,76.6,16.4,20.0,14.3,20.1,14.8],"r3":[60.0,49.6,83.2,92.2,180.5,31.4,136.6,21.4,25.6,20.5,37.8,60.9],"s":[-0.7,-1.3,-0.7,-0.6,-0.5,-1.9,-0.4,-1.5,-0.6,-1.1,-1.7,-0.3],"d":[0.0,31.9,0.0,0.0,0.0,112.8,0.0,260.0,0.0,50.8,240.0,0.0],"r":[54.4,54.8,59.6,54.3,56.3,56.8,56.3,56.7,57.1,56.4,56.6,58.0]},"harp":{"kind":"decaying","k":[24,27,30,33,36,39,42,45,48,51,54,57,60,63,66,69,72,75,78,81,84,87,90,93,96,99,102],"r20":[0.9,1.0,3.4,0.3,0.9,1.1,0.9,0.4,0.4,0.0,0.4,0.3,0.9,0.6,0.3,0.3,0.4,0.3,0.4,0.4,0.3,0.3,0.2,0.1,0.2,0.2,0.1],"r10":[1.8,2.4,7.2,1.7,2.5,2.2,2.6,2.3,2.6,0.5,5.2,9.1,2.9,3.9,2.1,1.3,0.5,0.5,0.9,0.9,0.8,0.4,0.5,0.3,0.3,0.3,0.2],"r6":[7.6,6.5,14.2,5.2,6.1,4.7,5.0,5.1,5.0,2.4,6.8,11.4,4.6,6.4,3.1,2.8,0.7,0.6,1.2,1.3,1.8,0.8,0.9,0.5,0.6,0.6,0.3],"r3":[15.7,15.4,24.1,13.7,15.2,9.8,10.2,8.8,12.1,3.6,13.2,14.2,12.1,8.3,4.4,4.0,1.4,0.8,2.3,2.6,2.8,1.2,1.2,0.6,1.0,1.0,0.4],"de":[-9.1,-10.0,-7.5,-10.2,-8.6,-3.7,-8.4,-6.9,0.3,-16.5,-18.7,-12.5,-9.7,-20.6,-14.3,-11.5,-16.2,-15.2,-32.9,-34.9,-52.4,-39.5,-47.1,-27.7,-51.6,-68.2,-74.5],"dl":[-3.6,-4.0,-4.0,-7.7,-3.7,-6.3,-6.9,-8.7,-5.5,-5.6,-7.5,-11.3,-13.0,-10.4,-11.4,-11.3,-9.0,-7.6,-8.7,-10.6,-10.1,-18.9,-13.5,-20.3,-25.5,-46.4,-48.0]},"vibraphone":{"kind":"decaying","k":[53,56,59,62,65,68,71,74,77,80,83,86,89],"r20":[0.1,0.1,0.5,0.2,0.2,0.3,0.4,0.5,0.4,0.4,0.1,0.2,0.3],"r10":[0.6,0.7,18.6,1.3,0.6,2.2,4.4,3.0,2.0,1.4,0.7,1.2,1.0],"r6":[1.3,4.4,42.6,3.0,1.0,18.2,9.5,5.8,4.6,2.6,1.4,1.7,1.5],"r3":[2.5,68.7,68.9,28.9,1.6,28.2,21.5,14.1,10.9,4.1,2.2,2.2,2.2],"de":[-10.4,-10.4,-9.8,-8.3,-17.4,-15.8,-17.7,-13.5,-24.3,-13.9,-12.8,-15.3,-26.4],"dl":[-14.6,-10.9,-10.6,-8.7,-12.4,-20.9,-19.4,-16.1,-26.4,-13.7,-14.7,-15.4,-29.9]},"glockenspiel":{"kind":"decaying","k":[72,75,78,81,84,87,90,93,96,99,102,105,108],"r20":[0.1,0.1,0.0,0.1,0.0,0.1,0.2,0.0,0.1,0.1,0.0,0.0,0.1],"r10":[0.4,0.3,0.1,0.1,0.2,0.6,0.3,0.2,0.4,0.1,0.3,0.4,0.5],"r6":[0.4,0.6,0.2,0.1,0.6,1.1,0.3,0.4,0.6,0.3,0.6,0.5,0.5],"r3":[0.8,0.9,0.3,0.3,0.9,2.0,0.3,0.6,1.0,0.7,0.9,0.7,0.5],"de":[-21.0,-29.0,-33.8,-33.0,-18.9,-18.9,-15.1,-29.6,-28.9,-33.4,-27.0,-33.8,-33.7],"dl":[-5.0,-5.0,-4.2,-8.6,-8.3,-6.8,-9.1,-6.6,-15.4,-14.6,-16.7,-25.8,-24.8]},"jviolin":{"kind":"sustained","k":[55.15,55.88,56.53,57.71,58.85,60.08,60.55,61.85,62.81,63.68,64.68,65.82,66.95,67.88,68.69,69.7,71.23,71.74,72.85,73.49,74.64,75.84,76.69,77.63,78.76,79.98,80.86,81.75,84.1,85.12],"r20":[null,null,null,null,null,null,null,0.0,2.7,1.0,0.0,null,null,null,24.4,null,null,0.4,null,null,null,null,1.2,null,null,null,null,null,null,null],"r10":[null,null,null,null,null,null,null,0.2,11.3,25.9,7.3,null,null,null,283.4,null,null,22.7,null,null,null,null,32.8,null,null,null,null,null,null,null],"r6":[null,null,null,null,null,null,null,6.8,20.2,35.8,10.9,null,null,null,452.2,null,null,55.6,null,null,null,null,53.2,null,null,null,null,null,null,null],"r3":[null,null,null,null,null,null,null,9.0,29.6,46.7,22.9,null,null,null,621.4,null,null,121.0,null,null,null,null,75.7,null,null,null,null,null,null,null],"s":[null,null,null,null,null,null,null,-13.0,-2.6,-3.7,-7.1,null,null,null,-1.1,null,null,-3.9,null,null,null,null,-4.5,null,null,null,null,null,null,null],"d":[null,null,null,null,null,null,null,211.2,60.4,62.4,174.5,null,null,null,14.2,null,null,41.5,null,null,null,null,117.4,null,null,null,null,null,null,null],"r":[null,null,null,null,null,null,null,664.1,null,null,null,null,null,null,null,null,null,66.0,null,null,null,null,119.1,null,null,null,null,null,null,null]}};
+const _ADSR_CAP=2.5, _ADSR_DAMP=0.09, _ADSR_FLOOR=1e-4;   // ring bound (s, the brief); the tail governor's damper tau (s, engine); the engine's gain floor
+try{ window._adsr={on:true, att:1, rel:1, dec:1}; window._adsrSt={n:0, by:{}, route:{pulse:0, cont:0, gliss:0}, short:0, ring:0, engRel:0}; window._adsrLog=[]; }catch(e){}
+let _adsrT1=0;   // the end of the note just shaped (audio time), read once by makePannedSink for the tail registry
+// a field at MIDI key m: linear between the nearest measured keys that have a value, held at the ends; null when no key has one
+function _adsrIp(k,v,m){
+  if(!v) return null; let lo=-1, hi=-1;
+  for(let i=0;i<k.length;i++){ if(v[i]==null) continue; if(k[i]<=m) lo=i; if(k[i]>=m && hi<0) hi=i; }
+  if(lo<0 && hi<0) return null; if(lo<0) return v[hi]; if(hi<0) return v[lo]; if(k[hi]===k[lo]) return v[lo];
+  return v[lo]+(v[hi]-v[lo])*(m-k[lo])/(k[hi]-k[lo]); }
+function _adsrKey(f){ return 69+12*Math.log2(f/440); }
+function _adsrSc(x){ x=+x; return (x>0 && isFinite(x))?x:1; }   // a scale that is not a positive number counts as 1
+// the instrument of this layer, the way voiceWave reads it; null = leave the note to the engine
+function _adsrName(layer){
+  try{ if(window._adsrOff) return null; const A=window._adsr; if(!A || !A.on) return null;
+    const _io=window._instOvr; const v=(_io && (_io[layer]||_io['*'])) || (state.voiceInst && state.voiceInst[layer]);
+    if(typeof v!=='string' || v.charAt(0)!=='=') return null; const n=v.slice(1);
+    return Object.prototype.hasOwnProperty.call(_ADSR,n)?n:null; }catch(e){ return null; } }
+// PURE: the envelope of one note as gain points [seconds after onset, gain, 'l' linear | 'e' exponential], from gain 0 at onset.
+// o: {vol, gate (s: the length the engine gives the note), sa (staccato: articulated/written, <=1), sm (morph stretch: durEff/dur),
+//     moAdd (s, the engine's morph attack term), engRel (s, the engine's own release), engClose (s, the engine's short close below the
+//     measured -20 dB), minAtt, minRel (s, a glide's own entrance and
+//     exhale as floors), sc {att, rel, dec}}. Returns null when the row cannot give a shape (the engine's envelope is kept).
+function _adsrPlan(row,f,o){
+  if(!row || !(f>0) || !o) return null; const vol=+o.vol, D=+o.gate; if(!(vol>_ADSR_FLOOR) || !(D>0)) return null;
+  const m=_adsrKey(f), ip=(x)=>_adsrIp(row.k,row[x],m), sc=o.sc||{};
+  const sA=_adsrSc(sc.att), sR=_adsrSc(sc.rel), sD=_adsrSc(sc.dec);
+  const sa=(o.sa>0)?Math.min(1,o.sa):1, sm=(o.sm>0)?o.sm:1, moAdd=Math.max(0,+o.moAdd||0);
+  const decaying=(row.kind==='decaying');
+  const r3=ip('r3'); if(r3==null) return null;
+  let S=null; if(!decaying){ S=ip('s'); S=(S==null)?0:Math.min(0,S); }
+  const ref=decaying?0:S;   // sustained rise points are re the plateau, which sits S dB under the peak
+  // ATTACK: to the peak (= vol, the level the engine gave the note) at the measured -3 dB time, through the -20/-10/-6 dB points
+  const A0=Math.max(0,r3)/1000; let A=A0*sA*sa+moAdd, short=false;
+  if(o.minAtt>0 && A<o.minAtt) A=+o.minAtt;
+  A=Math.max(0.001,A);
+  const kA=(A0>0)?A/A0:0, pts=[]; let last=0;
+  for(const [x,lv] of [['r20',-20],['r10',-10],['r6',-6]]){ const r=ip(x); if(r==null) continue; const tt=(Math.max(0,r)/1000)*kA;
+    if(!(tt>last+1e-5 && tt<A-1e-5)) continue; pts.push([tt, vol*Math.pow(10,(lv+ref)/20), 'l']); last=tt; }
+  const squeeze=(lim)=>{ if(A>lim){ const k=lim/A; for(const p of pts) p[0]*=k; A=lim; short=true; } };
+  if(!decaying){
+    const gS=vol*Math.pow(10,S/20);
+    let Dd=ip('d'); Dd=(Dd==null)?0:(Math.max(0,Dd)/1000)*sD*sa;
+    // RELEASE inside the gate: the measured fall of 20 dB over rel_ms (only that span was measured), then the engine's own short
+    // close (engClose) from there to the floor; where rel_ms is null for the whole row, the engine's own release of this route
+    const rel=ip('r'); let R, R20=0, Rc=0, relSrc='measured';
+    if(rel!=null && rel>0){ R20=(rel/1000)*sR*sa; Rc=Math.max(0.001,+o.engClose||0.001); R=R20+Rc; }
+    else { R=Math.max(0,+o.engRel||0)*sR; relSrc='engine'; }
+    if(o.minRel>0 && R<o.minRel){ const k=o.minRel/R; R20*=k; Rc*=k; R=+o.minRel; }
+    if(R<0.001){ R=0.001; R20=0; Rc=0; }
+    // A SHORT NOTE (attack + release longer than the gate): the release keeps at most half the gate (its two parts in proportion),
+    // the attack (all its points together) is shortened in proportion into what is left: the note still reaches its peak, ends at the gate
+    if(A+R>D){ short=true; if(R>0.5*D){ const k=0.5*D/R; R20*=k; Rc*=k; R=0.5*D; } squeeze(D-R); }
+    pts.push([A, vol, 'l']);
+    const H=(D-R)-A; let lvEnd=0;   // dB re peak at the start of the release
+    if(S<0 && H>1e-5){
+      if(Dd<=1e-5){ const tt=A+Math.min(0.001,H); pts.push([tt, gS, 'e']); lvEnd=S; }
+      else if(Dd<=H){ pts.push([A+Dd, gS, 'e']); lvEnd=S; }
+      else { lvEnd=S*(H/Dd); pts.push([D-R, vol*Math.pow(10,lvEnd/20), 'e']); }
+    }
+    if((D-R)>pts[pts.length-1][0]+1e-5) pts.push([D-R, vol*Math.pow(10,lvEnd/20), 'l']);
+    if(R20>0 && Rc>0) pts.push([D-Rc, vol*Math.pow(10,(lvEnd-20)/20), 'e']);
+    pts.push([D, _ADSR_FLOOR, 'e']);
+    return {kind:'sustained', A, end:D, gate:D, R, R20, Rc, S, relSrc, short, pts}; }
+  // DECAYING: near-instant attack, the measured early slope to 0.6 s after onset, the late slope after it, no note-off; it rings past
+  // its step until the floor or _ADSR_CAP, where it is damped like the tail governor damps (tau 0.09 s) so it ends exactly there
+  let de=ip('de'), dl=ip('dl'); if(de==null && dl==null) return null; if(de==null) de=dl; if(dl==null) dl=de;
+  const T=sa*sm*sD; de=Math.min(0,de)/T; dl=Math.min(0,dl)/T;
+  squeeze(D);
+  pts.push([A, vol, 'l']);
+  const drop=20*Math.log10(vol/_ADSR_FLOOR), t1=Math.max(A,0.6*T);
+  const L=(x)=>(x<=t1)?de*(x-A):de*(t1-A)+dl*(x-t1);   // dB re peak
+  let tn=Infinity; if(de<0 && -de*(t1-A)>=drop) tn=A+drop/(-de); else if(dl<0) tn=t1+(drop+L(t1))/(-dl);
+  const g=(x)=>vol*Math.pow(10,L(x)/20);
+  let end, damp=0;
+  if(tn<=_ADSR_CAP){ end=Math.max(tn,A+0.001); if(t1>A+1e-5 && t1<end-1e-5) pts.push([t1, g(t1), 'e']); }
+  else { end=_ADSR_CAP; const Sd=(20/Math.LN10)/(_ADSR_DAMP*sR); const h=(x)=>L(x)-Sd*(end-x)+drop;
+    let ts=A; if(h(A)<0){ let lo=A, hi=end; for(let i=0;i<48;i++){ const mid=0.5*(lo+hi); if(h(mid)<0) lo=mid; else hi=mid; } ts=lo; }
+    if(t1>A+1e-5 && t1<ts-1e-5) pts.push([t1, g(t1), 'e']);
+    if(ts>A+1e-5 && ts<end-1e-5) pts.push([ts, g(ts), 'e']);
+    damp=end-Math.max(A,ts); }
+  pts.push([end, _ADSR_FLOOR, 'e']);
+  return {kind:'decaying', A, end, gate:D, R:damp, de, dl, short, pts}; }
+// one note: plan it, count it, log it
+function _adsrNote(name,route,t,freq,vol,o){
+  try{ o.sc=window._adsr||{}; o.vol=vol; const P=_adsrPlan(_ADSR[name],freq,o); if(!P) return null;
+    const St=window._adsrSt; if(St){ St.n++; St.by[name]=(St.by[name]||0)+1; St.route[route]=(St.route[route]||0)+1; if(P.short) St.short++; if(P.end>P.gate+1e-6) St.ring++; if(P.relSrc==='engine') St.engRel++; }
+    const Lg=window._adsrLog; if(Lg){ const r1=(x)=>Math.round(x*10)/10;
+      Lg.push([Math.round(t*1000)/1000, (typeof _emitLayer!=='undefined')?_emitLayer:null, name, r1(freq), r1(P.A*1000), r1(P.kind==='sustained'?P.S:P.de), r1(P.R*1000), Math.round((+o.written||P.gate)*1000)/1000]);
+      if(Lg.length>300) Lg.splice(0,Lg.length-300); }
+    return P; }catch(e){ return null; } }
+// write the plan into a gain AudioParam; the note ends at t+P.end (osc.stop, the tape and the tail registry are given that end)
+function _adsrApply(gp,t,P){
+  gp.setValueAtTime(0,t);
+  for(const p of P.pts){ const v=Math.max(_ADSR_FLOOR,p[1]); if(p[2]==='e') gp.exponentialRampToValueAtTime(v,t+p[0]); else gp.linearRampToValueAtTime(v,t+p[0]); }
+  gp.setValueAtTime(0,t+P.end);
+  _adsrT1=t+P.end; }
+// [adsr:end]
 let _tmbF=null, _tmbLay=null, _tmbFlag=false;          // the pitch and layer voiceWave hands to _vw; «this note's wave is measured» for _brightFilter
 // the prime and the class: the window's own — or, while the palindrome's mirror replays a note, the ones it was written in
 function _tmbIsHer(){ try{ if(typeof _ambIsHer==='function') return _ambIsHer(); return window._qrRole==='markova' || document.body.classList.contains('mk-embedded'); }catch(e){ return false; } }   // (10.11) her half, in the stereo master as in the sphere
@@ -6138,7 +6245,7 @@ function makePannedSink(lG,rG,noteVol,traj){
   }
   // register with the tail governor (t1x = generous upper bound: morph can stretch
   // the sounding length up to ~1.85x, so expire entries at 2xdur + a breath)
-  if(traj && traj.t!=null){ _ringReg.push({sp, lay, t0:traj.t, t1x:traj.t+Math.max(0.05,(traj.dur||0.1))*2+0.25}); }
+  if(traj && traj.t!=null){ _ringReg.push({sp, lay, t0:traj.t, t1x:Math.max(traj.t+Math.max(0.05,(traj.dur||0.1))*2+0.25, _adsrT1>0?_adsrT1+0.25:0)}); } _adsrT1=0;   // (adsr 20.11) a measured ring keeps its entry until it has ended
   return sp;
 }
 
@@ -6236,7 +6343,7 @@ function schedulePulseSine(t,dur,freq,vol,pL,pR,opts){
     // while the bowls flowed. The subtle silent-dot case is the lesser evil.)
     _medVoices.push(t+Math.max(0.3,dur||0.3));
   }
-  dur=_articDur(dur);
+  const _adW=dur; dur=_articDur(dur);   // (adsr 20.11) the written length, before the staccato
   const osc=ctx.createOscillator(); osc.setPeriodicWave(voiceWave(_emitLayer, freq)); osc.frequency.value=freq;
   const env=ctx.createGain();
   // ATTACK ↔ MORPH (universal slider, author 10.07): at 0 the note is a crisp
@@ -6247,38 +6354,44 @@ function schedulePulseSine(t,dur,freq,vol,pL,pR,opts){
   // untouched (their 1.85x is well inside), but long notes/chords at high morph can
   // no longer smear whole seconds into the next material (part of the tail-mush fix)
   const durEff=Math.min(dur*(1+mo*0.85), dur+2.2*(60/(state.bpm||60)));
-  if(_tArgs) _tapeNote('pulse',_tArgs,durEff);
-  const att=Math.min(durEff*0.6, Math.max(0.003,(QRA.attQR||0.012)*0.6) + mo*durEff*0.42);
+  const _adN=_adsrName(_emitLayer), _AE=_adN?_adsrNote(_adN,'pulse',t,freq,vol,{gate:durEff, sa:(_adW>0?dur/_adW:1), sm:(dur>0?durEff/dur:1), moAdd:mo*durEff*0.42, engClose:Math.max(0.006,QRA.relQR||0.018), engRel:durEff-Math.max(Math.min(durEff*0.6, Math.max(0.003,(QRA.attQR||0.012)*0.6) + mo*durEff*0.42)+0.001, durEff*Math.min(0.95,((opts&&opts.decay)||(QRA.decNQR||0.5))+mo*0.4)), written:_adW}):null;   // (adsr 20.11)
+  if(_tArgs) _tapeNote('pulse',_tArgs,_AE?Math.max(durEff,_AE.end):durEff);   // (adsr 20.11)
+  const att=_AE?_AE.A:Math.min(durEff*0.6, Math.max(0.003,(QRA.attQR||0.012)*0.6) + mo*durEff*0.42);   // (adsr 20.11)
   if(att>_beatAttNext) _beatAttNext=att;
+  if(_AE) _adsrApply(env.gain,t,_AE); else {   // (adsr 20.11)
   const dec=(opts&&opts.decay)||(QRA.decNQR||0.5);
   env.gain.setValueAtTime(1e-4,t);
   env.gain.exponentialRampToValueAtTime(Math.max(1e-4,vol),t+att);
   env.gain.exponentialRampToValueAtTime(Math.max(1e-4,vol*0.5),t+Math.max(att+0.001,durEff*Math.min(0.95,dec+mo*0.4)));
   env.gain.exponentialRampToValueAtTime(1e-4,t+durEff);
   env.gain.setValueAtTime(0,t+durEff);
+  }   // (adsr 20.11)
   osc.detune.value=_qrMicroDetune(freq);
   const sink=makePannedSink(pL,pR,vol,{t,dur});
   const bf=_brightFilter(t,dur,freq); osc.connect(bf.in); bf.out.connect(env); env.connect(sink);
   _qrExcite(t,dur,freq,vol,sink,'pulse');
-  osc.start(t); osc.stop(t+durEff+0.02);
+  osc.start(t); osc.stop(t+(_AE?Math.max(durEff,_AE.end):durEff)+0.02);   // (adsr 20.11)
 }
 
 function scheduleContinuousSine(t,dur,freq,vol,pL,pR,qrBeats){
-  _tapeNote('cont',arguments,dur);
+  const _adN=(qrBeats&&qrBeats.length>0)?null:_adsrName(_emitLayer), _AE=_adN?_adsrNote(_adN,'cont',t,freq,vol,{gate:dur, engClose:Math.max(0.006,QRA.relQR||0.018), engRel:(dur>1.2)?Math.min(0.7,Math.max(0.12,dur*0.14)):Math.max(0.006,QRA.relQR||0.018), written:dur}):null;   // (adsr 20.11)
+  _tapeNote('cont',arguments,_AE?Math.max(dur,_AE.end):dur);
   const osc=ctx.createOscillator(); osc.setPeriodicWave(voiceWave(_emitLayer, freq)); osc.frequency.value=freq;
   const env=ctx.createGain();
-  const a=(dur>1.2)?Math.min(0.45,Math.max(0.03,dur*0.08)):Math.max(0.004,QRA.attQR||0.012);   // long tones enter like a bow
+  const a=_AE?_AE.A:((dur>1.2)?Math.min(0.45,Math.max(0.03,dur*0.08)):Math.max(0.004,QRA.attQR||0.012));   // long tones enter like a bow
   if(a>_beatAttNext) _beatAttNext=a;
   const rl=(dur>1.2)?Math.min(0.7,Math.max(0.12,dur*0.14)):Math.max(0.006,QRA.relQR||0.018);    // and leave on an exhale
   const hold0=t+a, hold1=t+Math.max(a+0.001,dur-rl);
+  if(_AE) _adsrApply(env.gain,t,_AE); else {   // (adsr 20.11)
   envHoldTremolo(env.gain, t, hold0, hold1, vol, qrBeats, 60/state.bpm);
   if(qrBeats) detuneHoldTremolo(osc.detune, t, hold0, hold1, qrBeats, 60/state.bpm);
   env.gain.exponentialRampToValueAtTime(1e-4,t+dur);
   env.gain.setValueAtTime(0,t+dur);
+  }   // (adsr 20.11)
   const sinkC=makePannedSink(pL,pR,vol,{t,dur});
   const bf=_brightFilter(t,dur,freq,true); osc.connect(bf.in); bf.out.connect(env); env.connect(sinkC);   // continuous = held → settle+hold
   _qrExcite(t,dur,freq,vol,sinkC,'cont');
-  osc.start(t); osc.stop(t+dur+0.02);
+  osc.start(t); osc.stop(t+(_AE?Math.max(dur,_AE.end):dur)+0.02);   // (adsr 20.11)
 }
 
 // One long sustained note (the p/n second voice). Spans many beats with a
@@ -6462,20 +6575,23 @@ function pulseModeForBeat(beatIdx, fixedPts){
 }
 
 function scheduleGlissSine(t,dur,f0,f1,vol,pL,pR){
-  _tapeNote('gliss',arguments,dur);
+  const _adN=_adsrName(_emitLayer), _AE=_adN?_adsrNote(_adN,'gliss',t,f0,vol,{gate:dur, engClose:Math.max(0.006,QRA.relQR||0.018), minAtt:Math.min(0.25,Math.max(0.010,dur*0.06)), minRel:Math.min(0.6,Math.max(0.09,dur*0.16)), engRel:Math.min(0.6,Math.max(0.09,dur*0.16)), written:dur}):null;   // (adsr 20.11)
+  _tapeNote('gliss',arguments,_AE?Math.max(dur,_AE.end):dur);
   const osc=ctx.createOscillator(); osc.setPeriodicWave(voiceWave(_emitLayer, f0));
   osc.frequency.setValueAtTime(f0,t); osc.frequency.linearRampToValueAtTime(f1,t+dur);
   const env=ctx.createGain();
   // a sung entrance and a real exhale (author 29.07) — the old 10/12 ms gates read as cuts
-  const _gAtt=Math.min(0.25,Math.max(0.010,dur*0.06));
+  const _gAtt=_AE?_AE.A:Math.min(0.25,Math.max(0.010,dur*0.06));
   if(_gAtt>_beatAttNext) _beatAttNext=_gAtt;
   const _gRel=Math.min(0.6,Math.max(0.09,dur*0.16));
+  if(_AE) _adsrApply(env.gain,t,_AE); else {   // (adsr 20.11)
   env.gain.setValueAtTime(0,t); env.gain.linearRampToValueAtTime(vol,t+_gAtt);
   env.gain.setValueAtTime(vol,t+Math.max(_gAtt+0.001,dur-_gRel));
   env.gain.exponentialRampToValueAtTime(1e-4,t+dur);
   env.gain.setValueAtTime(0,t+dur);
+  }   // (adsr 20.11)
   const bf=_brightFilter(t,dur,(f0+f1)/2,true); osc.connect(bf.in); bf.out.connect(env); env.connect(makePannedSink(pL,pR,vol,{t,dur}));   // glide = held → settle+hold
-  osc.start(t); osc.stop(t+dur+0.02);
+  osc.start(t); osc.stop(t+(_AE?Math.max(dur,_AE.end):dur)+0.02);   // (adsr 20.11)
 }
 
 function scheduleDiagBell(t,dur,freq,vol,pL,pR){
